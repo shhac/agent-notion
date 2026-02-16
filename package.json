@@ -1,0 +1,24 @@
+{
+  "name": "agent-notion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Notion CLI for humans and LLMs",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target=bun --sourcemap",
+    "test": "bun test",
+    "lint": "oxlint .",
+    "fmt": "oxfmt --write ."
+  },
+  "dependencies": {
+    "@notionhq/client": "^2.3.0",
+    "commander": "^14.0.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.0",
+    "oxfmt": "^0.28.0",
+    "oxlint": "^1.43.0",
+    "typescript": "^5.8.2"
+  }
+}
