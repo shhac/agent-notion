@@ -6,11 +6,18 @@
   "description": "Notion CLI for humans and LLMs",
   "type": "module",
   "scripts": {
-    "dev": "bun run src/index.ts",
+    "clean": "rm -rf dist",
     "build": "bun build src/index.ts --outdir dist --target=bun --sourcemap",
+    "dev": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit",
     "test": "bun test",
     "lint": "oxlint .",
-    "fmt": "oxfmt --write ."
+    "lintf": "oxlint --fix .",
+    "lint:fix": "oxlint --fix .",
+    "fmt": "oxfmt --write .",
+    "fmt:check": "oxfmt --check .",
+    "build:release": "sh ./scripts/build-release-assets.sh",
+    "release": "sh ./scripts/release.sh"
   },
   "dependencies": {
     "@notionhq/client": "^2.3.0",
