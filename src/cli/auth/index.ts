@@ -3,6 +3,7 @@ import { registerLogin } from "./login.ts";
 import { registerLogout } from "./logout.ts";
 import { registerSetupOAuth } from "./setup-oauth.ts";
 import { registerStatus } from "./status.ts";
+import { registerUsage } from "./usage.ts";
 import { registerWorkspace } from "./workspace.ts";
 
 export function registerAuthCommand(program: Command): void {
@@ -15,4 +16,5 @@ export function registerAuthCommand(program: Command): void {
   registerLogout(auth);
   registerStatus(auth);
   registerWorkspace(auth);
+  registerUsage(auth);
 }
