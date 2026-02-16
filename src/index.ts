@@ -10,11 +10,12 @@ import { registerCommentCommand } from "./cli/comment/index.ts";
 import { registerUserCommand } from "./cli/user/index.ts";
 import { registerConfigCommand } from "./cli/config/index.ts";
 import { registerUsageCommand } from "./cli/usage/index.ts";
+import { getPackageVersion } from "./lib/version.ts";
 
 const program = new Command()
   .name("agent-notion")
   .description("Notion CLI for humans and LLMs")
-  .version("0.1.0");
+  .version(getPackageVersion());
 
 program.option(
   "--expand <fields>",
