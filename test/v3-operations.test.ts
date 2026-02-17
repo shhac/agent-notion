@@ -508,32 +508,42 @@ describe("buildV3PropertyValue", () => {
   });
 });
 
-describe("injectCommentDecoration", () => {
-  const discId = "disc-123";
+describe("addDecorationToRange", () => {
+  const dec: [string, string] = ["m", "disc-123"];
 
-  test("annotates target text in a single plain segment", () => {
+  test("annotates start of a single plain segment", () => {
     const richText: [string][] = [["hello world"]];
-    const result = injectCommentDecoration(richText, "hello", discId);
+    const result = addDecorationToRange(richText, 0, 5, dec);
     expect(result).toEqual([
-      ["hello", [["m", discId]]],
+      ["hello", [["m", "disc-123"]]],
       [" world"],
     ]);
   });
 
-  test("annotates text at the end of a segment", () => {
+  test("annotates end of a segment", () => {
     const richText: [string][] = [["hello world"]];
-    const result = injectCommentDecoration(richText, "world", discId);
+    const result = addDecorationToRange(richText, 6, 11, dec);
     expect(result).toEqual([
       ["hello "],
-      ["world", [["m", discId]]],
+      ["world", [["m", "disc-123"]]],
     ]);
   });
 
   test("annotates entire segment", () => {
     const richText: [string][] = [["hello"]];
-    const result = injectCommentDecoration(richText, "hello", discId);
+    const result = addDecorationToRange(richText, 0, 5, dec);
     expect(result).toEqual([
-      ["hello", [["m", discId]]],
+      ["hello", [["m", "disc-123"]]],
+    ]);
+  });
+
+  test("annotates middle of a segment (3-way split)", () => {
+    const richText: [string][] = [["say hello there"]];
+    const result = addDecorationToRange(richText, 4, 9, dec);
+    expect(result).toEqual([
+      ["say "],
+      ["hello", [["m", "disc-123"]]],
+      [" there"],
     ]);
   });
 
@@ -542,60 +552,71 @@ describe("injectCommentDecoration", () => {
       ["hello", [["b"]]],
       [" world"],
     ];
-    const result = injectCommentDecoration(richText, "hello", discId);
+    const result = addDecorationToRange(richText, 0, 5, dec);
     expect(result).toEqual([
-      ["hello", [["b"], ["m", discId]]],
+      ["hello", [["b"], ["m", "disc-123"]]],
       [" world"],
     ]);
   });
 
-  test("splits a decorated segment when target is a substring", () => {
+  test("splits a decorated segment when range is a subset", () => {
     const richText: ([string] | [string, [string, ...unknown[]][]])[] = [
       ["hello world", [["b"]]],
     ];
-    const result = injectCommentDecoration(richText, "hello", discId);
+    const result = addDecorationToRange(richText, 0, 5, dec);
     expect(result).toEqual([
-      ["hello", [["b"], ["m", discId]]],
+      ["hello", [["b"], ["m", "disc-123"]]],
       [" world", [["b"]]],
     ]);
   });
 
-  test("annotates text spanning multiple segments", () => {
+  test("decorates range spanning multiple segments", () => {
     const richText: [string][] = [["hel"], ["lo world"]];
-    const result = injectCommentDecoration(richText, "hello", discId);
+    // "hello" is chars 0-5, spanning both segments
+    const result = addDecorationToRange(richText, 0, 5, dec);
     expect(result).toEqual([
-      ["hel", [["m", discId]]],
-      ["lo", [["m", discId]]],
+      ["hel", [["m", "disc-123"]]],
+      ["lo", [["m", "disc-123"]]],
       [" world"],
     ]);
   });
 
-  test("throws when target text is not found", () => {
-    const richText: [string][] = [["hello world"]];
-    expect(() => injectCommentDecoration(richText, "goodbye", discId)).toThrow(/not found/);
-  });
-
-  test("throws when target text is empty", () => {
-    const richText: [string][] = [["hello world"]];
-    expect(() => injectCommentDecoration(richText, "", discId)).toThrow(/cannot be empty/);
-  });
-
-  test("annotates first occurrence only", () => {
-    const richText: [string][] = [["the cat and the dog"]];
-    const result = injectCommentDecoration(richText, "the", discId);
+  test("leaves segments outside the range unchanged", () => {
+    const richText: [string][] = [["aaa"], ["bbb"], ["ccc"]];
+    const result = addDecorationToRange(richText, 3, 6, dec);
     expect(result).toEqual([
-      ["the", [["m", discId]]],
-      [" cat and the dog"],
+      ["aaa"],
+      ["bbb", [["m", "disc-123"]]],
+      ["ccc"],
     ]);
   });
 
-  test("handles target in the middle of a segment", () => {
-    const richText: [string][] = [["say hello there"]];
-    const result = injectCommentDecoration(richText, "hello", discId);
+  test("handles range partially overlapping a segment at the start", () => {
+    const richText: [string][] = [["abcdef"]];
+    const result = addDecorationToRange(richText, 2, 4, dec);
     expect(result).toEqual([
-      ["say "],
-      ["hello", [["m", discId]]],
-      [" there"],
+      ["ab"],
+      ["cd", [["m", "disc-123"]]],
+      ["ef"],
+    ]);
+  });
+
+  test("throws on invalid range (start >= end)", () => {
+    expect(() => addDecorationToRange([["hello"]], 3, 3, dec)).toThrow(/Invalid range/);
+    expect(() => addDecorationToRange([["hello"]], 5, 2, dec)).toThrow(/Invalid range/);
+  });
+
+  test("throws on negative start", () => {
+    expect(() => addDecorationToRange([["hello"]], -1, 3, dec)).toThrow(/Invalid range/);
+  });
+
+  test("works with any decoration type", () => {
+    const boldDec: [string] = ["b"];
+    const richText: [string][] = [["hello world"]];
+    const result = addDecorationToRange(richText, 0, 5, boldDec);
+    expect(result).toEqual([
+      ["hello", [["b"]]],
+      [" world"],
     ]);
   });
 });

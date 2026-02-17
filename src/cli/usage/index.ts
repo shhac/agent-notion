@@ -19,7 +19,8 @@ COMMANDS:
   block append <page-id> --content <md>      Append content
 
   comment list <page-id>                     List comments
-  comment add <page-id> <body>               Add comment
+  comment page <page-id> <body>              Add page-level comment
+  comment inline <block-id> <body> --text <t>  Add inline comment on text
 
   user list                                  Workspace users
   user me                                    Bot user identity
