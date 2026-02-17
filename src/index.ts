@@ -9,6 +9,7 @@ import { registerBlockCommand } from "./cli/block/index.ts";
 import { registerCommentCommand } from "./cli/comment/index.ts";
 import { registerUserCommand } from "./cli/user/index.ts";
 import { registerConfigCommand } from "./cli/config/index.ts";
+import { registerExportCommand } from "./cli/export/index.ts";
 import { registerUsageCommand } from "./cli/usage/index.ts";
 import { getPackageVersion } from "./lib/version.ts";
 
@@ -40,6 +41,7 @@ registerPageCommand(program);
 registerBlockCommand(program);
 registerCommentCommand(program);
 registerUserCommand(program);
+registerExportCommand(program);
 registerConfigCommand(program);
 registerUsageCommand(program);
 

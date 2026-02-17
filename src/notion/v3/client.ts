@@ -214,7 +214,36 @@ export class V3HttpClient {
   get spaceId_(): string {
     return this.spaceId;
   }
+
+  // --- Export endpoints ---
+
+  async enqueueTask(task: {
+    eventName: string;
+    request: Record<string, unknown>;
+  }): Promise<{ taskId: string }> {
+    return this.post("enqueueTask", { task });
+  }
+
+  async getTasks(
+    taskIds: string[],
+  ): Promise<{ results: V3ExportTask[] }> {
+    return this.post("getTasks", { taskIds });
+  }
 }
+
+// --- Export task type ---
+
+export type V3ExportTask = {
+  id: string;
+  eventName: string;
+  state: "not_started" | "in_progress" | "success" | "failure";
+  status?: {
+    type?: string;
+    pagesExported?: number;
+    exportURL?: string;
+  };
+  error?: string;
+};
 
 // --- RecordMap type ---
 
@@ -327,7 +356,7 @@ export type V3Comment = {
   parent_id: string;
   parent_table: string;
   text: V3RichText;
-  created_by: string;
+  created_by_id: string;
   created_by_table: string;
   created_time: number;
   last_edited_time: number;

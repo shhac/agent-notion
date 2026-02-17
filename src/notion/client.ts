@@ -118,6 +118,32 @@ export async function withBackend<T>(
   }
 }
 
+/**
+ * Get a V3HttpClient directly for v3-only features (export, etc.).
+ * Throws if no v3 session is configured.
+ */
+export function createV3Client(): V3HttpClient {
+  const v3Session = getV3Session();
+  if (!v3Session) {
+    throw new NotionClientError(
+      "Export requires a v3 desktop session. Run 'agent-notion auth import-desktop' first.",
+      "v3_required",
+    );
+  }
+  const tokenV2 = resolveV3Token();
+  if (!tokenV2) {
+    throw new NotionClientError(
+      "Desktop token not found. Run 'agent-notion auth import-desktop' to set up.",
+      "v3_required",
+    );
+  }
+  return new V3HttpClient({
+    tokenV2,
+    userId: v3Session.user_id,
+    spaceId: v3Session.space_id,
+  });
+}
+
 // --- Legacy compatibility ---
 
 /**
