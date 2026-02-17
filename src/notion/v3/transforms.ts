@@ -14,6 +14,7 @@ import type {
   DatabaseSchema,
   QueryRow,
   PageDetail,
+  CommentItem,
   UserItem,
   UserMe,
 } from "../types.ts";
@@ -24,6 +25,8 @@ import type {
   V3Collection,
   V3PropertySchema,
   V3User,
+  V3Discussion,
+  V3Comment,
 } from "./client.ts";
 
 // --- Rich text ---
@@ -481,6 +484,80 @@ export function transformV3UserMe(user: V3User, spaceName?: string): UserMe {
     type: "person",
     workspaceName: spaceName,
   };
+}
+
+// --- Reverse transforms (write direction) ---
+
+/** Convert a plain text string to v3 rich text format. */
+export function toV3RichText(text: string): V3RichText {
+  return [[text]];
+}
+
+/** Reverse of V3_BLOCK_TYPE_MAP: official API block type → v3 block type. */
+const OFFICIAL_TO_V3_BLOCK_TYPE: Record<string, string> = {};
+for (const [v3Type, officialType] of Object.entries(V3_BLOCK_TYPE_MAP)) {
+  // First entry wins (avoids collection_view overwriting collection_view_page for child_database)
+  if (!(officialType in OFFICIAL_TO_V3_BLOCK_TYPE)) {
+    OFFICIAL_TO_V3_BLOCK_TYPE[officialType] = v3Type;
+  }
+}
+
+/** Convert an official API block type to its v3 equivalent. */
+export function officialBlockTypeToV3(type: string): string {
+  return OFFICIAL_TO_V3_BLOCK_TYPE[type] ?? type;
+}
+
+/**
+ * Convert a property value to v3 rich text format based on schema type.
+ * Supports simple types; throws clear errors for complex types that need
+ * special v3 decoration formats.
+ */
+export function buildV3PropertyValue(
+  value: unknown,
+  schemaType: string,
+): V3RichText {
+  switch (schemaType) {
+    case "title":
+    case "text":
+    case "url":
+    case "email":
+    case "phone_number":
+      return [[String(value ?? "")]];
+    case "number":
+      return [[String(value ?? 0)]];
+    case "select":
+    case "status":
+      return [[String(value ?? "")]];
+    case "multi_select":
+      if (Array.isArray(value)) return [[value.join(",")]];
+      return [[String(value ?? "")]];
+    case "checkbox":
+      return value ? [["Yes"]] : [["No"]];
+    case "date":
+      throw new Error(
+        `Property type "date" requires v3 decoration format (‣ with "d" decoration). ` +
+        `Use the official API backend for date properties, or pass pre-formatted v3 rich text.`,
+      );
+    case "relation":
+      throw new Error(
+        `Property type "relation" requires v3 decoration format (‣ with "p" decoration). ` +
+        `Use the official API backend for relation properties, or pass pre-formatted v3 rich text.`,
+      );
+    case "person":
+    case "people":
+      throw new Error(
+        `Property type "${schemaType}" requires v3 decoration format (‣ with "u" decoration). ` +
+        `Use the official API backend for people properties, or pass pre-formatted v3 rich text.`,
+      );
+    case "files":
+      throw new Error(
+        `Property type "files" requires complex v3 format. ` +
+        `Use the official API backend for file properties.`,
+      );
+    default:
+      // For unknown types, attempt plain text conversion
+      return [[String(value ?? "")]];
+  }
 }
 
 // --- RecordMap helpers ---

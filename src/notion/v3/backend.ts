@@ -41,6 +41,8 @@ import {
   getFirstCollectionViewId,
   getFirstUser,
   getAllUsers,
+  toV3RichText,
+  buildV3PropertyValue,
 } from "./transforms.ts";
 import {
   createBlockOps,
@@ -48,6 +50,7 @@ import {
   updatePropertyOps,
   officialBlockToV3Args,
 } from "./operations.ts";
+import type { V3Operation } from "./operations.ts";
 
 export class V3Backend implements NotionBackend {
   readonly kind = "v3" as const;
@@ -232,7 +235,7 @@ export class V3Backend implements NotionBackend {
     let parentTable: string;
     let parentId: string;
     const v3Props: Record<string, unknown> = {
-      title: [[params.title]],
+      title: toV3RichText(params.title),
     };
 
     if (isDb) {
@@ -249,10 +252,9 @@ export class V3Backend implements NotionBackend {
         const schema = collection.schema ?? {};
         for (const [name, value] of Object.entries(params.properties)) {
           if (name === "Name" || name === "title") continue;
-          // Find the schema ID for this property name
           const schemaEntry = Object.entries(schema).find(([, s]) => s.name === name);
           if (schemaEntry) {
-            v3Props[schemaEntry[0]] = [[String(value)]];
+            v3Props[schemaEntry[0]] = buildV3PropertyValue(value, schemaEntry[1].type);
           }
         }
       }
@@ -314,7 +316,7 @@ export class V3Backend implements NotionBackend {
     const v3Format: Record<string, unknown> = {};
 
     if (params.title) {
-      v3Props.title = [[params.title]];
+      v3Props.title = toV3RichText(params.title);
     }
 
     if (params.icon) {
@@ -334,7 +336,7 @@ export class V3Backend implements NotionBackend {
           if (name === "Name" || name === "title") continue;
           const schemaEntry = Object.entries(schema).find(([, s]) => s.name === name);
           if (schemaEntry) {
-            v3Props[schemaEntry[0]] = [[String(value)]];
+            v3Props[schemaEntry[0]] = buildV3PropertyValue(value, schemaEntry[1].type);
           }
         }
       }
@@ -487,12 +489,7 @@ export class V3Backend implements NotionBackend {
     const spaceId = this.http.spaceId_;
     const userId = this.http.userId_;
 
-    const allOps: Array<{
-      pointer: { table: string; id: string; spaceId: string };
-      path: string[];
-      command: string;
-      args: unknown;
-    }> = [];
+    const allOps: V3Operation[] = [];
 
     let previousBlockId: string | undefined;
 

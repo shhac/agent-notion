@@ -2,6 +2,7 @@
  * V3 HTTP client — raw POST requests to notion.so/api/v3/.
  * Uses Bun's built-in fetch. No npm dependencies.
  */
+import type { V3Operation } from "./operations.ts";
 
 const BASE_URL = "https://www.notion.so/api/v3";
 const DEFAULT_TIMEOUT = 30_000;
@@ -193,14 +194,7 @@ export class V3HttpClient {
     await this.post("submitTransaction", { operations });
   }
 
-  async saveTransactions(
-    operations: Array<{
-      pointer: { table: string; id: string; spaceId: string };
-      path: string[];
-      command: string;
-      args: unknown;
-    }>,
-  ): Promise<void> {
+  async saveTransactions(operations: V3Operation[]): Promise<void> {
     await this.post("saveTransactions", {
       requestId: crypto.randomUUID(),
       transactions: [
@@ -313,5 +307,29 @@ export type V3Space = {
   icon?: string;
   domain?: string;
   plan_type?: string;
+  [key: string]: unknown;
+};
+
+export type V3Discussion = {
+  id: string;
+  version: number;
+  parent_id: string;
+  parent_table: string;
+  resolved: boolean;
+  comments: string[];
+  [key: string]: unknown;
+};
+
+export type V3Comment = {
+  id: string;
+  version: number;
+  alive: boolean;
+  parent_id: string;
+  parent_table: string;
+  text: V3RichText;
+  created_by: string;
+  created_by_table: string;
+  created_time: number;
+  last_edited_time: number;
   [key: string]: unknown;
 };

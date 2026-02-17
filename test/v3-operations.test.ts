@@ -5,6 +5,11 @@ import {
   updatePropertyOps,
   officialBlockToV3Args,
 } from "../src/notion/v3/operations.ts";
+import {
+  toV3RichText,
+  officialBlockTypeToV3,
+  buildV3PropertyValue,
+} from "../src/notion/v3/transforms.ts";
 
 describe("createBlockOps", () => {
   test("creates set + listAfter + editMeta operations", () => {
@@ -378,5 +383,123 @@ describe("officialBlockToV3Args", () => {
 
     expect(result.type).toBe("unknown_custom_type");
     expect(result.properties).toBeUndefined();
+  });
+});
+
+describe("toV3RichText", () => {
+  test("converts plain text to v3 rich text", () => {
+    expect(toV3RichText("Hello")).toEqual([["Hello"]]);
+  });
+
+  test("handles empty string", () => {
+    expect(toV3RichText("")).toEqual([[""]]);
+  });
+});
+
+describe("officialBlockTypeToV3", () => {
+  test("maps paragraph to text", () => {
+    expect(officialBlockTypeToV3("paragraph")).toBe("text");
+  });
+
+  test("maps heading_1 to header", () => {
+    expect(officialBlockTypeToV3("heading_1")).toBe("header");
+  });
+
+  test("maps heading_2 to sub_header", () => {
+    expect(officialBlockTypeToV3("heading_2")).toBe("sub_header");
+  });
+
+  test("maps heading_3 to sub_sub_header", () => {
+    expect(officialBlockTypeToV3("heading_3")).toBe("sub_sub_header");
+  });
+
+  test("maps bulleted_list_item to bulleted_list", () => {
+    expect(officialBlockTypeToV3("bulleted_list_item")).toBe("bulleted_list");
+  });
+
+  test("maps numbered_list_item to numbered_list", () => {
+    expect(officialBlockTypeToV3("numbered_list_item")).toBe("numbered_list");
+  });
+
+  test("maps child_page to page", () => {
+    expect(officialBlockTypeToV3("child_page")).toBe("page");
+  });
+
+  test("maps child_database to collection_view_page", () => {
+    expect(officialBlockTypeToV3("child_database")).toBe("collection_view_page");
+  });
+
+  test("passes through unknown types", () => {
+    expect(officialBlockTypeToV3("my_custom_type")).toBe("my_custom_type");
+  });
+});
+
+describe("buildV3PropertyValue", () => {
+  test("converts string for title type", () => {
+    expect(buildV3PropertyValue("Hello", "title")).toEqual([["Hello"]]);
+  });
+
+  test("converts string for text type", () => {
+    expect(buildV3PropertyValue("World", "text")).toEqual([["World"]]);
+  });
+
+  test("converts number", () => {
+    expect(buildV3PropertyValue(42, "number")).toEqual([["42"]]);
+  });
+
+  test("converts select", () => {
+    expect(buildV3PropertyValue("Option A", "select")).toEqual([["Option A"]]);
+  });
+
+  test("converts status", () => {
+    expect(buildV3PropertyValue("Done", "status")).toEqual([["Done"]]);
+  });
+
+  test("converts multi_select from array", () => {
+    expect(buildV3PropertyValue(["A", "B", "C"], "multi_select")).toEqual([["A,B,C"]]);
+  });
+
+  test("converts checkbox true", () => {
+    expect(buildV3PropertyValue(true, "checkbox")).toEqual([["Yes"]]);
+  });
+
+  test("converts checkbox false", () => {
+    expect(buildV3PropertyValue(false, "checkbox")).toEqual([["No"]]);
+  });
+
+  test("converts url", () => {
+    expect(buildV3PropertyValue("https://example.com", "url")).toEqual([["https://example.com"]]);
+  });
+
+  test("converts email", () => {
+    expect(buildV3PropertyValue("test@example.com", "email")).toEqual([["test@example.com"]]);
+  });
+
+  test("throws for date type", () => {
+    expect(() => buildV3PropertyValue("2024-01-01", "date")).toThrow(/date/i);
+  });
+
+  test("throws for relation type", () => {
+    expect(() => buildV3PropertyValue("page-id", "relation")).toThrow(/relation/i);
+  });
+
+  test("throws for person type", () => {
+    expect(() => buildV3PropertyValue("user-id", "person")).toThrow(/person/i);
+  });
+
+  test("throws for people type", () => {
+    expect(() => buildV3PropertyValue("user-id", "people")).toThrow(/people/i);
+  });
+
+  test("throws for files type", () => {
+    expect(() => buildV3PropertyValue("file.pdf", "files")).toThrow(/files/i);
+  });
+
+  test("handles null value for text", () => {
+    expect(buildV3PropertyValue(null, "text")).toEqual([[""]]);
+  });
+
+  test("handles unknown type gracefully", () => {
+    expect(buildV3PropertyValue("value", "custom_type")).toEqual([["value"]]);
   });
 });
