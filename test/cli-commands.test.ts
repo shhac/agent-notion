@@ -59,7 +59,7 @@ describe("CLI structure", () => {
 
   test("comment --help lists subcommands", () => {
     const output = getHelpOutput("comment");
-    const expected = ["list", "add", "usage"];
+    const expected = ["list", "page", "inline", "usage"];
     for (const cmd of expected) {
       expect(output).toContain(cmd);
     }

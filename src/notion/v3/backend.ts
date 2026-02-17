@@ -47,12 +47,15 @@ import {
   getAllUsers,
   toV3RichText,
   buildV3PropertyValue,
+  addDecorationToRange,
+  v3RichTextToPlain,
 } from "./transforms.ts";
 import {
   createBlockOps,
   archiveBlockOps,
   updatePropertyOps,
   createCommentOps,
+  createInlineCommentOps,
   officialBlockToV3Args,
 } from "./operations.ts";
 import type { V3Operation } from "./operations.ts";
@@ -636,6 +639,79 @@ export class V3Backend implements NotionBackend {
 
     return {
       id: commentId,
+      discussionId,
+      body: params.body,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  async addInlineComment(params: {
+    blockId: string;
+    body: string;
+    text: string;
+    occurrence?: number;
+  }): Promise<CommentCreateResult> {
+    const discussionId = crypto.randomUUID();
+    const commentId = crypto.randomUUID();
+    const userId = this.http.userId_;
+    const spaceId = this.http.spaceId_;
+
+    // Fetch the block record directly via syncRecordValues (works for any block, not just pages)
+    const { recordMap } = await this.http.syncRecordValues([
+      { pointer: { id: params.blockId, table: "block" }, version: -1 },
+    ]);
+    const block = getBlock(recordMap, params.blockId);
+    if (!block) throw new Error(`Block not found: ${params.blockId}`);
+
+    const currentTitle = block.properties?.title;
+    if (!currentTitle || currentTitle.length === 0) {
+      throw new Error(`Block ${params.blockId} has no text content to annotate.`);
+    }
+
+    // Find the target text occurrence in the plain text
+    const plainText = v3RichTextToPlain(currentTitle);
+    const occurrence = params.occurrence ?? 1;
+    let startOffset = -1;
+    let found = 0;
+    let searchFrom = 0;
+    while (found < occurrence) {
+      const idx = plainText.indexOf(params.text, searchFrom);
+      if (idx === -1) break;
+      found++;
+      if (found === occurrence) {
+        startOffset = idx;
+      }
+      searchFrom = idx + 1;
+    }
+
+    if (startOffset === -1) {
+      if (found === 0) {
+        throw new Error(`Text '${params.text}' not found in block ${params.blockId}.`);
+      }
+      throw new Error(`Text '${params.text}' has only ${found} occurrence${found === 1 ? "" : "s"} in this block.`);
+    }
+
+    const endOffset = startOffset + params.text.length;
+
+    // Add ["m", discussionId] decoration to the target range
+    const decoration: import("./client.ts").V3Decoration = ["m", discussionId];
+    const updatedTitle = addDecorationToRange(currentTitle, startOffset, endOffset, decoration);
+
+    const ops = createInlineCommentOps({
+      discussionId,
+      commentId,
+      blockId: params.blockId,
+      spaceId,
+      userId,
+      text: params.body,
+      updatedTitle,
+    });
+
+    await this.http.saveTransactions(ops);
+
+    return {
+      id: commentId,
+      discussionId,
       body: params.body,
       createdAt: new Date().toISOString(),
     };

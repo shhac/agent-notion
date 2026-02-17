@@ -209,6 +209,61 @@ export function createCommentOps(params: CreateCommentParams): V3Operation[] {
   ];
 }
 
+type CreateInlineCommentParams = {
+  discussionId: string;
+  commentId: string;
+  blockId: string;
+  spaceId: string;
+  userId: string;
+  text: string;
+  updatedTitle: unknown; // V3RichText with ["m", discussionId] injected
+};
+
+/** Operations to create an inline comment anchored to specific text within a block. */
+export function createInlineCommentOps(params: CreateInlineCommentParams): V3Operation[] {
+  const now = Date.now();
+  const dp = ptr("discussion", params.discussionId, params.spaceId);
+  const cp = ptr("comment", params.commentId, params.spaceId);
+  const bp = blockPtr(params.blockId, params.spaceId);
+
+  return [
+    // 1. Create discussion record (parent = the text block, not the page)
+    setOp(dp, [], {
+      id: params.discussionId,
+      version: 0,
+      parent_id: params.blockId,
+      parent_table: "block",
+      resolved: false,
+      comments: [],
+      space_id: params.spaceId,
+      alive: true,
+    }),
+    // 2. Link discussion to the text block's discussions list
+    listAfterOp(bp, "discussions", params.discussionId),
+    // 3. Create comment record
+    setOp(cp, [], {
+      id: params.commentId,
+      version: 0,
+      parent_id: params.discussionId,
+      parent_table: "discussion",
+      text: [[params.text]],
+      created_by_table: "notion_user",
+      created_by_id: params.userId,
+      alive: true,
+      space_id: params.spaceId,
+    }),
+    // 4. Link comment to discussion
+    listAfterOp(dp, "comments", params.commentId),
+    // 5. Set timestamps on comment
+    setOp(cp, ["created_time"], now),
+    setOp(cp, ["last_edited_time"], now),
+    // 6. Update the block's title with the ["m", discussionId] decoration
+    setOp(bp, ["properties", "title"], params.updatedTitle),
+    // 7. Update block edit metadata
+    editMetaOp(bp, params.userId),
+  ];
+}
+
 // --- Block type mapping (official → v3) ---
 
 const OFFICIAL_TO_V3_TYPE: Record<string, string> = {

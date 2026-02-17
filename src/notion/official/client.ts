@@ -316,6 +316,15 @@ export class OfficialBackend implements NotionBackend {
     };
   }
 
+  async addInlineComment(_params: {
+    blockId: string;
+    body: string;
+    text: string;
+    occurrence?: number;
+  }): Promise<CommentCreateResult> {
+    throw new Error("Inline comments require the v3 backend (desktop session).");
+  }
+
   // --- Users ---
 
   async listUsers(params?: {

@@ -9,7 +9,11 @@ import {
   toV3RichText,
   officialBlockTypeToV3,
   buildV3PropertyValue,
+  addDecorationToRange,
 } from "../src/notion/v3/transforms.ts";
+import {
+  createInlineCommentOps,
+} from "../src/notion/v3/operations.ts";
 
 describe("createBlockOps", () => {
   test("creates set + listAfter + editMeta operations", () => {
@@ -501,5 +505,152 @@ describe("buildV3PropertyValue", () => {
 
   test("handles unknown type gracefully", () => {
     expect(buildV3PropertyValue("value", "custom_type")).toEqual([["value"]]);
+  });
+});
+
+describe("injectCommentDecoration", () => {
+  const discId = "disc-123";
+
+  test("annotates target text in a single plain segment", () => {
+    const richText: [string][] = [["hello world"]];
+    const result = injectCommentDecoration(richText, "hello", discId);
+    expect(result).toEqual([
+      ["hello", [["m", discId]]],
+      [" world"],
+    ]);
+  });
+
+  test("annotates text at the end of a segment", () => {
+    const richText: [string][] = [["hello world"]];
+    const result = injectCommentDecoration(richText, "world", discId);
+    expect(result).toEqual([
+      ["hello "],
+      ["world", [["m", discId]]],
+    ]);
+  });
+
+  test("annotates entire segment", () => {
+    const richText: [string][] = [["hello"]];
+    const result = injectCommentDecoration(richText, "hello", discId);
+    expect(result).toEqual([
+      ["hello", [["m", discId]]],
+    ]);
+  });
+
+  test("preserves existing decorations on the target segment", () => {
+    const richText: ([string] | [string, [string, ...unknown[]][]])[] = [
+      ["hello", [["b"]]],
+      [" world"],
+    ];
+    const result = injectCommentDecoration(richText, "hello", discId);
+    expect(result).toEqual([
+      ["hello", [["b"], ["m", discId]]],
+      [" world"],
+    ]);
+  });
+
+  test("splits a decorated segment when target is a substring", () => {
+    const richText: ([string] | [string, [string, ...unknown[]][]])[] = [
+      ["hello world", [["b"]]],
+    ];
+    const result = injectCommentDecoration(richText, "hello", discId);
+    expect(result).toEqual([
+      ["hello", [["b"], ["m", discId]]],
+      [" world", [["b"]]],
+    ]);
+  });
+
+  test("annotates text spanning multiple segments", () => {
+    const richText: [string][] = [["hel"], ["lo world"]];
+    const result = injectCommentDecoration(richText, "hello", discId);
+    expect(result).toEqual([
+      ["hel", [["m", discId]]],
+      ["lo", [["m", discId]]],
+      [" world"],
+    ]);
+  });
+
+  test("throws when target text is not found", () => {
+    const richText: [string][] = [["hello world"]];
+    expect(() => injectCommentDecoration(richText, "goodbye", discId)).toThrow(/not found/);
+  });
+
+  test("throws when target text is empty", () => {
+    const richText: [string][] = [["hello world"]];
+    expect(() => injectCommentDecoration(richText, "", discId)).toThrow(/cannot be empty/);
+  });
+
+  test("annotates first occurrence only", () => {
+    const richText: [string][] = [["the cat and the dog"]];
+    const result = injectCommentDecoration(richText, "the", discId);
+    expect(result).toEqual([
+      ["the", [["m", discId]]],
+      [" cat and the dog"],
+    ]);
+  });
+
+  test("handles target in the middle of a segment", () => {
+    const richText: [string][] = [["say hello there"]];
+    const result = injectCommentDecoration(richText, "hello", discId);
+    expect(result).toEqual([
+      ["say "],
+      ["hello", [["m", discId]]],
+      [" there"],
+    ]);
+  });
+});
+
+describe("createInlineCommentOps", () => {
+  test("creates discussion, comment, and block text update operations", () => {
+    const updatedTitle = [["hello", [["m", "disc-1"]]], [" world"]];
+    const ops = createInlineCommentOps({
+      discussionId: "disc-1",
+      commentId: "comm-1",
+      blockId: "block-1",
+      spaceId: "space-1",
+      userId: "user-1",
+      text: "Great point!",
+      updatedTitle,
+    });
+
+    // Should have: set(discussion) + listAfter(block.discussions) + set(comment) +
+    //              listAfter(discussion.comments) + set(created_time) + set(last_edited_time) +
+    //              set(block.properties.title) + update(block editMeta)
+    expect(ops.length).toBe(8);
+
+    // Discussion record — parent is the block, not the page
+    const discOp = ops[0]!;
+    expect(discOp.command).toBe("set");
+    expect(discOp.pointer.table).toBe("discussion");
+    const discArgs = discOp.args as Record<string, unknown>;
+    expect(discArgs.parent_id).toBe("block-1");
+    expect(discArgs.parent_table).toBe("block");
+
+    // Discussion linked to block's discussions list
+    const listAfterOp = ops[1]!;
+    expect(listAfterOp.command).toBe("listAfter");
+    expect(listAfterOp.pointer.table).toBe("block");
+    expect(listAfterOp.pointer.id).toBe("block-1");
+    expect(listAfterOp.path).toEqual(["discussions"]);
+
+    // Comment record
+    const commentOp = ops[2]!;
+    expect(commentOp.command).toBe("set");
+    expect(commentOp.pointer.table).toBe("comment");
+    const commentArgs = commentOp.args as Record<string, unknown>;
+    expect(commentArgs.text).toEqual([["Great point!"]]);
+
+    // Block title update with decoration
+    const titleOp = ops[6]!;
+    expect(titleOp.command).toBe("set");
+    expect(titleOp.pointer.table).toBe("block");
+    expect(titleOp.pointer.id).toBe("block-1");
+    expect(titleOp.path).toEqual(["properties", "title"]);
+    expect(titleOp.args).toEqual(updatedTitle);
+
+    // Edit metadata on the block
+    const metaOp = ops[7]!;
+    expect(metaOp.command).toBe("update");
+    expect(metaOp.pointer.id).toBe("block-1");
   });
 });

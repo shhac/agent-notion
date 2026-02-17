@@ -153,6 +153,7 @@ export type CommentItem = {
 
 export type CommentCreateResult = {
   id: string;
+  discussionId?: string;
   body: string;
   createdAt?: string;
 };

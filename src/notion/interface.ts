@@ -102,6 +102,13 @@ export interface NotionBackend {
     body: string;
   }): Promise<CommentCreateResult>;
 
+  addInlineComment(params: {
+    blockId: string;
+    body: string;
+    text: string;
+    occurrence?: number;
+  }): Promise<CommentCreateResult>;
+
   // --- Users ---
   listUsers(params?: {
     limit?: number;

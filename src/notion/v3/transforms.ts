@@ -22,6 +22,7 @@ import type {
   RecordMap,
   V3Block,
   V3RichText,
+  V3Decoration,
   V3Collection,
   V3PropertySchema,
   V3User,
@@ -484,6 +485,92 @@ export function transformV3UserMe(user: V3User, spaceName?: string): UserMe {
     type: "person",
     workspaceName: spaceName,
   };
+}
+
+// --- Rich text decoration injection ---
+
+/**
+ * Add a decoration to a character range within a V3RichText array.
+ * Splits segments at range boundaries and preserves existing decorations.
+ *
+ * @param richText - The existing rich text segments
+ * @param start - Start character offset (inclusive)
+ * @param end - End character offset (exclusive)
+ * @param decoration - The decoration to add, e.g. ["m", discussionId]
+ * @returns New V3RichText with the decoration applied to the range
+ */
+export function addDecorationToRange(
+  richText: V3RichText,
+  start: number,
+  end: number,
+  decoration: V3Decoration,
+): V3RichText {
+  if (start < 0 || end <= start) {
+    throw new Error(`Invalid range: [${start}, ${end})`);
+  }
+
+  const result: V3RichText = [];
+  let offset = 0;
+
+  for (const segment of richText) {
+    const segText = segment[0];
+    const segDecorations = segment.length > 1 ? (segment[1] as V3Decoration[]) : undefined;
+    const segStart = offset;
+    const segEnd = offset + segText.length;
+
+    // No overlap with target range — pass through unchanged
+    if (segEnd <= start || segStart >= end) {
+      result.push(segment);
+      offset = segEnd;
+      continue;
+    }
+
+    // Split into up to 3 parts: before, overlap, after
+    const overlapStart = Math.max(segStart, start);
+    const overlapEnd = Math.min(segEnd, end);
+
+    // Before part (keeps original decorations, no new decoration)
+    if (overlapStart > segStart) {
+      const beforeText = segText.slice(0, overlapStart - segStart);
+      result.push(segDecorations ? [beforeText, [...segDecorations]] : [beforeText]);
+    }
+
+    // Overlap part (add new decoration alongside existing ones)
+    const overlapText = segText.slice(overlapStart - segStart, overlapEnd - segStart);
+    const overlapDecs = segDecorations ? [...segDecorations, decoration] : [decoration];
+    result.push([overlapText, overlapDecs]);
+
+    // After part (keeps original decorations, no new decoration)
+    if (overlapEnd < segEnd) {
+      const afterText = segText.slice(overlapEnd - segStart);
+      result.push(segDecorations ? [afterText, [...segDecorations]] : [afterText]);
+    }
+
+    offset = segEnd;
+  }
+
+  return result;
+}
+
+/**
+ * Convenience wrapper: inject an ["m", discussionId] decoration on the first
+ * occurrence of `targetText` within a V3RichText array.
+ * Throws if targetText is empty or not found.
+ */
+export function injectCommentDecoration(
+  richText: V3RichText,
+  targetText: string,
+  discussionId: string,
+): V3RichText {
+  if (!targetText) throw new Error("Target text for inline comment cannot be empty");
+
+  const fullText = richText.map((seg) => seg[0]).join("");
+  const start = fullText.indexOf(targetText);
+  if (start === -1) {
+    throw new Error(`Target text "${targetText}" not found in block text "${fullText}"`);
+  }
+
+  return addDecorationToRange(richText, start, start + targetText.length, ["m", discussionId]);
 }
 
 // --- Reverse transforms (write direction) ---
