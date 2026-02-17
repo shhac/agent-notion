@@ -1,8 +1,7 @@
 import type { Command } from "commander";
-import { withAutoRefresh } from "../../notion/client.ts";
+import { withBackend } from "../../notion/client.ts";
 import { handleAction, CliError } from "../../lib/errors.ts";
 import { printPaginated, resolvePageSize } from "../../lib/output.ts";
-import { flattenProperties } from "../../notion/properties.ts";
 
 export function registerQuery(database: Command): void {
   database
@@ -26,11 +25,11 @@ export function registerQuery(database: Command): void {
           }
         }
 
-        let sorts: unknown;
+        let sort: unknown;
         if (opts.sort) {
           try {
-            sorts = JSON.parse(opts.sort);
-            if (!Array.isArray(sorts)) sorts = [sorts];
+            sort = JSON.parse(opts.sort);
+            if (!Array.isArray(sort)) sort = [sort];
           } catch {
             throw new CliError(
               "Invalid --sort JSON. Expected a sort object or array. Example: '[{\"property\":\"Name\",\"direction\":\"ascending\"}]'",
@@ -38,41 +37,19 @@ export function registerQuery(database: Command): void {
           }
         }
 
-        const queryParams: Record<string, unknown> = {
-          database_id: databaseId,
-          page_size: resolvePageSize(opts),
-        };
-        if (filter) queryParams.filter = filter;
-        if (sorts) queryParams.sorts = sorts;
-        if (opts.cursor) queryParams.start_cursor = opts.cursor;
-
-        const results = await withAutoRefresh((client) =>
-          client.databases.query(queryParams as Parameters<typeof client.databases.query>[0]),
+        const result = await withBackend((backend) =>
+          backend.queryDatabase({
+            id: databaseId,
+            filter,
+            sort,
+            limit: resolvePageSize(opts),
+            cursor: opts.cursor,
+          }),
         );
 
-        const items = results.results.map((page: Record<string, unknown>) => {
-          const p = page as {
-            id: string;
-            url: string;
-            properties: Record<string, Record<string, unknown>>;
-            created_time?: string;
-            last_edited_time?: string;
-          };
-
-          return {
-            id: p.id,
-            url: p.url,
-            properties: flattenProperties(
-              p.properties as Parameters<typeof flattenProperties>[0],
-            ),
-            createdAt: p.created_time,
-            lastEditedAt: p.last_edited_time,
-          };
-        });
-
-        printPaginated(items, {
-          hasMore: results.has_more,
-          nextCursor: results.next_cursor,
+        printPaginated(result.items, {
+          hasMore: result.hasMore,
+          nextCursor: result.nextCursor,
         });
       });
     });

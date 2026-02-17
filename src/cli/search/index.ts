@@ -1,8 +1,7 @@
 import type { Command } from "commander";
-import { withAutoRefresh } from "../../notion/client.ts";
+import { withBackend } from "../../notion/client.ts";
 import { handleAction } from "../../lib/errors.ts";
 import { printPaginated, resolvePageSize } from "../../lib/output.ts";
-import { extractTitle } from "../../notion/properties.ts";
 
 const USAGE_TEXT = `agent-notion search — Search Notion by title (NOT full-text content search)
 
@@ -42,63 +41,19 @@ export function registerSearchCommand(program: Command): void {
       }
 
       await handleAction(async () => {
-        const searchParams: Record<string, unknown> = {
-          query,
-          page_size: resolvePageSize(opts as Record<string, string | undefined>),
-        };
-        if (opts.cursor) {
-          searchParams.start_cursor = opts.cursor;
-        }
-        if (opts.filter === "page" || opts.filter === "database") {
-          searchParams.filter = { property: "object", value: opts.filter };
-        }
-
-        const results = await withAutoRefresh((client) =>
-          client.search(searchParams as Parameters<typeof client.search>[0]),
+        const result = await withBackend((backend) =>
+          backend.search({
+            query,
+            filter: opts.filter as "page" | "database" | undefined,
+            limit: resolvePageSize(opts as Record<string, string | undefined>),
+            cursor: opts.cursor as string | undefined,
+          }),
         );
 
-        const items = results.results.map((item: Record<string, unknown>) => {
-          const obj = item as {
-            id: string;
-            object: string;
-            url: string;
-            parent?: Record<string, unknown>;
-            last_edited_time?: string;
-            properties?: Record<string, unknown>;
-            title?: Array<{ plain_text: string }>;
-          };
-
-          let title = "";
-          if (obj.object === "page" && obj.properties) {
-            title = extractTitle(obj.properties as Parameters<typeof extractTitle>[0]);
-          } else if (obj.object === "database" && obj.title) {
-            title = obj.title.map((t) => t.plain_text).join("");
-          }
-
-          const parent = formatParent(obj.parent);
-
-          return {
-            id: obj.id,
-            type: obj.object,
-            title,
-            url: obj.url,
-            parent,
-            lastEditedAt: obj.last_edited_time,
-          };
-        });
-
-        printPaginated(items, {
-          hasMore: results.has_more,
-          nextCursor: results.next_cursor,
+        printPaginated(result.items, {
+          hasMore: result.hasMore,
+          nextCursor: result.nextCursor,
         });
       });
     });
-}
-
-function formatParent(parent: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
-  if (!parent) return undefined;
-  if (parent.type === "database_id") return { type: "database", id: parent.database_id as string };
-  if (parent.type === "page_id") return { type: "page", id: parent.page_id as string };
-  if (parent.type === "workspace") return { type: "workspace" };
-  return undefined;
 }
