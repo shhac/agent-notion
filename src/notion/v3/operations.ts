@@ -179,23 +179,27 @@ export function createCommentOps(params: CreateCommentParams): V3Operation[] {
     // 1. Create discussion record
     setOp(dp, [], {
       id: params.discussionId,
+      version: 0,
       parent_id: params.pageId,
       parent_table: "block",
       resolved: false,
-      version: 1,
+      comments: [],
+      space_id: params.spaceId,
+      alive: true,
     }),
     // 2. Link discussion to page block
     listAfterOp(bp, "discussions", params.discussionId),
     // 3. Create comment record
     setOp(cp, [], {
       id: params.commentId,
+      version: 0,
       parent_id: params.discussionId,
       parent_table: "discussion",
       text: [[params.text]],
       created_by_table: "notion_user",
       created_by_id: params.userId,
       alive: true,
-      version: 1,
+      space_id: params.spaceId,
     }),
     // 4. Link comment to discussion
     listAfterOp(dp, "comments", params.commentId),

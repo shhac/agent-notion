@@ -630,8 +630,8 @@ export function transformV3Comment(comment: V3Comment, user?: V3User): CommentIt
     body: v3RichTextToPlain(comment.text),
     author: user
       ? { id: user.id, name: [user.given_name, user.family_name].filter(Boolean).join(" ") || undefined }
-      : comment.created_by
-        ? { id: comment.created_by }
+      : comment.created_by_id
+        ? { id: comment.created_by_id }
         : null,
     createdAt: msToIso(comment.created_time),
   };

@@ -603,7 +603,7 @@ export class V3Backend implements NotionBackend {
       if (items.length >= limit) break;
       const comment = getComment(recordMap, commentId);
       if (!comment || !comment.alive) continue;
-      const user = comment.created_by ? getUser(recordMap, comment.created_by) : undefined;
+      const user = comment.created_by_id ? getUser(recordMap, comment.created_by_id) : undefined;
       items.push(transformV3Comment(comment, user));
     }
 
