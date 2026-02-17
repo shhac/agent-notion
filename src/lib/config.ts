@@ -12,7 +12,7 @@ import {
 
 // --- Types ---
 
-export type AuthType = "oauth" | "internal_integration";
+export type AuthType = "oauth" | "internal_integration" | "desktop";
 
 export type Workspace = {
   workspace_id: string;
@@ -42,11 +42,22 @@ export type Settings = {
   };
 };
 
+export type V3Session = {
+  token_v2: string;
+  user_id: string;
+  user_email: string;
+  user_name: string;
+  space_id: string;
+  space_name: string;
+  extracted_at: string;
+};
+
 export type Config = {
   oauth?: OAuthConfig;
   default_workspace?: string;
   workspaces?: Record<string, Workspace>;
   settings?: Settings;
+  v3?: V3Session;
 };
 
 // --- Config directory ---
@@ -330,5 +341,54 @@ export function clearWorkspaceTokens(alias: string): void {
 
   ws.access_token = "";
   ws.refresh_token = undefined;
+  writeConfig(config);
+}
+
+// --- V3 session (desktop token) ---
+
+export function storeV3Session(session: Omit<V3Session, "token_v2"> & { token_v2: string }): {
+  storage: "keychain" | "config";
+} {
+  const config = readConfig();
+
+  const stored = keychainSet({
+    account: "v3:token_v2",
+    value: session.token_v2,
+    service: KEYCHAIN_SERVICE,
+  });
+
+  config.v3 = {
+    token_v2: stored ? KEYCHAIN_PLACEHOLDER : session.token_v2,
+    user_id: session.user_id,
+    user_email: session.user_email,
+    user_name: session.user_name,
+    space_id: session.space_id,
+    space_name: session.space_name,
+    extracted_at: session.extracted_at,
+  };
+
+  writeConfig(config);
+  return { storage: stored ? "keychain" : "config" };
+}
+
+export function getV3Session(): V3Session | undefined {
+  const config = readConfig();
+  return config.v3;
+}
+
+export function resolveV3Token(): string | undefined {
+  const session = getV3Session();
+  if (!session) return undefined;
+
+  if (session.token_v2 === KEYCHAIN_PLACEHOLDER) {
+    return keychainGet("v3:token_v2", KEYCHAIN_SERVICE) ?? undefined;
+  }
+  return session.token_v2;
+}
+
+export function clearV3Session(): void {
+  keychainDelete("v3:token_v2", KEYCHAIN_SERVICE);
+  const config = readConfig();
+  delete config.v3;
   writeConfig(config);
 }

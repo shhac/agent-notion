@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { registerImportDesktop } from "./import-desktop.ts";
 import { registerLogin } from "./login.ts";
 import { registerLogout } from "./logout.ts";
 import { registerSetupOAuth } from "./setup-oauth.ts";
@@ -14,6 +15,7 @@ export function registerAuthCommand(program: Command): void {
   registerSetupOAuth(auth);
   registerLogin(auth);
   registerLogout(auth);
+  registerImportDesktop(auth);
   registerStatus(auth);
   registerWorkspace(auth);
   registerUsage(auth);
