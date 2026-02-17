@@ -1,4 +1,4 @@
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, afterAll } from "bun:test";
 import { platform } from "node:os";
 import {
   KEYCHAIN_SERVICE,
@@ -9,6 +9,7 @@ import {
 } from "../src/lib/keychain.ts";
 
 const IS_MACOS = platform() === "darwin";
+const LIVE_TESTS = process.env["LIVE_TESTS"] === "1";
 const TEST_ACCOUNT = `test-agent-notion-${Date.now()}`;
 
 describe("keychain constants", () => {
@@ -36,7 +37,16 @@ describe("keychain operations", () => {
     test("keychainDelete returns false on non-macOS", () => {
       expect(keychainDelete("any", "any")).toBe(false);
     });
+  } else if (!LIVE_TESTS) {
+    test("skipped: real keychain tests require LIVE_TESTS=1", () => {
+      expect(true).toBe(true);
+    });
   } else {
+    // Safety: always clean up test entries even if tests fail
+    afterAll(() => {
+      keychainDelete(TEST_ACCOUNT, KEYCHAIN_SERVICE);
+    });
+
     test("keychainSet + keychainGet roundtrip", () => {
       const testValue = `test-value-${Date.now()}`;
       const success = keychainSet({

@@ -1,7 +1,23 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach, mock } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+
+// Mock keychain with in-memory store to avoid touching real macOS keychain
+const mockStore = new Map<string, string>();
+mock.module("../src/lib/keychain.ts", () => ({
+  KEYCHAIN_SERVICE: "app.paulie.agent-notion",
+  KEYCHAIN_PLACEHOLDER: "__KEYCHAIN__",
+  keychainGet: (account: string, _service: string) => mockStore.get(account) ?? null,
+  keychainSet: (opts: { account: string; value: string; service: string }) => {
+    mockStore.set(opts.account, opts.value);
+    return true;
+  },
+  keychainDelete: (account: string, _service: string) => mockStore.delete(account),
+  keychainDeleteAll: (_service: string) => {
+    mockStore.clear();
+  },
+}));
 
 const originalXdg = process.env["XDG_CONFIG_HOME"];
 const originalNotionApiKey = process.env["NOTION_API_KEY"];
@@ -13,6 +29,7 @@ beforeEach(() => {
   process.env["XDG_CONFIG_HOME"] = tempDir;
   delete process.env["NOTION_API_KEY"];
   delete process.env["NOTION_TOKEN"];
+  mockStore.clear();
 });
 
 afterEach(() => {
@@ -69,7 +86,6 @@ describe("resolveAccessToken", () => {
   });
 
   test("resolves from default workspace config", () => {
-    // Store a workspace — on non-macOS, token will be plaintext in config
     storeWorkspace("test-ws", {
       workspace_id: "ws-1",
       workspace_name: "Test",
@@ -80,10 +96,10 @@ describe("resolveAccessToken", () => {
 
     const result = resolveAccessToken();
     expect(result).toBeDefined();
+    expect(result!.key).toBe("ntn_config_token");
     expect(result!.workspace).toBe("test-ws");
     expect(result!.auth_type).toBe("internal_integration");
-    // Source will be either "keychain" or "config" depending on platform
-    expect(["keychain", "config"]).toContain(result!.source);
+    expect(result!.source).toBe("keychain");
   });
 
   test("env var overrides workspace config", () => {

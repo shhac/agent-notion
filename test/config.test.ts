@@ -1,7 +1,23 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach, mock } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+
+// Mock keychain with in-memory store to avoid touching real macOS keychain
+const mockStore = new Map<string, string>();
+mock.module("../src/lib/keychain.ts", () => ({
+  KEYCHAIN_SERVICE: "app.paulie.agent-notion",
+  KEYCHAIN_PLACEHOLDER: "__KEYCHAIN__",
+  keychainGet: (account: string, _service: string) => mockStore.get(account) ?? null,
+  keychainSet: (opts: { account: string; value: string; service: string }) => {
+    mockStore.set(opts.account, opts.value);
+    return true;
+  },
+  keychainDelete: (account: string, _service: string) => mockStore.delete(account),
+  keychainDeleteAll: (_service: string) => {
+    mockStore.clear();
+  },
+}));
 
 // Override XDG_CONFIG_HOME to use a temp directory for tests
 const originalXdg = process.env["XDG_CONFIG_HOME"];
@@ -10,6 +26,7 @@ let tempDir: string;
 beforeEach(() => {
   tempDir = mkdtempSync(join(tmpdir(), "agent-notion-test-"));
   process.env["XDG_CONFIG_HOME"] = tempDir;
+  mockStore.clear();
 });
 
 afterEach(() => {
@@ -43,6 +60,10 @@ import {
   deriveAlias,
   updateWorkspaceTokens,
   clearWorkspaceTokens,
+  storeV3Session,
+  getV3Session,
+  resolveV3Token,
+  clearV3Session,
 } from "../src/lib/config.ts";
 
 describe("config read/write", () => {
@@ -231,10 +252,12 @@ describe("token updates", () => {
 
     const ws = getWorkspace("ws-1");
     expect(ws).toBeDefined();
-    // Token values in config depend on keychain availability
-    // On macOS they'll be __KEYCHAIN__, on non-macOS they'll be plaintext
-    expect(ws!.access_token).toBeDefined();
-    expect(ws!.refresh_token).toBeDefined();
+    // With mocked keychain, tokens are stored in keychain (placeholder in config)
+    expect(ws!.access_token).toBe("__KEYCHAIN__");
+    expect(ws!.refresh_token).toBe("__KEYCHAIN__");
+    // Verify the actual values are in the mock store
+    expect(mockStore.get("access_token:ws-1")).toBe("new_access");
+    expect(mockStore.get("refresh_token:ws-1")).toBe("new_refresh");
   });
 
   test("clearWorkspaceTokens clears tokens", () => {
@@ -253,5 +276,91 @@ describe("token updates", () => {
     expect(ws).toBeDefined();
     expect(ws!.access_token).toBe("");
     expect(ws!.refresh_token).toBeUndefined();
+  });
+});
+
+describe("V3 session (desktop token)", () => {
+  test("getV3Session returns undefined when not configured", () => {
+    expect(getV3Session()).toBeUndefined();
+  });
+
+  test("storeV3Session + getV3Session roundtrip", () => {
+    storeV3Session({
+      token_v2: "test-token-v2",
+      user_id: "user-123",
+      user_email: "test@example.com",
+      user_name: "Test User",
+      space_id: "space-456",
+      space_name: "Test Space",
+      extracted_at: "2026-01-01T00:00:00.000Z",
+    });
+
+    const session = getV3Session();
+    expect(session).toBeDefined();
+    expect(session!.user_id).toBe("user-123");
+    expect(session!.user_email).toBe("test@example.com");
+    expect(session!.user_name).toBe("Test User");
+    expect(session!.space_id).toBe("space-456");
+    expect(session!.space_name).toBe("Test Space");
+    expect(session!.extracted_at).toBe("2026-01-01T00:00:00.000Z");
+    // Token stored in mock keychain
+    expect(session!.token_v2).toBe("__KEYCHAIN__");
+  });
+
+  test("resolveV3Token returns token value from mock keychain", () => {
+    storeV3Session({
+      token_v2: "test-token-resolve",
+      user_id: "user-123",
+      user_email: "test@example.com",
+      user_name: "Test User",
+      space_id: "space-456",
+      space_name: "Test Space",
+      extracted_at: "2026-01-01T00:00:00.000Z",
+    });
+
+    const token = resolveV3Token();
+    expect(token).toBe("test-token-resolve");
+  });
+
+  test("clearV3Session removes session", () => {
+    storeV3Session({
+      token_v2: "test-token-clear",
+      user_id: "user-123",
+      user_email: "test@example.com",
+      user_name: "Test User",
+      space_id: "space-456",
+      space_name: "Test Space",
+      extracted_at: "2026-01-01T00:00:00.000Z",
+    });
+
+    clearV3Session();
+
+    expect(getV3Session()).toBeUndefined();
+    expect(resolveV3Token()).toBeUndefined();
+  });
+
+  test("V3 session persists alongside workspaces", () => {
+    storeWorkspace("ws-1", {
+      workspace_id: "id-1",
+      workspace_name: "First",
+      bot_id: "bot-1",
+      auth_type: "internal_integration",
+      access_token: "ntn_1",
+    });
+
+    storeV3Session({
+      token_v2: "test-token-coexist",
+      user_id: "user-123",
+      user_email: "test@example.com",
+      user_name: "Test User",
+      space_id: "space-456",
+      space_name: "Test Space",
+      extracted_at: "2026-01-01T00:00:00.000Z",
+    });
+
+    // Both should be present
+    expect(getWorkspace("ws-1")).toBeDefined();
+    expect(getV3Session()).toBeDefined();
+    expect(resolveV3Token()).toBe("test-token-coexist");
   });
 });
