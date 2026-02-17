@@ -229,6 +229,52 @@ export class V3HttpClient {
   ): Promise<{ results: V3ExportTask[] }> {
     return this.post("getTasks", { taskIds });
   }
+
+  // --- Backlinks ---
+
+  async getBacklinksForBlock(params: {
+    blockId: string;
+  }): Promise<{
+    backlinks: Array<{ block_id: string; mentioned_from: { block_id: string; table: string } }>;
+    recordMap: RecordMap;
+  }> {
+    return this.post("getBacklinksForBlock", {
+      block: { id: params.blockId, spaceId: this.spaceId },
+    });
+  }
+
+  // --- Version History ---
+
+  async getSnapshotsList(params: {
+    blockId: string;
+    size?: number;
+  }): Promise<{
+    snapshots: V3Snapshot[];
+  }> {
+    return this.post("getSnapshotsList", {
+      block: { id: params.blockId, spaceId: this.spaceId },
+      size: params.size ?? 20,
+    });
+  }
+
+  // --- Activity Log ---
+
+  async getActivityLog(params: {
+    navigableBlockId?: string;
+    limit?: number;
+    startingAfterId?: string;
+  }): Promise<{
+    activityIds: string[];
+    activities: Record<string, V3Activity>;
+    recordMap: RecordMap;
+  }> {
+    return this.post("getActivityLog", {
+      spaceId: this.spaceId,
+      ...(params.navigableBlockId ? { navigableBlockId: params.navigableBlockId } : {}),
+      limit: params.limit ?? 20,
+      ...(params.startingAfterId ? { startingAfterId: params.startingAfterId } : {}),
+    });
+  }
 }
 
 // --- Export task type ---
@@ -360,5 +406,34 @@ export type V3Comment = {
   created_by_table: string;
   created_time: number;
   last_edited_time: number;
+  [key: string]: unknown;
+};
+
+export type V3Snapshot = {
+  id: string;
+  version: number;
+  last_version: number;
+  timestamp: number;
+  authors: Array<{ id: string; table: string }>;
+};
+
+export type V3Activity = {
+  id: string;
+  version: number;
+  type: string;
+  parent_id: string;
+  parent_table: string;
+  navigable_block_id?: string;
+  collection_id?: string;
+  space_id: string;
+  edits?: Array<{
+    type: string;
+    block_id?: string;
+    timestamp: number;
+    authors?: Array<{ id: string; table: string }>;
+    [key: string]: unknown;
+  }>;
+  start_time?: number;
+  end_time?: number;
   [key: string]: unknown;
 };

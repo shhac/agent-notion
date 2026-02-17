@@ -10,6 +10,9 @@ import { registerCommentCommand } from "./cli/comment/index.ts";
 import { registerUserCommand } from "./cli/user/index.ts";
 import { registerConfigCommand } from "./cli/config/index.ts";
 import { registerExportCommand } from "./cli/export/index.ts";
+import { registerBacklinksCommand } from "./cli/backlinks.ts";
+import { registerHistoryCommand } from "./cli/history.ts";
+import { registerActivityCommand } from "./cli/activity.ts";
 import { registerUsageCommand } from "./cli/usage/index.ts";
 import { getPackageVersion } from "./lib/version.ts";
 
@@ -42,6 +45,9 @@ registerBlockCommand(program);
 registerCommentCommand(program);
 registerUserCommand(program);
 registerExportCommand(program);
+registerBacklinksCommand(program);
+registerHistoryCommand(program);
+registerActivityCommand(program);
 registerConfigCommand(program);
 registerUsageCommand(program);
 
