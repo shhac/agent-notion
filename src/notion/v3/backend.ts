@@ -59,17 +59,6 @@ export class V3Backend implements NotionBackend {
     const result = await this.http.search({
       query: params.query,
       limit: params.limit ?? 20,
-      filters: params.filter
-        ? {
-            isDeletedOnly: false,
-            excludeTemplates: true,
-            navigableBlockContentOnly: true,
-            requireEditPermissions: false,
-            ...(params.filter === "database"
-              ? { type: "collection_view_page" }
-              : {}),
-          }
-        : undefined,
     });
 
     const items: SearchResult[] = [];
@@ -105,11 +94,6 @@ export class V3Backend implements NotionBackend {
     const result = await this.http.search({
       query: "",
       limit: params?.limit ?? 50,
-      filters: {
-        isDeletedOnly: false,
-        excludeTemplates: true,
-        navigableBlockContentOnly: true,
-      },
     });
 
     const items: DatabaseListItem[] = [];

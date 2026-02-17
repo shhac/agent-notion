@@ -153,17 +153,23 @@ export class V3HttpClient {
   }> {
     return this.post("search", {
       type: params.ancestorId ? "BlocksInAncestor" : "BlocksInSpace",
-      ...(params.ancestorId ? { ancestorId: params.ancestorId } : { spaceId: this.spaceId }),
+      ...(params.ancestorId
+        ? { ancestorId: params.ancestorId }
+        : { spaceId: this.spaceId }),
       query: params.query,
       limit: params.limit ?? 20,
       sort: { field: "relevance" },
-      source: "quick_find_public",
+      source: "quick_find_input_change",
       filters: {
         isDeletedOnly: false,
-        excludeTemplates: true,
-        navigableBlockContentOnly: true,
+        excludeTemplates: false,
+        isNavigableOnly: false,
         requireEditPermissions: false,
-        includePublicPagesWithoutExplicitAccess: true,
+        ancestors: [],
+        createdBy: [],
+        editedBy: [],
+        lastEditedTime: {},
+        createdTime: {},
         ...params.filters,
       },
     });
