@@ -76,7 +76,7 @@ export class OfficialBackend implements NotionBackend {
     };
     if (params?.cursor) searchParams.start_cursor = params.cursor;
 
-    const result = await this.client.search(searchParams as Parameters<typeof this.client.search>[0]);
+    const result = await this.client.search(searchParams as any);
     return {
       items: result.results.map((r) => transformDatabaseListItem(r as Record<string, unknown>)),
       hasMore: result.has_more,
