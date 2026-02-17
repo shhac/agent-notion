@@ -1,7 +1,7 @@
 /**
  * V3 backend — implements NotionBackend using the v3 internal API.
  * Reads and writes are fully supported via saveTransactions.
- * Comments are not available in v3 — methods throw clear errors.
+ * Comments use discussion/comment records via loadPageChunk + syncRecordValues + submitTransaction.
  */
 import type { NotionBackend } from "../interface.ts";
 import type {
@@ -31,11 +31,15 @@ import {
   transformV3DatabaseSchema,
   transformV3QueryRow,
   transformV3PageDetail,
+  transformV3Comment,
   transformV3User,
   transformV3UserMe,
   normalizeV3Block,
   getBlock,
   getCollection,
+  getDiscussion,
+  getComment,
+  getUser,
   getAllBlocks,
   getFirstCollection,
   getFirstCollectionViewId,
@@ -48,6 +52,7 @@ import {
   createBlockOps,
   archiveBlockOps,
   updatePropertyOps,
+  createCommentOps,
   officialBlockToV3Args,
 } from "./operations.ts";
 import type { V3Operation } from "./operations.ts";
@@ -545,21 +550,95 @@ export class V3Backend implements NotionBackend {
     return { blocksAdded: params.blocks.length };
   }
 
-  // --- Comments (not available in v3) ---
+  // --- Comments (via discussion/comment records) ---
 
-  async listComments(_params: {
+  async listComments(params: {
     pageId: string;
     limit?: number;
     cursor?: string;
   }): Promise<Paginated<CommentItem>> {
-    throw new Error("Comments are not available with v3 backend. Use OAuth authentication for comment operations.");
+    const limit = params.limit ?? 50;
+
+    // Load the page — discussions and comments may be included in the recordMap
+    const { recordMap } = await this.http.loadPageChunk({ pageId: params.pageId, limit: 100 });
+
+    // Get discussion IDs from the page block's "discussions" property
+    const block = getBlock(recordMap, params.pageId);
+    const discussionIds = ((block as V3Block & { discussions?: string[] })?.discussions) ?? [];
+
+    if (discussionIds.length === 0) {
+      return { items: [], hasMore: false, nextCursor: undefined };
+    }
+
+    // Fetch any discussions/comments not already in the recordMap
+    const missingDiscussionIds = discussionIds.filter((id) => !getDiscussion(recordMap, id));
+    if (missingDiscussionIds.length > 0) {
+      const { recordMap: extraMap } = await this.http.syncRecordValues(
+        missingDiscussionIds.map((id) => ({ pointer: { id, table: "discussion" }, version: -1 })),
+      );
+      this.mergeRecordMap(recordMap, extraMap);
+    }
+
+    // Collect all comment IDs from all discussions
+    const allCommentIds: string[] = [];
+    for (const discId of discussionIds) {
+      const disc = getDiscussion(recordMap, discId);
+      if (disc?.comments) {
+        allCommentIds.push(...disc.comments);
+      }
+    }
+
+    // Fetch any comments not already in the recordMap
+    const missingCommentIds = allCommentIds.filter((id) => !getComment(recordMap, id));
+    if (missingCommentIds.length > 0) {
+      const { recordMap: extraMap } = await this.http.syncRecordValues(
+        missingCommentIds.map((id) => ({ pointer: { id, table: "comment" }, version: -1 })),
+      );
+      this.mergeRecordMap(recordMap, extraMap);
+    }
+
+    // Transform comments, resolving user names from the recordMap
+    const items: CommentItem[] = [];
+    for (const commentId of allCommentIds) {
+      if (items.length >= limit) break;
+      const comment = getComment(recordMap, commentId);
+      if (!comment || !comment.alive) continue;
+      const user = comment.created_by ? getUser(recordMap, comment.created_by) : undefined;
+      items.push(transformV3Comment(comment, user));
+    }
+
+    return {
+      items,
+      hasMore: items.length < allCommentIds.length,
+      nextCursor: undefined,
+    };
   }
 
-  async addComment(_params: {
+  async addComment(params: {
     pageId: string;
     body: string;
   }): Promise<CommentCreateResult> {
-    throw new Error("Comments are not available with v3 backend. Use OAuth authentication for comment operations.");
+    const discussionId = crypto.randomUUID();
+    const commentId = crypto.randomUUID();
+    const userId = this.http.userId_;
+    const spaceId = this.http.spaceId_;
+
+    const ops = createCommentOps({
+      discussionId,
+      commentId,
+      pageId: params.pageId,
+      spaceId,
+      userId,
+      text: params.body,
+    });
+
+    await this.http.saveTransactions(ops);
+
+    return {
+      id: commentId,
+      body: params.body,
+      createdAt: new Date().toISOString(),
+    };
   }
 
   // --- Users ---
@@ -638,5 +717,17 @@ export class V3Backend implements NotionBackend {
 
     // Fallback: use the first collection in the recordMap
     return getFirstCollection(recordMap);
+  }
+
+  /** Merge records from a secondary RecordMap into a primary one. */
+  private mergeRecordMap(target: RecordMap, source: RecordMap): void {
+    for (const table of Object.keys(source)) {
+      const sourceTable = source[table];
+      if (!sourceTable) continue;
+      if (!target[table]) {
+        (target as Record<string, unknown>)[table] = {};
+      }
+      Object.assign(target[table]!, sourceTable);
+    }
   }
 }

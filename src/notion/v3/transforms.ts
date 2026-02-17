@@ -607,3 +607,32 @@ export function getAllUsers(recordMap: RecordMap): V3User[] {
     .map((entry) => entry.value as V3User)
     .filter(Boolean);
 }
+
+/** Extract a discussion from a RecordMap by ID. */
+export function getDiscussion(recordMap: RecordMap, id: string): V3Discussion | undefined {
+  return recordMap.discussion?.[id]?.value as V3Discussion | undefined;
+}
+
+/** Extract a comment from a RecordMap by ID. */
+export function getComment(recordMap: RecordMap, id: string): V3Comment | undefined {
+  return recordMap.comment?.[id]?.value as V3Comment | undefined;
+}
+
+/** Extract a user from a RecordMap by ID. */
+export function getUser(recordMap: RecordMap, id: string): V3User | undefined {
+  return recordMap.notion_user?.[id]?.value as V3User | undefined;
+}
+
+/** Transform a v3 comment record to a normalized CommentItem. */
+export function transformV3Comment(comment: V3Comment, user?: V3User): CommentItem {
+  return {
+    id: comment.id,
+    body: v3RichTextToPlain(comment.text),
+    author: user
+      ? { id: user.id, name: [user.given_name, user.family_name].filter(Boolean).join(" ") || undefined }
+      : comment.created_by
+        ? { id: comment.created_by }
+        : null,
+    createdAt: msToIso(comment.created_time),
+  };
+}

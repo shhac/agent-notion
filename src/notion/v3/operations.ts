@@ -157,6 +157,54 @@ export function updatePropertyOps(params: {
   return ops;
 }
 
+// --- Comment/Discussion operation builders ---
+
+type CreateCommentParams = {
+  discussionId: string;
+  commentId: string;
+  pageId: string;
+  spaceId: string;
+  userId: string;
+  text: string;
+};
+
+/** Operations to create a new discussion + comment on a page block. */
+export function createCommentOps(params: CreateCommentParams): V3Operation[] {
+  const now = Date.now();
+  const dp = ptr("discussion", params.discussionId, params.spaceId);
+  const cp = ptr("comment", params.commentId, params.spaceId);
+  const bp = blockPtr(params.pageId, params.spaceId);
+
+  return [
+    // 1. Create discussion record
+    setOp(dp, [], {
+      id: params.discussionId,
+      parent_id: params.pageId,
+      parent_table: "block",
+      resolved: false,
+      version: 1,
+    }),
+    // 2. Link discussion to page block
+    listAfterOp(bp, "discussions", params.discussionId),
+    // 3. Create comment record
+    setOp(cp, [], {
+      id: params.commentId,
+      parent_id: params.discussionId,
+      parent_table: "discussion",
+      text: [[params.text]],
+      created_by_table: "notion_user",
+      created_by_id: params.userId,
+      alive: true,
+      version: 1,
+    }),
+    // 4. Link comment to discussion
+    listAfterOp(dp, "comments", params.commentId),
+    // 5. Set timestamps
+    setOp(cp, ["created_time"], now),
+    setOp(cp, ["last_edited_time"], now),
+  ];
+}
+
 // --- Block type mapping (official → v3) ---
 
 const OFFICIAL_TO_V3_TYPE: Record<string, string> = {
