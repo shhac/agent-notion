@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { withBackend } from "../../notion/client.ts";
 import { handleAction, CliError } from "../../lib/errors.ts";
+import { normalizeId } from "../../lib/ids.ts";
 import { printPaginated, resolvePageSize } from "../../lib/output.ts";
 
 export function registerQuery(database: Command): void {
@@ -12,7 +13,8 @@ export function registerQuery(database: Command): void {
     .option("--sort <json>", "Notion sort array (JSON)")
     .option("--limit <n>", "Max results")
     .option("--cursor <cursor>", "Pagination cursor")
-    .action(async (databaseId: string, opts: Record<string, string | undefined>) => {
+    .action(async (rawDatabaseId: string, opts: Record<string, string | undefined>) => {
+      const databaseId = normalizeId(rawDatabaseId);
       await handleAction(async () => {
         let filter: unknown;
         if (opts.filter) {

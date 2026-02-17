@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { withBackend } from "../../notion/client.ts";
 import { handleAction } from "../../lib/errors.ts";
+import { normalizeId } from "../../lib/ids.ts";
 import { printJson, printPaginated } from "../../lib/output.ts";
 import { blocksToMarkdown, flattenBlock } from "../../notion/markdown.ts";
 
@@ -12,7 +13,8 @@ export function registerList(block: Command): void {
     .option("--raw", "Return structured block objects instead of markdown")
     .option("--limit <n>", "Max blocks")
     .option("--cursor <cursor>", "Pagination cursor")
-    .action(async (pageId: string, opts: Record<string, string | boolean | undefined>) => {
+    .action(async (rawPageId: string, opts: Record<string, string | boolean | undefined>) => {
+      const pageId = normalizeId(rawPageId);
       await handleAction(async () => {
         if (opts.raw) {
           // Raw mode: paginated block objects

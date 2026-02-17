@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { withBackend } from "../../notion/client.ts";
 import { handleAction } from "../../lib/errors.ts";
+import { normalizeId } from "../../lib/ids.ts";
 import { printJson } from "../../lib/output.ts";
 import { blocksToMarkdown, flattenBlock } from "../../notion/markdown.ts";
 
@@ -11,7 +12,8 @@ export function registerGet(page: Command): void {
     .argument("<page-id>", "Page UUID")
     .option("--content", "Include page content as markdown")
     .option("--raw-content", "Include content as structured block objects")
-    .action(async (pageId: string, opts: Record<string, boolean | undefined>) => {
+    .action(async (rawPageId: string, opts: Record<string, boolean | undefined>) => {
+      const pageId = normalizeId(rawPageId);
       await handleAction(async () => {
         const result = await withBackend(async (backend) => {
           const page = await backend.getPage(pageId);

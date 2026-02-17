@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { withBackend } from "../../notion/client.ts";
 import { handleAction } from "../../lib/errors.ts";
+import { normalizeId } from "../../lib/ids.ts";
 import { printPaginated, resolvePageSize } from "../../lib/output.ts";
 
 export function registerList(comment: Command): void {
@@ -10,7 +11,8 @@ export function registerList(comment: Command): void {
     .argument("<page-id>", "Page or block UUID")
     .option("--limit <n>", "Max results")
     .option("--cursor <cursor>", "Pagination cursor")
-    .action(async (pageId: string, opts: Record<string, string | undefined>) => {
+    .action(async (rawPageId: string, opts: Record<string, string | undefined>) => {
+      const pageId = normalizeId(rawPageId);
       await handleAction(async () => {
         const result = await withBackend((backend) =>
           backend.listComments({

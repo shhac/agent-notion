@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { withBackend } from "../../notion/client.ts";
 import { handleAction, CliError } from "../../lib/errors.ts";
+import { normalizeId } from "../../lib/ids.ts";
 import { printJson } from "../../lib/output.ts";
 
 export function registerUpdate(page: Command): void {
@@ -11,7 +12,8 @@ export function registerUpdate(page: Command): void {
     .option("--title <title>", "Update the page title")
     .option("--properties <json>", "Property values to update (JSON)")
     .option("--icon <emoji>", "Update the page icon emoji")
-    .action(async (pageId: string, opts: Record<string, string | undefined>) => {
+    .action(async (rawPageId: string, opts: Record<string, string | undefined>) => {
+      const pageId = normalizeId(rawPageId);
       await handleAction(async () => {
         if (!opts.title && !opts.properties && !opts.icon) {
           throw new CliError(

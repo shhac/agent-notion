@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { withBackend } from "../../notion/client.ts";
 import { handleAction, CliError } from "../../lib/errors.ts";
+import { normalizeId } from "../../lib/ids.ts";
 import { printJson } from "../../lib/output.ts";
 
 export function registerCreate(page: Command): void {
@@ -13,7 +14,7 @@ export function registerCreate(page: Command): void {
     .option("--icon <emoji>", "Page icon emoji")
     .action(async (opts: Record<string, string | undefined>) => {
       await handleAction(async () => {
-        const parentId = opts.parent!;
+        const parentId = normalizeId(opts.parent!);
         const title = opts.title!;
 
         let properties: Record<string, unknown> | undefined;

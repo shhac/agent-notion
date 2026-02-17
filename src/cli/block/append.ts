@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { withBackend } from "../../notion/client.ts";
 import { handleAction, CliError } from "../../lib/errors.ts";
+import { normalizeId } from "../../lib/ids.ts";
 import { printJson } from "../../lib/output.ts";
 import { markdownToBlocks } from "../../notion/markdown.ts";
 
@@ -11,7 +12,8 @@ export function registerAppend(block: Command): void {
     .argument("<page-id>", "Page or block UUID")
     .option("--content <markdown>", "Content as markdown")
     .option("--blocks <json>", "Content as Notion block objects (JSON array)")
-    .action(async (pageId: string, opts: Record<string, string | undefined>) => {
+    .action(async (rawPageId: string, opts: Record<string, string | undefined>) => {
+      const pageId = normalizeId(rawPageId);
       await handleAction(async () => {
         if (!opts.content && !opts.blocks) {
           throw new CliError("Provide --content (markdown) or --blocks (JSON array).");
