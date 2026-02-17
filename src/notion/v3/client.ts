@@ -193,6 +193,26 @@ export class V3HttpClient {
     await this.post("submitTransaction", { operations });
   }
 
+  async saveTransactions(
+    operations: Array<{
+      pointer: { table: string; id: string; spaceId: string };
+      path: string[];
+      command: string;
+      args: unknown;
+    }>,
+  ): Promise<void> {
+    await this.post("saveTransactions", {
+      requestId: crypto.randomUUID(),
+      transactions: [
+        {
+          id: crypto.randomUUID(),
+          spaceId: this.spaceId,
+          operations,
+        },
+      ],
+    });
+  }
+
   get userId_(): string {
     return this.userId;
   }

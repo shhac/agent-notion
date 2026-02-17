@@ -1,6 +1,6 @@
 /**
  * V3 backend — implements NotionBackend using the v3 internal API.
- * Reads are fully supported. Writes are TODO (complex submitTransaction).
+ * Reads and writes are fully supported via saveTransactions.
  * Comments are not available in v3 — methods throw clear errors.
  */
 import type { NotionBackend } from "../interface.ts";
@@ -42,6 +42,12 @@ import {
   getFirstUser,
   getAllUsers,
 } from "./transforms.ts";
+import {
+  createBlockOps,
+  archiveBlockOps,
+  updatePropertyOps,
+  officialBlockToV3Args,
+} from "./operations.ts";
 
 export class V3Backend implements NotionBackend {
   readonly kind = "v3" as const;
@@ -211,29 +217,167 @@ export class V3Backend implements NotionBackend {
     return transformV3PageDetail(block, schema);
   }
 
-  async createPage(_params: {
+  async createPage(params: {
     parentId: string;
     title: string;
     properties?: Record<string, unknown>;
     icon?: string;
   }): Promise<PageCreateResult> {
-    // TODO: Implement via submitTransaction
-    throw new Error("Page creation is not yet supported with v3 backend. Use OAuth authentication for write operations.");
+    const spaceId = this.http.spaceId_;
+    const userId = this.http.userId_;
+    const newPageId = crypto.randomUUID();
+
+    // Detect parent type and resolve collection for database parents
+    const isDb = await this.isDatabase(params.parentId);
+    let parentTable: string;
+    let parentId: string;
+    const v3Props: Record<string, unknown> = {
+      title: [[params.title]],
+    };
+
+    if (isDb) {
+      // Database parent: resolve collection for schema-based property mapping
+      const { recordMap } = await this.http.loadPageChunk({ pageId: params.parentId, limit: 1 });
+      const collection = await this.resolveCollection(params.parentId, recordMap);
+      if (!collection) throw new Error(`Could not resolve database: ${params.parentId}`);
+
+      parentTable = "collection";
+      parentId = collection.id;
+
+      // Map human-readable property names to schema IDs
+      if (params.properties) {
+        const schema = collection.schema ?? {};
+        for (const [name, value] of Object.entries(params.properties)) {
+          if (name === "Name" || name === "title") continue;
+          // Find the schema ID for this property name
+          const schemaEntry = Object.entries(schema).find(([, s]) => s.name === name);
+          if (schemaEntry) {
+            v3Props[schemaEntry[0]] = [[String(value)]];
+          }
+        }
+      }
+    } else {
+      parentTable = "block";
+      parentId = params.parentId;
+    }
+
+    const format: Record<string, unknown> = {};
+    if (params.icon) format.page_icon = params.icon;
+
+    const ops = createBlockOps({
+      id: newPageId,
+      type: "page",
+      parentId,
+      parentTable,
+      spaceId,
+      userId,
+      properties: v3Props,
+      ...(Object.keys(format).length > 0 ? { format } : {}),
+    });
+
+    // For database parents, listAfter targets the collection_view_page block, not the collection
+    if (isDb) {
+      const listAfterOp = ops.find((op) => op.command === "listAfter");
+      if (listAfterOp) {
+        listAfterOp.pointer = { table: "block", id: params.parentId, spaceId };
+      }
+      const editMetaOp = ops.find((op) => op.command === "update" && op.pointer.id !== newPageId);
+      if (editMetaOp) {
+        editMetaOp.pointer = { table: "block", id: params.parentId, spaceId };
+      }
+    }
+
+    await this.http.saveTransactions(ops);
+
+    const url = `https://www.notion.so/${newPageId.replace(/-/g, "")}`;
+    return {
+      id: newPageId,
+      url,
+      title: params.title,
+      parent: isDb
+        ? { type: "database_id", database_id: params.parentId }
+        : { type: "page_id", page_id: params.parentId },
+      createdAt: new Date().toISOString(),
+    };
   }
 
-  async updatePage(_params: {
+  async updatePage(params: {
     id: string;
     title?: string;
     properties?: Record<string, unknown>;
     icon?: string;
   }): Promise<PageUpdateResult> {
-    // TODO: Implement via submitTransaction
-    throw new Error("Page update is not yet supported with v3 backend. Use OAuth authentication for write operations.");
+    const spaceId = this.http.spaceId_;
+    const userId = this.http.userId_;
+
+    const v3Props: Record<string, unknown> = {};
+    const v3Format: Record<string, unknown> = {};
+
+    if (params.title) {
+      v3Props.title = [[params.title]];
+    }
+
+    if (params.icon) {
+      v3Format.page_icon = params.icon;
+    }
+
+    // If properties are provided, resolve schema for database rows
+    if (params.properties) {
+      const { recordMap } = await this.http.loadPageChunk({ pageId: params.id, limit: 1 });
+      const block = getBlock(recordMap, params.id);
+
+      if (block?.parent_table === "collection") {
+        const collection = getCollection(recordMap, block.parent_id);
+        const schema = collection?.schema ?? {};
+
+        for (const [name, value] of Object.entries(params.properties)) {
+          if (name === "Name" || name === "title") continue;
+          const schemaEntry = Object.entries(schema).find(([, s]) => s.name === name);
+          if (schemaEntry) {
+            v3Props[schemaEntry[0]] = [[String(value)]];
+          }
+        }
+      }
+    }
+
+    const ops = updatePropertyOps({
+      id: params.id,
+      spaceId,
+      userId,
+      ...(Object.keys(v3Props).length > 0 ? { properties: v3Props } : {}),
+      ...(Object.keys(v3Format).length > 0 ? { format: v3Format } : {}),
+    });
+
+    await this.http.saveTransactions(ops);
+
+    const url = `https://www.notion.so/${params.id.replace(/-/g, "")}`;
+    return {
+      id: params.id,
+      url,
+      lastEditedAt: new Date().toISOString(),
+    };
   }
 
-  async archivePage(_id: string): Promise<PageArchiveResult> {
-    // TODO: Implement via submitTransaction
-    throw new Error("Page archive is not yet supported with v3 backend. Use OAuth authentication for write operations.");
+  async archivePage(id: string): Promise<PageArchiveResult> {
+    const spaceId = this.http.spaceId_;
+    const userId = this.http.userId_;
+
+    // Fetch the page to get parent info for listRemove
+    const { recordMap } = await this.http.loadPageChunk({ pageId: id, limit: 1 });
+    const block = getBlock(recordMap, id);
+    if (!block) throw new Error(`Page not found: ${id}`);
+
+    const ops = archiveBlockOps({
+      id,
+      parentId: block.parent_id,
+      parentTable: block.parent_table,
+      spaceId,
+      userId,
+    });
+
+    await this.http.saveTransactions(ops);
+
+    return { id, archived: true };
   }
 
   // --- Blocks ---
@@ -336,12 +480,72 @@ export class V3Backend implements NotionBackend {
     return childMap;
   }
 
-  async appendBlocks(_params: {
+  async appendBlocks(params: {
     id: string;
     blocks: unknown[];
   }): Promise<{ blocksAdded: number }> {
-    // TODO: Implement via submitTransaction
-    throw new Error("Block append is not yet supported with v3 backend. Use OAuth authentication for write operations.");
+    const spaceId = this.http.spaceId_;
+    const userId = this.http.userId_;
+
+    const allOps: Array<{
+      pointer: { table: string; id: string; spaceId: string };
+      path: string[];
+      command: string;
+      args: unknown;
+    }> = [];
+
+    let previousBlockId: string | undefined;
+
+    for (const block of params.blocks) {
+      const blockObj = block as Record<string, unknown>;
+      const newBlockId = crypto.randomUUID();
+      const { type, properties, format } = officialBlockToV3Args(blockObj);
+
+      const ops = createBlockOps({
+        id: newBlockId,
+        type,
+        parentId: params.id,
+        parentTable: "block",
+        spaceId,
+        userId,
+        properties,
+        format,
+      });
+
+      // If we have a previous block, set the "after" for ordering
+      if (previousBlockId) {
+        const listAfterOp = ops.find((op) => op.command === "listAfter");
+        if (listAfterOp) {
+          (listAfterOp.args as Record<string, string>).after = previousBlockId;
+        }
+      }
+
+      // Skip duplicate editMeta ops for the parent (keep only the last one)
+      const nonMetaOps = ops.filter(
+        (op) => !(op.command === "update" && op.pointer.id === params.id),
+      );
+      allOps.push(...nonMetaOps);
+
+      previousBlockId = newBlockId;
+    }
+
+    // Add a single editMeta op for the parent at the end
+    if (params.blocks.length > 0) {
+      allOps.push({
+        pointer: { table: "block", id: params.id, spaceId },
+        path: [],
+        command: "update",
+        args: {
+          last_edited_time: Date.now(),
+          last_edited_by_table: "notion_user",
+          last_edited_by_id: userId,
+        },
+      });
+    }
+
+    await this.http.saveTransactions(allOps);
+
+    return { blocksAdded: params.blocks.length };
   }
 
   // --- Comments (not available in v3) ---
