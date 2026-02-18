@@ -3,6 +3,11 @@
  * Uses Bun's built-in fetch. No npm dependencies.
  */
 import type { V3Operation } from "./operations.ts";
+import type {
+  GetAvailableModelsResponse,
+  GetInferenceTranscriptsResponse,
+  MarkTranscriptSeenResponse,
+} from "./ai-types.ts";
 
 const BASE_URL = "https://www.notion.so/api/v3";
 const DEFAULT_TIMEOUT = 30_000;
@@ -352,36 +357,14 @@ export class V3HttpClient {
 
   // --- AI endpoints ---
 
-  async getAvailableModels(spaceId: string): Promise<{
-    models: Array<{
-      model: string;
-      modelMessage: string;
-      modelFamily: string;
-      displayGroup: string;
-      isDisabled?: boolean;
-      markdownChat?: { beta?: boolean };
-      workflow?: { finalModelName?: string; beta?: boolean };
-    }>;
-  }> {
+  async getAvailableModels(spaceId: string): Promise<GetAvailableModelsResponse> {
     return this.post("getAvailableModels", { spaceId });
   }
 
   async getInferenceTranscriptsForUser(params: {
     spaceId: string;
     limit?: number;
-  }): Promise<{
-    transcripts: Array<{
-      id: string;
-      title: string;
-      created_at: number;
-      updated_at: number;
-      created_by_display_name: string;
-      type: string;
-    }>;
-    threadIds: string[];
-    unreadThreadIds: string[];
-    hasMore: boolean;
-  }> {
+  }): Promise<GetInferenceTranscriptsResponse> {
     return this.post("getInferenceTranscriptsForUser", {
       threadParentPointer: {
         table: "space",
@@ -395,7 +378,7 @@ export class V3HttpClient {
   async markInferenceTranscriptSeen(params: {
     spaceId: string;
     threadId: string;
-  }): Promise<{ ok: boolean }> {
+  }): Promise<MarkTranscriptSeenResponse> {
     return this.post("markInferenceTranscriptSeen", {
       spaceId: params.spaceId,
       threadId: params.threadId,

@@ -8,11 +8,8 @@ import {
   runInferenceTranscript,
   getAvailableModels,
 } from "../../notion/v3/ai.ts";
-import type {
-  AgentInferenceEvent,
-  TitleEvent,
-  AiModel,
-} from "../../notion/v3/ai-types.ts";
+import type { AiModel } from "../../notion/v3/ai-types.ts";
+import { isAgentInference, isTitle } from "../../notion/v3/ai-types.ts";
 
 /**
  * Resolve a model name (codename or display name) to its codename.
@@ -125,11 +122,10 @@ export function registerChatSend(chat: Command): void {
                 `[debug] ${event.type}: ${JSON.stringify(event).slice(0, 500)}\n`,
               );
             }
-            if (event.type === "agent-inference") {
-              const ae = event as AgentInferenceEvent;
+            if (isAgentInference(event)) {
               // Find the "text" entry in value array (may also contain "thinking" entries)
               // In patch mode, value entries may be partially constructed
-              const textEntry = ae.value?.find(
+              const textEntry = event.value?.find(
                 (v) => v && typeof v === "object" && v.type === "text",
               );
               const content = textEntry?.content ?? "";
@@ -150,14 +146,14 @@ export function registerChatSend(chat: Command): void {
 
               lastContent = content;
 
-              if (ae.finishedAt) {
-                model = ae.model;
-                inputTokens = ae.inputTokens;
-                outputTokens = ae.outputTokens;
-                cachedTokens = ae.cachedTokensRead;
+              if (event.finishedAt) {
+                model = event.model;
+                inputTokens = event.inputTokens;
+                outputTokens = event.outputTokens;
+                cachedTokens = event.cachedTokensRead;
               }
-            } else if (event.type === "title") {
-              title = (event as TitleEvent).value;
+            } else if (isTitle(event)) {
+              title = event.value;
             }
           }
 

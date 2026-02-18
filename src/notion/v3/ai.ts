@@ -9,12 +9,19 @@ import type {
   AiModel,
   InferenceTranscript,
   NdjsonEvent,
-  PatchEvent,
-  PatchStartEvent,
+  RunInferenceParams,
   RunInferenceTranscriptRequest,
+  SyncRecordEntry,
+  ThreadMessage,
+  ThreadRecord,
   TranscriptConfigItem,
   TranscriptContextItem,
   TranscriptUserItem,
+} from "./ai-types.ts";
+import {
+  isAgentInference,
+  isPatch,
+  isPatchStart,
 } from "./ai-types.ts";
 import { parseNdjson } from "./ndjson.ts";
 
@@ -62,16 +69,7 @@ export async function markTranscriptSeen(
 
 // --- Thread content retrieval ---
 
-export type ThreadMessage = {
-  id: string;
-  role: "user" | "assistant" | "tool" | "system";
-  content: string;
-  createdAt?: number;
-  /** For tool messages: the tool name */
-  toolName?: string;
-  /** For tool messages: whether it succeeded */
-  toolState?: string;
-};
+export type { ThreadMessage };
 
 /**
  * Fetch the content of an AI chat thread by ID.
@@ -89,14 +87,13 @@ export async function getThreadContent(
 }> {
   // Fetch thread record
   // syncRecordValues nests records as: recordMap.thread[id].value.value = { ...actual data }
-  let threadRecord: Record<string, unknown> | undefined;
+  let threadRecord: ThreadRecord | undefined;
   try {
     const result = await client.syncRecordValuesForPointers([
       { id: threadId, table: "thread", spaceId },
     ]);
-    const entry = result.recordMap.thread?.[threadId];
-    const wrapper = entry?.value as Record<string, unknown> | undefined;
-    threadRecord = wrapper?.value as Record<string, unknown> | undefined;
+    const entry = result.recordMap.thread?.[threadId] as SyncRecordEntry<ThreadRecord> | undefined;
+    threadRecord = entry?.value?.value;
   } catch {
     // thread table failed
   }
@@ -109,11 +106,10 @@ export async function getThreadContent(
   }
 
   // Title is at data.title
-  const data = threadRecord.data as Record<string, unknown> | undefined;
-  const title = (data?.title as string | undefined) ?? (threadRecord.title as string | undefined);
+  const title = threadRecord.data?.title ?? threadRecord.title;
 
   // Message IDs are in the `messages` field
-  const messageIds = (threadRecord.messages as string[] | undefined) ?? [];
+  const messageIds = threadRecord.messages ?? [];
 
   if (messageIds.length === 0) {
     return { messages: [], title };
@@ -121,12 +117,13 @@ export async function getThreadContent(
 
   // Fetch all thread_message records
   // Same nesting: recordMap.thread_message[id].value.value = { ...actual data }
-  let rawMsgTable: Record<string, unknown> | undefined;
+  let rawMsgTable: Record<string, SyncRecordEntry<Record<string, unknown>>> | undefined;
   try {
     const msgResult = await client.syncRecordValuesForPointers(
       messageIds.map((id) => ({ id, table: "thread_message", spaceId })),
     );
-    rawMsgTable = msgResult.recordMap.thread_message as Record<string, unknown> | undefined;
+    rawMsgTable = msgResult.recordMap.thread_message as
+      Record<string, SyncRecordEntry<Record<string, unknown>>> | undefined;
   } catch {
     // thread_message table failed
   }
@@ -137,8 +134,7 @@ export async function getThreadContent(
 
   const messages: ThreadMessage[] = [];
   for (const id of messageIds) {
-    const entry = rawMsgTable[id] as { value?: { value?: Record<string, unknown> } } | undefined;
-    const rec = entry?.value?.value;
+    const rec = rawMsgTable[id]?.value?.value;
     if (!rec) continue;
 
     const step = rec.step as Record<string, unknown> | undefined;
@@ -212,28 +208,7 @@ function extractRichText(value: unknown): string | undefined {
 
 // --- Streaming chat (runInferenceTranscript) ---
 
-export type RunInferenceParams = {
-  message: string;
-  model?: string;
-  threadId?: string;
-  /** Explicitly mark as new thread (sets createThread/generateTitle). */
-  isNewThread?: boolean;
-  /** Page ID to set as context */
-  pageId?: string;
-  /** Disable workspace/web search */
-  noSearch?: boolean;
-  /** User identity (from v3 session) */
-  user: {
-    id: string;
-    name: string;
-    email: string;
-  };
-  /** Workspace info (from v3 session) */
-  space: {
-    id: string;
-    name: string;
-  };
-};
+export type { RunInferenceParams };
 
 const STREAM_TIMEOUT = 120_000; // 2 minutes for streaming responses
 
@@ -423,24 +398,22 @@ async function* normalizePatchStream(
   let slots: Array<Record<string, unknown>> = [];
 
   for await (const event of events) {
-    if (event.type === "patch-start") {
-      const ps = event as PatchStartEvent;
-      slots = (ps.data?.s ?? []) as Array<Record<string, unknown>>;
+    if (isPatchStart(event)) {
+      slots = (event.data?.s ?? []) as Array<Record<string, unknown>>;
       continue;
     }
 
-    if (event.type === "patch") {
-      const pe = event as PatchEvent;
-      for (const op of pe.v) {
+    if (isPatch(event)) {
+      for (const op of event.v) {
         applyPatchOp(slots, op.o, op.p, op.v);
       }
 
-      // Find the agent-inference slot and emit it
+      // Find the agent-inference slot and emit it as AgentInferenceEvent
       const inferenceSlot = slots.find(
         (s) => s.type === "agent-inference",
       );
-      if (inferenceSlot) {
-        yield inferenceSlot as unknown as NdjsonEvent;
+      if (inferenceSlot && isAgentInference(inferenceSlot as NdjsonEvent)) {
+        yield inferenceSlot as NdjsonEvent;
       }
       continue;
     }

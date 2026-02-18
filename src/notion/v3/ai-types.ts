@@ -133,14 +133,13 @@ export type NdjsonEvent =
   | RecordMapEvent
   | AgentTurnEvent
   | PatchStartEvent
-  | PatchEvent
-  | UnknownEvent;
+  | PatchEvent;
 
 export type AgentInferenceEvent = {
   type: "agent-inference";
   id: string;
   value: Array<{
-    type: string; // "text" | "thinking"
+    type: "text" | "thinking";
     content: string;
     encryptedContent?: string;
     id?: string;
@@ -197,8 +196,8 @@ export type PatchStartEvent = {
 };
 
 export type PatchOp = {
-  /** "x" = text append, "a" = add, "r" = replace */
-  o: string;
+  /** "x" = text append, "a" = add, "r" = replace/remove */
+  o: "x" | "a" | "r";
   /** JSON pointer path, e.g. "/s/2/value/0/content" */
   p: string;
   /** Value to append/add/replace */
@@ -210,7 +209,78 @@ export type PatchEvent = {
   v: PatchOp[];
 };
 
-export type UnknownEvent = {
-  type: string;
+// --- Type guards for NdjsonEvent ---
+
+export function isAgentInference(e: NdjsonEvent): e is AgentInferenceEvent {
+  return e.type === "agent-inference";
+}
+
+export function isAgentToolResult(e: NdjsonEvent): e is AgentToolResultEvent {
+  return e.type === "agent-tool-result";
+}
+
+export function isPatchStart(e: NdjsonEvent): e is PatchStartEvent {
+  return e.type === "patch-start";
+}
+
+export function isPatch(e: NdjsonEvent): e is PatchEvent {
+  return e.type === "patch";
+}
+
+export function isTitle(e: NdjsonEvent): e is TitleEvent {
+  return e.type === "title";
+}
+
+// --- syncRecordValues intermediate types ---
+
+/** Shape returned by syncRecordValues for record entries (double .value.value nesting) */
+export type SyncRecordEntry<T> = {
+  spaceId?: string;
+  value?: { value?: T; role?: string };
+};
+
+export type ThreadRecord = {
+  id: string;
+  messages?: string[];
+  data?: { title?: string };
+  title?: string;
   [key: string]: unknown;
+};
+
+// --- Thread message type ---
+
+export type ThreadMessage = {
+  id: string;
+  role: "user" | "assistant" | "tool" | "system";
+  content: string;
+  createdAt?: number;
+  /** For tool messages: the tool name */
+  toolName?: string;
+  /** For tool messages: whether it succeeded */
+  toolState?: string;
+};
+
+// --- RunInference params ---
+
+export type RunInferenceParams = {
+  message: string;
+  model?: string;
+  threadId?: string;
+  /** Explicitly mark as new thread (sets createThread/generateTitle). */
+  isNewThread?: boolean;
+  /** Page ID to set as context */
+  pageId?: string;
+  /** Disable workspace/web search */
+  noSearch?: boolean;
+  /** User identity (from v3 session) */
+  user: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  /** Workspace info (from v3 session) */
+  space: {
+    id: string;
+    name: string;
+  };
 };
