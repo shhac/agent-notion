@@ -22,6 +22,13 @@ COMMANDS:
   comment page <page-id> <body>              Add page-level comment
   comment inline <block-id> <body> --text <t>  Add inline comment on text
 
+  export page <id> [--format] [--recursive]  Export page to file
+  export workspace [--format] [--output]     Export entire workspace
+
+  backlinks <page-id>                        Pages that link to a given page
+  history <page-id> [--limit <n>]            Version history for a page
+  activity [--page <id>] [--limit <n>]       Recent workspace or page activity
+
   user list                                  Workspace users
   user me                                    Bot user identity
 

@@ -96,7 +96,7 @@ export class V3Backend implements NotionBackend {
 
     return {
       items,
-      hasMore: items.length < result.total,
+      hasMore: false,
       nextCursor: undefined, // v3 search doesn't use cursor pagination
     };
   }
@@ -192,7 +192,7 @@ export class V3Backend implements NotionBackend {
 
     return {
       items,
-      hasMore: items.length < result.result.total,
+      hasMore: false,
       nextCursor: undefined, // v3 queryCollection doesn't use cursor pagination
     };
   }
@@ -238,8 +238,10 @@ export class V3Backend implements NotionBackend {
     const userId = this.http.userId_;
     const newPageId = crypto.randomUUID();
 
-    // Detect parent type and resolve collection for database parents
-    const isDb = await this.isDatabase(params.parentId);
+    // Detect parent type and resolve collection for database parents (single fetch)
+    const { recordMap } = await this.http.loadPageChunk({ pageId: params.parentId, limit: 1 });
+    const parentBlock = getBlock(recordMap, params.parentId);
+    const isDb = parentBlock?.type === "collection_view_page" || parentBlock?.type === "collection_view";
     let parentTable: string;
     let parentId: string;
     const v3Props: Record<string, unknown> = {
@@ -248,7 +250,6 @@ export class V3Backend implements NotionBackend {
 
     if (isDb) {
       // Database parent: resolve collection for schema-based property mapping
-      const { recordMap } = await this.http.loadPageChunk({ pageId: params.parentId, limit: 1 });
       const collection = await this.resolveCollection(params.parentId, recordMap);
       if (!collection) throw new Error(`Could not resolve database: ${params.parentId}`);
 
@@ -422,6 +423,7 @@ export class V3Backend implements NotionBackend {
 
   async getAllBlocks(id: string): Promise<BlockListResult> {
     const blocks: NormalizedBlock[] = [];
+    const seenIds = new Set<string>();
     let cursor: { stack: unknown[] } | undefined;
     let chunkNumber = 0;
 
@@ -436,12 +438,14 @@ export class V3Backend implements NotionBackend {
       // Get the parent block's content list
       const parentBlock = getBlock(result.recordMap, id);
       const childIds = parentBlock?.content ?? [];
+      const childIdSet = new Set(childIds);
 
       for (const childId of childIds) {
         const childBlock = getBlock(result.recordMap, childId);
         if (!childBlock || !childBlock.alive) continue;
         // Avoid duplicates
-        if (!blocks.some((b) => b.id === childBlock.id)) {
+        if (!seenIds.has(childBlock.id)) {
+          seenIds.add(childBlock.id);
           blocks.push(normalizeV3Block(childBlock));
         }
       }
@@ -450,9 +454,10 @@ export class V3Backend implements NotionBackend {
       const allBlocksInMap = getAllBlocks(result.recordMap);
       for (const block of allBlocksInMap) {
         if (block.id === id) continue; // Skip the parent itself
-        if (!blocks.some((b) => b.id === block.id)) {
+        if (!seenIds.has(block.id)) {
           // Check if this block is a descendant (its parent is in our set or is the root)
-          if (childIds.includes(block.id) || block.parent_id === id) {
+          if (childIdSet.has(block.id) || block.parent_id === id) {
+            seenIds.add(block.id);
             blocks.push(normalizeV3Block(block));
           }
         }

@@ -12,6 +12,7 @@ SUBCOMMANDS:
   auth workspace switch <alias>                                Switch active workspace
   auth workspace set-default <alias>                           Alias for switch
   auth workspace remove <alias>                                Remove a workspace
+  auth import-desktop [--skip-validation]                      Import session from Notion Desktop app
 
 AUTH SOURCES (checked in order):
   1. NOTION_API_KEY or NOTION_TOKEN environment variable
@@ -50,6 +51,11 @@ WORKSPACE:
   list: Returns { items: [{ alias, name, auth_type, default }] }
   switch/set-default: Returns { ok, default_workspace }
   remove: Returns { ok, removed, default_workspace }
+
+IMPORT-DESKTOP:
+  macOS only. Reads token_v2 from the Notion Desktop app's local storage.
+  --skip-validation: store token without checking it against the API.
+  Returns: { ok, session: { user, email, space, space_id, storage, extracted_at } }
 
 OUTPUT:
   All commands return JSON to stdout on success (exit 0).

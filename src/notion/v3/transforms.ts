@@ -42,7 +42,7 @@ export function v3RichTextToPlain(richText: V3RichText | undefined): string {
 
 /** Convert unix milliseconds to ISO 8601 string. */
 function msToIso(ms: number | undefined): string | undefined {
-  if (!ms) return undefined;
+  if (ms === undefined) return undefined;
   return new Date(ms).toISOString();
 }
 
