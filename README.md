@@ -109,7 +109,8 @@ agent-notion [--full] [--expand <fields>]
 ├── ai                                                             ◆
 │   ├── model list [--raw]
 │   ├── chat list [--limit]
-│   ├── chat send <message> [--thread] [--model] [--page] [--no-search] [--stream]
+│   ├── chat send <message> [--thread] [--model] [--page] [--no-search] [--stream] [--debug]
+│   ├── chat get <thread-id> [--raw]
 │   ├── chat mark-read <thread-id>
 │   └── usage
 ├── config
@@ -186,6 +187,7 @@ v3 commands (marked with `◆` in the command map):
 | `ai model list` | List available AI models |
 | `ai chat list` | List recent AI chat threads |
 | `ai chat send <message>` | Send message to Notion AI (supports streaming) |
+| `ai chat get <thread-id>` | Get thread content (messages and metadata) |
 | `ai chat mark-read <thread-id>` | Mark a chat thread as read |
 
 Run `<command> usage` for full options and output format (e.g., `agent-notion export usage`).

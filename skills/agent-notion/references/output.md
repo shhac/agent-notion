@@ -497,6 +497,42 @@ Results are deduplicated by `pageId` — each linking page appears at most once.
 
 `unreadThreadIds` lists thread IDs that have not been marked as read.
 
+## AI chat get (`ai chat get`)
+
+```json
+{
+  "title": "Summarize recent projects",
+  "messages": [
+    {
+      "id": "...",
+      "role": "user",
+      "content": "Summarize my recent projects"
+    },
+    {
+      "id": "...",
+      "role": "assistant",
+      "content": "Based on your workspace, here are your recent projects..."
+    }
+  ]
+}
+```
+
+`role` is one of: `user`, `assistant`, `tool`, `system`. Tool messages may include `toolName` and `toolState`.
+
+### With `--raw`
+
+Returns raw thread_message records without parsing:
+
+```json
+{
+  "title": "Summarize recent projects",
+  "rawMessages": [
+    { "id": "...", "step": { "type": "user", "value": [["message text"]] } },
+    { "id": "...", "step": { "type": "agent-inference", "value": [...] } }
+  ]
+}
+```
+
 ## AI chat send (`ai chat send`)
 
 ```json

@@ -66,7 +66,8 @@ Run `agent-notion <command> usage` for detailed per-command docs.
 
 - `agent-notion ai model list [--raw]` — list available AI models (default: name, family, tier; `--raw`: full objects with codenames)
 - `agent-notion ai chat list [--limit <n>]` — list recent AI chat threads (default limit: 20)
-- `agent-notion ai chat send <message> [--thread <thread-id>] [--model <model>] [--page <page-id>] [--no-search] [--stream]` — send message to Notion AI. `--model` accepts codename or display name. `--stream` writes response incrementally to stderr. JSON result always to stdout.
+- `agent-notion ai chat send <message> [--thread <thread-id>] [--model <model>] [--page <page-id>] [--no-search] [--stream] [--debug]` — send message to Notion AI. `--model` accepts codename or display name. `--stream` writes response incrementally to stderr. `--debug` dumps raw NDJSON events to stderr. JSON result always to stdout.
+- `agent-notion ai chat get <thread-id> [--raw]` — get thread content (messages and metadata). `--raw` returns raw thread_message records instead of parsed messages.
 - `agent-notion ai chat mark-read <thread-id>` — mark a chat thread as read
 
 Model resolution: `--model` flag > `config ai.defaultModel` > API default.
