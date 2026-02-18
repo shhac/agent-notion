@@ -3,9 +3,13 @@
  */
 import { resolve } from "node:path";
 import type { V3HttpClient, V3ExportTask } from "../../notion/v3/client.ts";
+import { V3HttpError } from "../../notion/v3/client.ts";
 
 const DEFAULT_POLL_INTERVAL = 2_000;
 const DEFAULT_TIMEOUT = 120_000;
+const MAX_CONSECUTIVE_ERRORS = 3;
+const MAX_BACKOFF = 30_000;
+const DOWNLOAD_TIMEOUT = 10 * 60_000; // 10 minutes
 
 export type ExportFormat = "markdown" | "html";
 
@@ -47,15 +51,22 @@ export async function exportAndDownload(
     throw new Error("Export succeeded but no download URL was provided.");
   }
 
-  // 3. Download the zip
+  // 3. Download the zip (streamed to disk via Bun.write)
   const resolvedPath = resolve(outputPath);
   process.stderr.write(`Downloading export...\n`);
-  const response = await fetch(exportURL);
-  if (!response.ok) {
-    throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+
+  const downloadController = new AbortController();
+  const downloadTimer = setTimeout(() => downloadController.abort(), DOWNLOAD_TIMEOUT);
+
+  try {
+    const response = await fetch(exportURL, { signal: downloadController.signal });
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+    }
+    await Bun.write(resolvedPath, response);
+  } finally {
+    clearTimeout(downloadTimer);
   }
-  const buffer = Buffer.from(await response.arrayBuffer());
-  await Bun.write(resolvedPath, buffer);
 
   return {
     path: resolvedPath,
@@ -73,10 +84,26 @@ async function pollTask(
   const deadline = Date.now() + timeout;
 
   let lastPages = 0;
+  let consecutiveErrors = 0;
 
   while (Date.now() < deadline) {
-    const { results } = await client.getTasks([taskId]);
-    const task = results?.[0];
+    let task: V3ExportTask | undefined;
+    try {
+      const { results } = await client.getTasks([taskId]);
+      task = results?.[0];
+      consecutiveErrors = 0;
+    } catch (err) {
+      if (isTransientError(err) && consecutiveErrors < MAX_CONSECUTIVE_ERRORS) {
+        consecutiveErrors++;
+        const backoff = Math.min(interval * 2 ** consecutiveErrors, MAX_BACKOFF);
+        process.stderr.write(
+          `\nPoll error (attempt ${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}), retrying in ${backoff / 1000}s...\n`,
+        );
+        await sleep(backoff);
+        continue;
+      }
+      throw err;
+    }
 
     if (!task) {
       throw new Error(`Task ${taskId} not found in getTasks response.`);
@@ -96,11 +123,18 @@ async function pollTask(
     await sleep(interval);
   }
 
+  process.stderr.write(`\nTask ID for manual follow-up: ${taskId}\n`);
   throw new Error(
-    `Export timed out after ${timeout / 1000}s. The export may still be running on Notion's servers.`,
+    `Export timed out after ${timeout / 1000}s (task: ${taskId}). The export may still be running on Notion's servers.`,
   );
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function isTransientError(err: unknown): boolean {
+  if (err instanceof V3HttpError && err.status >= 500) return true;
+  if (err instanceof Error && (err.name === "AbortError" || err.name === "TypeError")) return true;
+  return false;
 }
