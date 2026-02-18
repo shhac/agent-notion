@@ -1,5 +1,4 @@
-import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test";
-import type { V3ExportTask } from "../src/notion/v3/client.ts";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { V3HttpError } from "../src/notion/v3/client.ts";
 
 // Mock Bun.write to avoid filesystem writes
@@ -18,7 +17,7 @@ type MockClientOpts = {
 
 function createMockExportClient(opts: MockClientOpts = {}) {
   return {
-    enqueueTask: async (task: any) => opts.enqueueTask?.() ?? { taskId: "task-1" },
+    enqueueTask: async (_task: any) => opts.enqueueTask?.() ?? { taskId: "task-1" },
     getTasks: async (taskIds: string[]) => opts.getTasks?.(taskIds) ?? { results: [] },
   } as any;
 }
@@ -83,7 +82,7 @@ describe("exportAndDownload", () => {
     });
 
     // Mock fetch for download
-    globalThis.fetch = (async (url: any) => ({
+    globalThis.fetch = (async (_url: any) => ({
       ok: true,
       status: 200,
       statusText: "OK",

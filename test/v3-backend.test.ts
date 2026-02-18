@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import type { RecordMap, V3Block, V3Collection, V3User, V3Comment, V3Discussion, V3ExportTask } from "../src/notion/v3/client.ts";
+import type { V3Block, V3Collection, V3User, V3Comment, V3Discussion } from "../src/notion/v3/client.ts";
 import { V3Backend } from "../src/notion/v3/backend.ts";
 import type { V3Operation } from "../src/notion/v3/operations.ts";
 
@@ -434,7 +434,7 @@ describe("V3Backend.listComments", () => {
         },
         cursor: { stack: [] },
       }),
-      syncRecordValues: (requests: any) => {
+      syncRecordValues: (_requests: any) => {
         syncCallCount++;
         if (syncCallCount === 1) {
           // First call: fetch discussion
@@ -657,7 +657,7 @@ describe("V3Backend.getAllBlocks", () => {
   test("collects blocks across chunks", async () => {
     let callCount = 0;
     const { client } = createMockClient({
-      loadPageChunk: (params: any) => {
+      loadPageChunk: (_params: any) => {
         callCount++;
         if (callCount === 1) {
           return {

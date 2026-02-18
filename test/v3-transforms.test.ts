@@ -5,7 +5,6 @@ import type {
   V3Collection,
   V3User,
   V3Comment,
-  V3Discussion,
   V3PropertySchema,
 } from "../src/notion/v3/client.ts";
 import {
