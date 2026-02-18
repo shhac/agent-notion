@@ -6,21 +6,22 @@ COMMANDS:
   search <query> [--filter page|database]    Title-only search (NOT full-text content)
 
   database list                              List accessible databases
-  database get <id>                          Database metadata + properties
-  database query <id> [--filter] [--sort]    Query database rows
-  database schema <id>                       Property definitions (for building filters)
+  database get <database-id>                 Database metadata + properties
+  database query <database-id> [--filter] [--sort]  Query database rows
+  database schema <database-id>              Property definitions (for building filters)
 
-  page get <id> [--content]                  Page properties + optional content (markdown)
-  page create --parent <id> --title <t>      Create page
-  page update <id> [--title] [--properties]  Update properties
-  page archive <id>                          Move to trash
+  page get <page-id> [--content]             Page properties + optional content (markdown)
+  page create --parent <id> --title <title>  Create page
+  page update <page-id> [--title] [--properties]  Update properties
+  page archive <page-id>                     Move to trash
 
   block list <page-id>                       Page content as markdown
   block append <page-id> --content <md>      Append content
 
   comment list <page-id>                     List comments
   comment page <page-id> <body>              Add page-level comment
-  comment inline <block-id> <body> --text <t>  Add inline comment on text
+  comment inline <block-id> <body> --text <t> [--occurrence <n>]
+                                             Add inline comment on text
 
   export page <id> [--format] [--recursive]  Export page to file
   export workspace [--format] [--output]     Export entire workspace
@@ -33,6 +34,7 @@ COMMANDS:
   user list                                  Workspace users
   user me                                    Bot user identity
 
+  auth login|logout|status|workspace         Authentication and workspace management
   config get|set|reset|list-keys             Persistent settings
 
 IDS: UUIDs (with or without dashes).

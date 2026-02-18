@@ -3,9 +3,9 @@ import type { Command } from "commander";
 const USAGE_TEXT = `agent-notion page — Page operations (get, create, update, archive)
 
 GET:
-  page get <id>                              Page properties only
-  page get <id> --content                    Properties + content as markdown
-  page get <id> --raw-content                Properties + content as block objects
+  page get <page-id>                         Page properties only
+  page get <page-id> --content               Properties + content as markdown
+  page get <page-id> --raw-content           Properties + content as block objects
 
 CREATE:
   page create --parent <id> --title <title>  Create page
@@ -19,13 +19,13 @@ CREATE:
     page create --parent <page-id> --title "Sub-page"
 
 UPDATE:
-  page update <id> [--title <t>] [--properties <json>] [--icon <emoji>]
+  page update <page-id> [--title <title>] [--properties <json>] [--icon <emoji>]
 
   Note: Page content (blocks) cannot be updated via page update.
   Use "block append <id> --content <md>" to add content.
 
 ARCHIVE:
-  page archive <id>                          Move to trash (no permanent delete via API)
+  page archive <page-id>                     Move to trash (no permanent delete via API)
 
 CONTENT FORMAT: When using --content, blocks are converted to markdown:
   headings → #/##/### | lists → -/1. | todos → - [ ]/- [x]

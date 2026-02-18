@@ -3,9 +3,9 @@ import type { Command } from "commander";
 const USAGE_TEXT = `agent-notion block — Read and write page content (blocks)
 
 LIST (read content):
-  block list <page-id>                        Content as markdown (default)
-  block list <page-id> --raw                  Content as structured block objects
-  block list <page-id> --raw --limit 10       Paginate raw blocks
+  block list <page-id>                                  Content as markdown (default)
+  block list <page-id> --raw                            Content as structured block objects
+  block list <page-id> --raw --limit 10 --cursor <c>    Paginate raw blocks
 
   Markdown output: { pageId, content, blockCount, hasMore }
   Raw output: { items: [{ id, type, content, hasChildren }], pagination? }
@@ -14,6 +14,7 @@ APPEND (write content):
   block append <page-id> --content <markdown>   Append markdown (converted to blocks)
   block append <page-id> --blocks <json>        Append raw Notion block objects
 
+  Output: { pageId, blocksAppended }
   Markdown conversion supports: headings, lists, todos, code blocks, quotes, dividers.
 
 LIMITS:

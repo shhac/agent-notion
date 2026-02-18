@@ -5,7 +5,7 @@ const USAGE_TEXT = `agent-notion auth — Manage Notion authentication and works
 SUBCOMMANDS:
   auth setup-oauth --client-id <id> --client-secret <secret>   Configure OAuth app credentials
   auth login [--alias <name>] [--port <port>]                  OAuth login flow (opens browser)
-  auth login --token <ntn_xxx> [--alias <name>]                Internal integration login
+  auth login --token <token> [--alias <name>]                  Internal integration login
   auth logout [--all] [--workspace <alias>]                    Remove credentials
   auth status                                                  Show authentication state
   auth workspace list                                          List configured workspaces
@@ -32,20 +32,22 @@ LOGIN (OAuth):
   Returns: { ok, workspace: { alias, name, id, bot_id, default }, hint }
 
 LOGIN (Internal Integration):
-  Pass --token with an API key from a Notion internal integration.
+  Pass --token with an API key (ntn_ or secret_ prefix accepted).
   Validates token against API before storing. No refresh token needed.
   Returns: { ok, workspace: { alias, name, id, auth_type, default } }
 
 LOGOUT:
   Default: removes current default workspace credentials.
   --workspace <alias>: removes specific workspace.
-  --all: removes all workspaces, OAuth config, and keychain entries.
   Returns: { ok, removed, remaining_workspaces, default_workspace }
+  --all: removes all workspaces, OAuth config, and keychain entries.
+  Returns (--all): { ok: true, cleared: "all" }
 
 STATUS:
   Validates current token against Notion API (not just checking presence).
   Shows credential source, workspace info, and other configured workspaces.
-  Returns: { authenticated, source, user, workspace, other_workspaces, oauth_configured }
+  Desktop auth: { authenticated, auth_type: "desktop", user, workspace, extracted_at, other_credentials?, oauth_configured }
+  OAuth/token:  { authenticated, source, user, workspace, other_workspaces?, oauth_configured }
 
 WORKSPACE:
   list: Returns { items: [{ alias, name, auth_type, default }] }

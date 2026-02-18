@@ -3,7 +3,8 @@ import type { Command } from "commander";
 const USAGE_TEXT = `agent-notion comment — Page and inline comments
 
 SUBCOMMANDS:
-  comment list <page-id> [--limit] [--cursor]     List comments on a page
+  comment list <page-id> [--limit <n>] [--cursor <cursor>]
+                                                   List comments on a page or block
   comment page <page-id> <body>                    Add a page-level comment
   comment inline <block-id> <body> --text <target> [--occurrence <n>]
                                                    Add an inline comment on specific text
@@ -23,8 +24,11 @@ INLINE COMMENTS:
 LIST OUTPUT:
   { "items": [{ id, body, author: { id, name }, createdAt }], "pagination"?: ... }
 
-PAGE/INLINE OUTPUT:
+PAGE OUTPUT:
   { id, discussionId, body, createdAt }
+
+INLINE OUTPUT:
+  { id, discussionId, body, createdAt, anchorText }
 
 LIMITATIONS:
   Inline comments require the v3 backend (desktop session).

@@ -3,10 +3,11 @@ import type { Command } from "commander";
 const USAGE_TEXT = `agent-notion database — Database exploration and querying
 
 SUBCOMMANDS:
-  database list [--limit] [--cursor]           List accessible databases
-  database get <id>                            Full metadata + property definitions
-  database query <id> [--filter] [--sort]      Query rows (pages) with filters
-  database schema <id>                         Compact property definitions (for building filters)
+  database list [--limit <n>] [--cursor <cursor>]                          List accessible databases
+  database get <database-id>                                               Full metadata + property definitions
+  database query <database-id> [--filter <json>] [--sort <json>] [--limit <n>] [--cursor <cursor>]
+                                                                           Query rows (pages) with filters
+  database schema <database-id>                                            Compact property definitions (for building filters)
 
 QUERY FILTERS (JSON):
   --filter '{"property":"Status","status":{"equals":"In progress"}}'

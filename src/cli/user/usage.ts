@@ -3,8 +3,8 @@ import type { Command } from "commander";
 const USAGE_TEXT = `agent-notion user — Workspace user information
 
 SUBCOMMANDS:
-  user list [--limit] [--cursor]    List all users in the workspace
-  user me                           Get the bot user (integration) identity
+  user list [--limit <n>] [--cursor <cursor>]    List all users in the workspace
+  user me                                        Get the bot user (integration) identity
 
 LIST OUTPUT:
   { "items": [{ id, name, type, email?, avatarUrl? }], "pagination"?: ... }
@@ -14,6 +14,11 @@ LIST OUTPUT:
 
 ME OUTPUT:
   { id, name, type, workspaceName }
+
+EXAMPLES:
+  user list                          List all workspace users
+  user list --limit 10               First 10 users
+  user me                            Current bot identity
 `;
 
 export function registerUsage(user: Command): void {
