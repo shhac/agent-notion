@@ -446,6 +446,85 @@ Results are deduplicated by `pageId` — each linking page appears at most once.
 }
 ```
 
+## AI model list (`ai model list`)
+
+```json
+{
+  "models": [
+    { "name": "GPT-5.2", "family": "openai", "tier": "intelligent" },
+    { "name": "Claude Sonnet 4", "family": "anthropic", "tier": "fast" }
+  ]
+}
+```
+
+### With `--raw`
+
+```json
+{
+  "models": [
+    {
+      "model": "oatmeal-cookie",
+      "modelMessage": "GPT-5.2",
+      "modelFamily": "openai",
+      "displayGroup": "intelligent",
+      "markdownChat": { "beta": false },
+      "workflow": { "finalModelName": "gpt-5.2" }
+    }
+  ]
+}
+```
+
+`--raw` includes all model fields (codename, beta flags, disabled models).
+
+## AI chat list (`ai chat list`)
+
+```json
+{
+  "items": [
+    {
+      "id": "...",
+      "title": "Summarize recent projects",
+      "created_at": 1737000000000,
+      "updated_at": 1737000600000,
+      "created_by_display_name": "Alice",
+      "type": "workflow"
+    }
+  ],
+  "unreadThreadIds": ["thread-id-1"],
+  "hasMore": false
+}
+```
+
+`unreadThreadIds` lists thread IDs that have not been marked as read.
+
+## AI chat send (`ai chat send`)
+
+```json
+{
+  "threadId": "aaaaaaaa-1111-2222-3333-444444444444",
+  "title": "Summarize recent projects",
+  "response": "Based on your workspace, here are your recent projects...",
+  "model": "oatmeal-cookie",
+  "tokens": {
+    "input": 1250,
+    "output": 340,
+    "cached": 800
+  }
+}
+```
+
+`title` is present only for new threads (auto-generated). `tokens.cached` may be absent if no cached tokens were used.
+
+With `--stream`, the response text is written incrementally to stderr. The JSON result is always printed to stdout at the end.
+
+## AI chat mark-read (`ai chat mark-read`)
+
+```json
+{
+  "ok": true
+}
+```
+
 ## Auth import-desktop (`auth import-desktop`) — v3
 
 ```json
@@ -546,6 +625,11 @@ Results are deduplicated by `pageId` — each linking page appears at most once.
       "key": "pagination.defaultPageSize",
       "description": "Default number of results for list commands (default: 50, max: 100)",
       "default": 50
+    },
+    {
+      "key": "ai.defaultModel",
+      "description": "Default AI model codename (e.g., oatmeal-cookie). Use 'ai model list' to see options.",
+      "default": null
     }
   ]
 }

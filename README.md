@@ -5,6 +5,7 @@ Notion CLI for humans and LLMs.
 - **Structured JSON output** — all output is JSON to stdout, errors to stderr
 - **LLM-optimized** — `agent-notion usage` prints concise docs for agent consumption
 - **Full CRUD** — search, read, create, update, and archive pages and databases
+- **AI chat** — send messages to Notion AI, list models and threads, stream responses
 - **Markdown conversion** — page content rendered as markdown, append content from markdown
 - **Zero runtime deps** — single compiled binary via `bun build --compile`
 
@@ -105,6 +106,12 @@ agent-notion [--full] [--expand <fields>]
 ├── activity                                                       ◆
 │   ├── log [--page <page-id>] [--limit]
 │   └── usage
+├── ai                                                             ◆
+│   ├── model list [--raw]
+│   ├── chat list [--limit]
+│   ├── chat send <message> [--thread] [--model] [--page] [--no-search] [--stream]
+│   ├── chat mark-read <thread-id>
+│   └── usage
 ├── config
 │   ├── get [key]
 │   ├── set <key> <value>
@@ -176,6 +183,10 @@ v3 commands (marked with `◆` in the command map):
 | `page history <page-id>` | Version history snapshots |
 | `activity log [--page <id>]` | Workspace or page activity log |
 | `comment inline <block-id> <body> --text <t>` | Inline comment anchored to specific text |
+| `ai model list` | List available AI models |
+| `ai chat list` | List recent AI chat threads |
+| `ai chat send <message>` | Send message to Notion AI (supports streaming) |
+| `ai chat mark-read <thread-id>` | Mark a chat thread as read |
 
 Run `<command> usage` for full options and output format (e.g., `agent-notion export usage`).
 
@@ -204,6 +215,7 @@ Persistent settings via `agent-notion config`:
 | ---------------------------- | ------- | ----------------------------------------------------- |
 | `truncation.maxLength`       | 200     | Max characters before truncating (0 = no truncation)  |
 | `pagination.defaultPageSize` | 50      | Default results per page (max 100)                    |
+| `ai.defaultModel`            | —       | Default AI model codename (see `ai model list --raw`) |
 
 ```bash
 agent-notion config set truncation.maxLength 500

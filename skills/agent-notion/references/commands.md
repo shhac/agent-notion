@@ -62,6 +62,15 @@ Run `agent-notion <command> usage` for detailed per-command docs.
 
 - `agent-notion activity log [--page <page-id>] [--limit <n>]` — recent workspace or page activity log (default limit: 20)
 
+## AI (v3)
+
+- `agent-notion ai model list [--raw]` — list available AI models (default: name, family, tier; `--raw`: full objects with codenames)
+- `agent-notion ai chat list [--limit <n>]` — list recent AI chat threads (default limit: 20)
+- `agent-notion ai chat send <message> [--thread <thread-id>] [--model <model>] [--page <page-id>] [--no-search] [--stream]` — send message to Notion AI. `--model` accepts codename or display name. `--stream` writes response incrementally to stderr. JSON result always to stdout.
+- `agent-notion ai chat mark-read <thread-id>` — mark a chat thread as read
+
+Model resolution: `--model` flag > `config ai.defaultModel` > API default.
+
 ## Config
 
 - `agent-notion config get [key]` — get a setting value (omit key to show all)
@@ -81,6 +90,7 @@ Run `agent-notion <command> usage` for detailed per-command docs.
   - `agent-notion user usage`
   - `agent-notion export usage`
   - `agent-notion activity usage`
+  - `agent-notion ai usage`
   - `agent-notion auth usage`
   - `agent-notion config usage`
 
@@ -97,6 +107,7 @@ Run `agent-notion <command> usage` for detailed per-command docs.
 | ---------------------------- | ------- | ----- | ------------------------------------------------------------- |
 | `truncation.maxLength`       | 200     | >= 0  | Max characters before truncating description/body/content (0 = no truncation) |
 | `pagination.defaultPageSize` | 50      | 1-100 | Default number of results for list commands                   |
+| `ai.defaultModel`            | —       | —     | Default AI model codename (see `ai model list --raw`)         |
 
 ## Property value shortcuts (page create/update --properties)
 

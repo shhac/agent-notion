@@ -12,8 +12,10 @@ description: |
   - Finding backlinks (pages that link to a given page)
   - Viewing version history snapshots of a page
   - Checking recent workspace or page activity
+  - Chatting with Notion AI (send messages, list threads, stream responses)
+  - Listing available Notion AI models
   - Managing Notion OAuth, integration token, or desktop session auth
-  Triggers: "notion page", "notion database", "notion search", "query notion", "notion block", "notion comment", "notion auth", "notion content", "search notion", "create notion page", "notion workspace", "notion export", "notion backlinks", "notion history", "notion activity", "inline comment", "version history", "page activity"
+  Triggers: "notion page", "notion database", "notion search", "query notion", "notion block", "notion comment", "notion auth", "notion content", "search notion", "create notion page", "notion workspace", "notion export", "notion backlinks", "notion history", "notion activity", "inline comment", "version history", "page activity", "notion ai", "ai chat", "notion chat", "ai model"
 ---
 
 # Notion automation with `agent-notion`
@@ -45,7 +47,7 @@ agent-notion auth status
 agent-notion auth import-desktop                   # macOS only — reads token from Notion Desktop app
 ```
 
-Required for v3 commands: export, page backlinks, page history, activity log, inline comments.
+Required for v3 commands: export, page backlinks, page history, activity log, inline comments, AI chat/models.
 
 Multiple workspaces are supported:
 
@@ -160,6 +162,24 @@ agent-notion activity log --limit 50                           # fetch more entr
 
 Returns `{ activities: [{ id, type, pageId, pageTitle, authors, editTypes, startTime, endTime }], total }`.
 
+## Notion AI (requires `auth import-desktop`)
+
+```bash
+agent-notion ai model list                                         # available models (name, family, tier)
+agent-notion ai model list --raw                                   # full model objects with codenames
+agent-notion ai chat list [--limit 10]                             # recent chat threads
+agent-notion ai chat send "Summarize my recent projects"           # new conversation
+agent-notion ai chat send "Tell me more" --thread <id>             # continue thread
+agent-notion ai chat send "Explain this page" --page <page-id>    # with page context
+agent-notion ai chat send "Quick question" --stream                # stream to stderr
+agent-notion ai chat send "Hello" --model "GPT-5.2"               # specific model
+agent-notion ai chat mark-read <thread-id>                         # mark thread as read
+```
+
+Model resolution: `--model` flag > `config ai.defaultModel` > API default. Accepts codenames or display names.
+
+With `--stream`, AI response text streams to stderr incrementally. JSON result always goes to stdout.
+
 ## Users
 
 ```bash
@@ -207,6 +227,7 @@ agent-notion block usage          # block commands
 agent-notion comment usage        # comment commands (page + inline)
 agent-notion export usage         # export commands (v3)
 agent-notion activity usage       # activity log (v3)
+agent-notion ai usage             # AI chat and models (v3)
 agent-notion user usage           # user commands
 agent-notion auth usage           # auth + workspace management
 agent-notion config usage         # CLI settings keys, defaults, validation
@@ -221,6 +242,7 @@ agent-notion config list-keys                                       # all keys w
 agent-notion config get [key]                                       # current value(s)
 agent-notion config set truncation.maxLength 500                    # increase truncation limit
 agent-notion config set pagination.defaultPageSize 20               # change default page size
+agent-notion config set ai.defaultModel <codename>                  # default AI model
 agent-notion config reset [key]                                     # restore defaults
 ```
 

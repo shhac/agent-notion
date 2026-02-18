@@ -29,6 +29,12 @@ COMMANDS:
   export workspace [--format] [--output]     Export entire workspace
 
   activity log [--page <id>] [--limit <n>]   Recent workspace or page activity
+
+  ai model list [--raw]                      Available AI models
+  ai chat list [--limit <n>]                 Recent AI chat threads
+  ai chat send <msg> [--thread] [--model] [--page] [--no-search] [--stream]
+                                             Send message to Notion AI
+  ai chat mark-read <thread-id>              Mark thread as read
   (v3 commands above require: auth import-desktop)
 
   user list                                  Workspace users
