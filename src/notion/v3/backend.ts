@@ -627,8 +627,8 @@ export class V3Backend implements NotionBackend {
     for (const discId of discussionIds) {
       const disc = getDiscussion(recordMap, discId);
       if (!disc) continue;
-      // Only extract anchor text for discussions parented to a block (not the page itself)
-      if (disc.parent_table === "block" && disc.parent_id !== params.pageId) {
+      // Extract anchor text for discussions parented to a block
+      if (disc.parent_table === "block") {
         const parentBlock = getBlock(recordMap, disc.parent_id);
         if (parentBlock?.properties?.title) {
           const anchor = extractAnchorText(parentBlock.properties.title, discId);
