@@ -52,6 +52,7 @@ export type V3Session = {
   user_name: string;
   space_id: string;
   space_name: string;
+  space_view_id?: string;
   extracted_at: string;
 };
 

@@ -340,10 +340,10 @@ function buildTranscriptItems(params: RunInferenceParams): TranscriptItem[] {
       userEmail: params.user.email,
       spaceName: params.space.name,
       spaceId: params.space.id,
+      ...(params.space.viewId ? { spaceViewId: params.space.viewId } : {}),
       currentDatetime: now,
       surface: "workflows",
       ...(params.pageId ? { blockId: params.pageId } : {}),
-      visibleCollectionViewIds: {},
     },
   };
 
@@ -390,6 +390,8 @@ export async function runInferenceTranscript(
     // For replies: server reconstructs history from threadId
     isPartialTranscript: !isNewThread,
     asPatchResponse: !isNewThread,
+    isUserInAnySalesAssistedSpace: true,
+    isSpaceSalesAssisted: true,
     debugOverrides: {
       emitAgentSearchExtractedResults: true,
       cachedInferences: {},

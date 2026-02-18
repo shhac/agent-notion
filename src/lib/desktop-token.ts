@@ -42,6 +42,7 @@ export type DesktopSessionInfo = {
   user_name: string;
   space_id: string;
   space_name: string;
+  space_view_id?: string;
 };
 
 export class DesktopTokenError extends Error {
@@ -273,5 +274,20 @@ export async function validateDesktopToken(
     );
   }
 
-  return { user_id: userId, user_email: userEmail, user_name: userName, space_id: spaceId, space_name: spaceName };
+  // Find the space_view for the selected space
+  let spaceViewId: string | undefined;
+  for (const tables of Object.values(data)) {
+    const spaceViews = tables["space_view"] as Record<string, { value?: Record<string, unknown> }> | undefined;
+    if (spaceViews) {
+      for (const record of Object.values(spaceViews)) {
+        if (record.value?.space_id === spaceId) {
+          spaceViewId = record.value.id as string;
+          break;
+        }
+      }
+    }
+    break;
+  }
+
+  return { user_id: userId, user_email: userEmail, user_name: userName, space_id: spaceId, space_name: spaceName, space_view_id: spaceViewId };
 }

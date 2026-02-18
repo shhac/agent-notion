@@ -70,6 +70,7 @@ export function registerChatSend(chat: Command): void {
             space: {
               id: session.space_id,
               name: session.space_name,
+              viewId: session.space_view_id,
             },
           }, { debug: opts.debug });
 

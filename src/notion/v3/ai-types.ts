@@ -82,7 +82,6 @@ export type TranscriptContextItem = {
     currentDatetime: string;
     surface: string;
     blockId?: string;
-    visibleCollectionViewIds?: Record<string, unknown>;
   };
 };
 
@@ -115,6 +114,8 @@ export type RunInferenceTranscriptRequest = {
   threadType: string;
   isPartialTranscript: boolean;
   asPatchResponse: boolean;
+  isUserInAnySalesAssistedSpace?: boolean;
+  isSpaceSalesAssisted?: boolean;
   debugOverrides?: {
     emitAgentSearchExtractedResults?: boolean;
     cachedInferences?: Record<string, unknown>;
@@ -291,5 +292,6 @@ export type RunInferenceParams = {
   space: {
     id: string;
     name: string;
+    viewId?: string;
   };
 };
