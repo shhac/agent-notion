@@ -1,15 +1,12 @@
 import type { Command } from "commander";
-import { createV3Client } from "../notion/client.ts";
-import { handleAction } from "../lib/errors.ts";
-import { normalizeId } from "../lib/ids.ts";
-import { printJson } from "../lib/output.ts";
-import { getBlock } from "../notion/v3/transforms.ts";
-import { v3RichTextToPlain } from "../notion/v3/transforms.ts";
+import { createV3Client } from "../../notion/client.ts";
+import { handleAction } from "../../lib/errors.ts";
+import { normalizeId } from "../../lib/ids.ts";
+import { printJson } from "../../lib/output.ts";
+import { getBlock, v3RichTextToPlain } from "../../notion/v3/transforms.ts";
 
-export function registerBacklinksCommand(program: Command): void {
-  program
-    .command("backlinks")
-    .description("List pages that link to a given page (v3 desktop session required)")
+export function registerList(backlinks: Command): void {
+  backlinks
     .argument("<page-id>", "Page UUID or dashless ID")
     .action(async (rawPageId: string) => {
       await handleAction(async () => {

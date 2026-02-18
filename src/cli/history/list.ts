@@ -1,13 +1,11 @@
 import type { Command } from "commander";
-import { createV3Client } from "../notion/client.ts";
-import { handleAction } from "../lib/errors.ts";
-import { normalizeId } from "../lib/ids.ts";
-import { printJson } from "../lib/output.ts";
+import { createV3Client } from "../../notion/client.ts";
+import { handleAction } from "../../lib/errors.ts";
+import { normalizeId } from "../../lib/ids.ts";
+import { printJson } from "../../lib/output.ts";
 
-export function registerHistoryCommand(program: Command): void {
-  program
-    .command("history")
-    .description("List version history (snapshots) of a page (v3 desktop session required)")
+export function registerList(history: Command): void {
+  history
     .argument("<page-id>", "Page UUID or dashless ID")
     .option("--limit <n>", "Number of snapshots to fetch", "20")
     .action(async (rawPageId: string, opts: { limit: string }) => {

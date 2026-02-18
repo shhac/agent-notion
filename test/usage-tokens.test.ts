@@ -20,8 +20,8 @@ describe("usage token budgets", () => {
     expect(output.length).toBeLessThan(4400); // chars/4 estimate
   });
 
-  test("search --usage < 500 tokens", () => {
-    const output = getUsageOutput("search --usage dummy");
+  test("search usage < 500 tokens", () => {
+    const output = getUsageOutput("search usage");
     const tokens = estimateTokens(output);
     expect(tokens).toBeLessThan(500);
   });

@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { registerPage } from "./page.ts";
 import { registerWorkspace } from "./workspace.ts";
+import { registerUsage } from "./usage.ts";
 
 export function registerExportCommand(program: Command): void {
   const exp = program
@@ -8,4 +9,5 @@ export function registerExportCommand(program: Command): void {
     .description("Export pages or workspace (v3 desktop session required)");
   registerPage(exp);
   registerWorkspace(exp);
+  registerUsage(exp);
 }

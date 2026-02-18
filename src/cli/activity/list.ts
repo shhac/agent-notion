@@ -1,14 +1,12 @@
 import type { Command } from "commander";
-import { createV3Client } from "../notion/client.ts";
-import { handleAction } from "../lib/errors.ts";
-import { normalizeId } from "../lib/ids.ts";
-import { printJson } from "../lib/output.ts";
-import { getBlock, getUser, v3RichTextToPlain } from "../notion/v3/transforms.ts";
+import { createV3Client } from "../../notion/client.ts";
+import { handleAction } from "../../lib/errors.ts";
+import { normalizeId } from "../../lib/ids.ts";
+import { printJson } from "../../lib/output.ts";
+import { getBlock, getUser, v3RichTextToPlain } from "../../notion/v3/transforms.ts";
 
-export function registerActivityCommand(program: Command): void {
-  program
-    .command("activity")
-    .description("Show recent activity log for workspace or a page (v3 desktop session required)")
+export function registerList(activity: Command): void {
+  activity
     .option("--page <page-id>", "Scope to a specific page")
     .option("--limit <n>", "Number of activity entries", "20")
     .action(async (opts: { page?: string; limit: string }) => {

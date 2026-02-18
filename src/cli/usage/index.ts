@@ -28,6 +28,7 @@ COMMANDS:
   backlinks <page-id>                        Pages that link to a given page
   history <page-id> [--limit <n>]            Version history for a page
   activity [--page <id>] [--limit <n>]       Recent workspace or page activity
+  (v3 commands above require: auth import-desktop)
 
   user list                                  Workspace users
   user me                                    Bot user identity
