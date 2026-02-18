@@ -11,6 +11,7 @@ import { registerUserCommand } from "./cli/user/index.ts";
 import { registerConfigCommand } from "./cli/config/index.ts";
 import { registerExportCommand } from "./cli/export/index.ts";
 import { registerActivityCommand } from "./cli/activity/index.ts";
+import { registerAiCommand } from "./cli/ai/index.ts";
 import { registerUsageCommand } from "./cli/usage/index.ts";
 import { getPackageVersion } from "./lib/version.ts";
 
@@ -44,6 +45,7 @@ registerCommentCommand(program);
 registerUserCommand(program);
 registerExportCommand(program);
 registerActivityCommand(program);
+registerAiCommand(program);
 registerConfigCommand(program);
 registerUsageCommand(program);
 
