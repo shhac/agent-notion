@@ -126,7 +126,7 @@ export function createV3Client(): V3HttpClient {
   const v3Session = getV3Session();
   if (!v3Session) {
     throw new NotionClientError(
-      "Export requires a v3 desktop session. Run 'agent-notion auth import-desktop' first.",
+      "This command requires a v3 desktop session. Run 'agent-notion auth import-desktop' first.",
       "v3_required",
     );
   }

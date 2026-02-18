@@ -1,7 +1,6 @@
 import type { Command } from "commander";
 import { createV3Client } from "../../notion/client.ts";
-import { getV3Session } from "../../lib/config.ts";
-import { readConfig } from "../../lib/config.ts";
+import { getV3Session, readConfig } from "../../lib/config.ts";
 import { handleAction, CliError } from "../../lib/errors.ts";
 import { printJson } from "../../lib/output.ts";
 import { normalizeId } from "../../lib/ids.ts";
