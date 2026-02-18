@@ -4,6 +4,11 @@
  * needed by the Notion v3 internal API.
  */
 
+// --- V3 rich text types (re-declared locally to avoid circular deps) ---
+
+type V3Decoration = [string, ...unknown[]];
+type V3RichText = Array<[string] | [string, V3Decoration[]]>;
+
 // --- Types ---
 
 export type V3Pointer = {
@@ -216,8 +221,28 @@ type CreateInlineCommentParams = {
   spaceId: string;
   userId: string;
   text: string;
-  updatedTitle: unknown; // V3RichText with ["m", discussionId] injected
+  updatedTitle: V3RichText; // V3RichText with ["m", discussionId] injected
 };
+
+/**
+ * Extract the rich text segments decorated with ["m", discussionId] from a V3RichText array.
+ * Returns only the segments (with all their decorations) that carry the given discussion marker.
+ */
+function extractContextRichText(richText: V3RichText, discussionId: string): V3RichText {
+  const context: V3RichText = [];
+  for (const segment of richText) {
+    const decorations = segment.length > 1 ? (segment[1] as V3Decoration[]) : undefined;
+    if (decorations) {
+      const hasDiscussion = decorations.some(
+        (d) => d[0] === "m" && d[1] === discussionId,
+      );
+      if (hasDiscussion) {
+        context.push(segment);
+      }
+    }
+  }
+  return context;
+}
 
 /** Operations to create an inline comment anchored to specific text within a block. */
 export function createInlineCommentOps(params: CreateInlineCommentParams): V3Operation[] {
@@ -235,6 +260,8 @@ export function createInlineCommentOps(params: CreateInlineCommentParams): V3Ope
       parent_table: "block",
       resolved: false,
       comments: [],
+      context: extractContextRichText(params.updatedTitle, params.discussionId),
+      type: "default",
       space_id: params.spaceId,
       alive: true,
     }),

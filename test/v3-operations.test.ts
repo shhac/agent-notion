@@ -15,6 +15,7 @@ import {
   createInlineCommentOps,
   createCommentOps,
 } from "../src/notion/v3/operations.ts";
+import type { V3RichText } from "../src/notion/v3/client.ts";
 
 describe("createBlockOps", () => {
   test("creates set + listAfter + editMeta operations", () => {
@@ -716,7 +717,7 @@ describe("createCommentOps", () => {
 
 describe("createInlineCommentOps", () => {
   test("creates discussion, comment, and block text update operations", () => {
-    const updatedTitle = [["hello", [["m", "disc-1"]]], [" world"]];
+    const updatedTitle: V3RichText = [["hello", [["m", "disc-1"]]], [" world"]];
     const ops = createInlineCommentOps({
       discussionId: "disc-1",
       commentId: "comm-1",
@@ -739,6 +740,8 @@ describe("createInlineCommentOps", () => {
     const discArgs = discOp.args as Record<string, unknown>;
     expect(discArgs.parent_id).toBe("block-1");
     expect(discArgs.parent_table).toBe("block");
+    expect(discArgs.type).toBe("default");
+    expect(discArgs.context).toEqual([["hello", [["m", "disc-1"]]]]);
 
     // Discussion linked to block's discussions list
     const listAfterOp = ops[1]!;
@@ -766,5 +769,54 @@ describe("createInlineCommentOps", () => {
     const metaOp = ops[7]!;
     expect(metaOp.command).toBe("update");
     expect(metaOp.pointer.id).toBe("block-1");
+  });
+
+  test("context includes segments with overlapping discussion decorations", () => {
+    // Simulates "hello" having two discussions anchored on it
+    const updatedTitle: V3RichText = [
+      ["hello", [["m", "disc-old"], ["m", "disc-2"]]],
+      [" world"],
+    ];
+    const ops = createInlineCommentOps({
+      discussionId: "disc-2",
+      commentId: "comm-2",
+      blockId: "block-1",
+      spaceId: "space-1",
+      userId: "user-1",
+      text: "Another comment",
+      updatedTitle,
+    });
+
+    const discArgs = ops[0]!.args as Record<string, unknown>;
+    expect(discArgs.type).toBe("default");
+    // context should include the segment with both discussion decorations
+    expect(discArgs.context).toEqual([
+      ["hello", [["m", "disc-old"], ["m", "disc-2"]]],
+    ]);
+  });
+
+  test("context extracts multiple contiguous anchored segments", () => {
+    // "hello world" split across two segments, both with the discussion decoration
+    const updatedTitle: V3RichText = [
+      ["hello ", [["m", "disc-3"]]],
+      ["world", [["b"], ["m", "disc-3"]]],
+      ["!"],
+    ];
+    const ops = createInlineCommentOps({
+      discussionId: "disc-3",
+      commentId: "comm-3",
+      blockId: "block-1",
+      spaceId: "space-1",
+      userId: "user-1",
+      text: "Spanning comment",
+      updatedTitle,
+    });
+
+    const discArgs = ops[0]!.args as Record<string, unknown>;
+    expect(discArgs.type).toBe("default");
+    expect(discArgs.context).toEqual([
+      ["hello ", [["m", "disc-3"]]],
+      ["world", [["b"], ["m", "disc-3"]]],
+    ]);
   });
 });
