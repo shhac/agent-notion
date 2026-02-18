@@ -250,7 +250,7 @@ export async function getThreadContent(
  * Parse a thread_message record's `step` into a ThreadMessage.
  * Returns null for message types we skip (config, context, title, record-map).
  */
-function parseThreadMessage(
+export function parseThreadMessage(
   id: string,
   stepType: string,
   step: Record<string, unknown>,
@@ -292,7 +292,7 @@ function parseThreadMessage(
 /**
  * Extract text from Notion rich-text array format: [["text"], ["more text"]].
  */
-function extractRichText(value: unknown): string | undefined {
+export function extractRichText(value: unknown): string | undefined {
   if (!value) return undefined;
   if (typeof value === "string") return value;
   if (Array.isArray(value) && value.length > 0) {
@@ -502,7 +502,7 @@ export async function processInferenceStream(
  * JSON-pointer ops to it. We track the state and emit synthetic agent-inference
  * and record-map events.
  */
-async function* normalizePatchStream(
+export async function* normalizePatchStream(
   events: AsyncIterable<NdjsonEvent>,
 ): AsyncIterable<NdjsonEvent> {
   // State slots from patch-start
@@ -539,7 +539,7 @@ async function* normalizePatchStream(
  * Supports: "a" (add), "x" (text append), "r" (replace).
  * Path format: /s/{index}/... or /s/-
  */
-function applyPatchOp(
+export function applyPatchOp(
   slots: Array<Record<string, unknown>>,
   op: string,
   path: string,
