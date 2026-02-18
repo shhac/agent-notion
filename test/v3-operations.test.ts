@@ -13,6 +13,7 @@ import {
 } from "../src/notion/v3/transforms.ts";
 import {
   createInlineCommentOps,
+  createCommentOps,
 } from "../src/notion/v3/operations.ts";
 
 describe("createBlockOps", () => {
@@ -618,6 +619,98 @@ describe("addDecorationToRange", () => {
       ["hello", [["b"]]],
       [" world"],
     ]);
+  });
+});
+
+describe("createCommentOps", () => {
+  test("creates 6 operations for a page-level comment", () => {
+    const ops = createCommentOps({
+      discussionId: "disc-1",
+      commentId: "comm-1",
+      pageId: "page-1",
+      spaceId: "space-1",
+      userId: "user-1",
+      text: "This is a comment",
+    });
+
+    expect(ops).toHaveLength(6);
+
+    // 1. Create discussion record
+    expect(ops[0]!.command).toBe("set");
+    expect(ops[0]!.pointer.table).toBe("discussion");
+    expect(ops[0]!.pointer.id).toBe("disc-1");
+    const discArgs = ops[0]!.args as Record<string, unknown>;
+    expect(discArgs.id).toBe("disc-1");
+    expect(discArgs.parent_id).toBe("page-1");
+    expect(discArgs.parent_table).toBe("block");
+    expect(discArgs.resolved).toBe(false);
+    expect(discArgs.alive).toBe(true);
+
+    // 2. Link discussion to page block's discussions list
+    expect(ops[1]!.command).toBe("listAfter");
+    expect(ops[1]!.pointer.table).toBe("block");
+    expect(ops[1]!.pointer.id).toBe("page-1");
+    expect(ops[1]!.path).toEqual(["discussions"]);
+    expect(ops[1]!.args).toEqual({ id: "disc-1" });
+
+    // 3. Create comment record
+    expect(ops[2]!.command).toBe("set");
+    expect(ops[2]!.pointer.table).toBe("comment");
+    expect(ops[2]!.pointer.id).toBe("comm-1");
+    const commentArgs = ops[2]!.args as Record<string, unknown>;
+    expect(commentArgs.id).toBe("comm-1");
+    expect(commentArgs.parent_id).toBe("disc-1");
+    expect(commentArgs.parent_table).toBe("discussion");
+    expect(commentArgs.text).toEqual([["This is a comment"]]);
+    expect(commentArgs.created_by_id).toBe("user-1");
+
+    // 4. Link comment to discussion's comments list
+    expect(ops[3]!.command).toBe("listAfter");
+    expect(ops[3]!.pointer.table).toBe("discussion");
+    expect(ops[3]!.pointer.id).toBe("disc-1");
+    expect(ops[3]!.path).toEqual(["comments"]);
+    expect(ops[3]!.args).toEqual({ id: "comm-1" });
+
+    // 5. Set created_time
+    expect(ops[4]!.command).toBe("set");
+    expect(ops[4]!.pointer.table).toBe("comment");
+    expect(ops[4]!.path).toEqual(["created_time"]);
+    expect(typeof ops[4]!.args).toBe("number");
+
+    // 6. Set last_edited_time
+    expect(ops[5]!.command).toBe("set");
+    expect(ops[5]!.pointer.table).toBe("comment");
+    expect(ops[5]!.path).toEqual(["last_edited_time"]);
+    expect(typeof ops[5]!.args).toBe("number");
+  });
+
+  test("uses correct space_id on all pointers", () => {
+    const ops = createCommentOps({
+      discussionId: "d",
+      commentId: "c",
+      pageId: "p",
+      spaceId: "my-space",
+      userId: "u",
+      text: "hi",
+    });
+
+    for (const op of ops) {
+      expect(op.pointer.spaceId).toBe("my-space");
+    }
+  });
+
+  test("stores comment text as v3 rich text format", () => {
+    const ops = createCommentOps({
+      discussionId: "d",
+      commentId: "c",
+      pageId: "p",
+      spaceId: "s",
+      userId: "u",
+      text: "Special chars: <>&\"'",
+    });
+
+    const commentArgs = ops[2]!.args as Record<string, unknown>;
+    expect(commentArgs.text).toEqual([["Special chars: <>&\"'"]]);
   });
 });
 
