@@ -3,7 +3,7 @@ import type { Command } from "commander";
 const USAGE_TEXT = `agent-notion activity — Recent workspace or page activity log
 
 USAGE:
-  activity [--page <page-id>] [--limit <n>]
+  activity log [--page <page-id>] [--limit <n>]
 
   Requires a v3 desktop session (auth import-desktop).
 
@@ -19,9 +19,9 @@ OUTPUT:
   editTypes: Types of edits within the activity (e.g. "content-change")
 
 EXAMPLES:
-  activity                             Recent workspace-wide activity
-  activity --page <page-id>            Activity scoped to a specific page
-  activity --limit 50                  Fetch more entries
+  activity log                         Recent workspace-wide activity
+  activity log --page <page-id>        Activity scoped to a specific page
+  activity log --limit 50              Fetch more entries
 `;
 
 export function registerUsage(activity: Command): void {

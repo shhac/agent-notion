@@ -3,7 +3,7 @@ import type { Command } from "commander";
 const USAGE_TEXT = `agent-notion — Notion CLI for humans and LLMs (JSON output, LLM-friendly)
 
 COMMANDS:
-  search <query> [--filter page|database]    Title-only search (NOT full-text content)
+  search query <query> [--filter page|database]  Title-only search (NOT full-text content)
 
   database list                              List accessible databases
   database get <database-id>                 Database metadata + properties
@@ -14,6 +14,8 @@ COMMANDS:
   page create --parent <id> --title <title>  Create page
   page update <page-id> [--title] [--properties]  Update properties
   page archive <page-id>                     Move to trash
+  page backlinks <page-id>                   Pages that link to a given page (v3)
+  page history <page-id> [--limit <n>]       Version history for a page (v3)
 
   block list <page-id>                       Page content as markdown
   block append <page-id> --content <md>      Append content
@@ -26,9 +28,7 @@ COMMANDS:
   export page <id> [--format] [--recursive]  Export page to file
   export workspace [--format] [--output]     Export entire workspace
 
-  backlinks <page-id>                        Pages that link to a given page
-  history <page-id> [--limit <n>]            Version history for a page
-  activity [--page <id>] [--limit <n>]       Recent workspace or page activity
+  activity log [--page <id>] [--limit <n>]   Recent workspace or page activity
   (v3 commands above require: auth import-desktop)
 
   user list                                  Workspace users

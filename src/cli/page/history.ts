@@ -3,10 +3,9 @@ import { createV3Client } from "../../notion/client.ts";
 import { handleAction } from "../../lib/errors.ts";
 import { normalizeId } from "../../lib/ids.ts";
 import { printJson } from "../../lib/output.ts";
-import { registerUsage } from "./usage.ts";
 
-export function registerHistoryCommand(program: Command): void {
-  const history = program
+export function registerHistory(page: Command): void {
+  page
     .command("history")
     .description("List version history (snapshots) of a page (v3 desktop session required)")
     .argument("<page-id>", "Page UUID or dashless ID")
@@ -33,6 +32,4 @@ export function registerHistoryCommand(program: Command): void {
         printJson({ snapshots, total: snapshots.length });
       });
     });
-
-  registerUsage(history);
 }

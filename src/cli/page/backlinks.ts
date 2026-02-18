@@ -4,10 +4,9 @@ import { handleAction } from "../../lib/errors.ts";
 import { normalizeId } from "../../lib/ids.ts";
 import { printJson } from "../../lib/output.ts";
 import { getBlock, v3RichTextToPlain } from "../../notion/v3/transforms.ts";
-import { registerUsage } from "./usage.ts";
 
-export function registerBacklinksCommand(program: Command): void {
-  const cmd = program
+export function registerBacklinks(page: Command): void {
+  page
     .command("backlinks")
     .description("List pages that link to a given page (v3 desktop session required)")
     .argument("<page-id>", "Page UUID or dashless ID")
@@ -47,6 +46,4 @@ export function registerBacklinksCommand(program: Command): void {
         printJson({ backlinks: unique, total: unique.length });
       });
     });
-
-  registerUsage(cmd);
 }

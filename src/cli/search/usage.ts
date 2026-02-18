@@ -3,7 +3,7 @@ import type { Command } from "commander";
 const USAGE_TEXT = `agent-notion search — Search Notion by title (NOT full-text content search)
 
 USAGE:
-  search <query> [--filter page|database] [--limit <n>] [--cursor <cursor>]
+  search query <query> [--filter page|database] [--limit <n>] [--cursor <cursor>]
 
 IMPORTANT: Search only matches page and database TITLES. It does NOT search page content.
   To search within content: use "database query <id>" with property filters.
@@ -16,10 +16,10 @@ OUTPUT:
   parent: { type: "database"|"page"|"workspace", id? }
 
 EXAMPLES:
-  search "Project Roadmap"                   Search all titles
-  search "Task" --filter database            Only databases
-  search "Meeting Notes" --filter page       Only pages
-  search "Q1" --limit 5                      Limit results
+  search query "Project Roadmap"             Search all titles
+  search query "Task" --filter database      Only databases
+  search query "Meeting Notes" --filter page Only pages
+  search query "Q1" --limit 5               Limit results
 `;
 
 export function registerUsage(search: Command): void {

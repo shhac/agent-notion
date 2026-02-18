@@ -26,6 +26,12 @@ describe("usage token budgets", () => {
     expect(tokens).toBeLessThan(500);
   });
 
+  test("activity usage < 500 tokens", () => {
+    const output = getUsageOutput("activity usage");
+    const tokens = estimateTokens(output);
+    expect(tokens).toBeLessThan(500);
+  });
+
   test("database usage < 500 tokens", () => {
     const output = getUsageOutput("database usage");
     const tokens = estimateTokens(output);

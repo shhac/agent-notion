@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 
-const USAGE_TEXT = `agent-notion page — Page operations (get, create, update, archive)
+const USAGE_TEXT = `agent-notion page — Page operations (get, create, update, archive, backlinks, history)
 
 GET:
   page get <page-id>                         Page properties only
@@ -26,6 +26,14 @@ UPDATE:
 
 ARCHIVE:
   page archive <page-id>                     Move to trash (no permanent delete via API)
+
+BACKLINKS (v3):
+  page backlinks <page-id>                   Pages that link to a given page
+  Output: { "backlinks": [{ blockId, pageId, pageTitle }], "total": <n> }
+
+HISTORY (v3):
+  page history <page-id> [--limit <n>]       Version history (snapshots) for a page
+  Output: { "snapshots": [{ id, version, lastVersion, timestamp, authors }], "total": <n> }
 
 CONTENT FORMAT: When using --content, blocks are converted to markdown:
   headings → #/##/### | lists → -/1. | todos → - [ ]/- [x]
