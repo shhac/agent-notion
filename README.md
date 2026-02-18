@@ -61,14 +61,14 @@ agent-notion database query <database-id>          # all rows
 agent-notion page create --parent <id> --title "New Page"
 agent-notion page update <page-id> --properties '{"Status":"Done"}'
 agent-notion block append <page-id> --content "## New Section\n\nContent here."
-agent-notion comment add <page-id> "Looks good!"
+agent-notion comment page <page-id> "Looks good!"
 ```
 
 ## Command map
 
 ```text
 agent-notion [--full] [--expand <fields>]
-├── search <query> [--filter page|database] [--limit] [--cursor] [--usage]
+├── search <query> [--filter page|database] [--limit] [--cursor]
 ├── database
 │   ├── list [--limit] [--cursor]
 │   ├── get <database-id>
@@ -87,7 +87,8 @@ agent-notion [--full] [--expand <fields>]
 │   └── usage
 ├── comment
 │   ├── list <page-id> [--limit] [--cursor]
-│   ├── add <page-id> <body>
+│   ├── page <page-id> <body>
+│   ├── inline <block-id> <body> --text <target> [--occurrence <n>]  ◆
 │   └── usage
 ├── user
 │   ├── list [--limit] [--cursor]

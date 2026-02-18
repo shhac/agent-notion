@@ -7,9 +7,13 @@ description: |
   - Reading page properties and content (as markdown or structured blocks)
   - Creating, updating, or archiving pages
   - Reading or appending block content (markdown or JSON blocks)
-  - Listing or adding comments on pages
-  - Managing Notion OAuth or integration token auth
-  Triggers: "notion page", "notion database", "notion search", "query notion", "notion block", "notion comment", "notion auth", "notion content", "search notion", "create notion page", "notion workspace"
+  - Listing or adding comments on pages (page-level or inline on specific text)
+  - Exporting pages or entire workspaces as markdown/HTML
+  - Finding backlinks (pages that link to a given page)
+  - Viewing version history snapshots of a page
+  - Checking recent workspace or page activity
+  - Managing Notion OAuth, integration token, or desktop session auth
+  Triggers: "notion page", "notion database", "notion search", "query notion", "notion block", "notion comment", "notion auth", "notion content", "search notion", "create notion page", "notion workspace", "notion export", "notion backlinks", "notion history", "notion activity", "inline comment", "version history", "page activity"
 ---
 
 # Notion automation with `agent-notion`
@@ -34,6 +38,14 @@ agent-notion auth status
 agent-notion auth login --token ntn_...
 agent-notion auth status
 ```
+
+**Option C: Desktop session (for v3 features)**
+
+```bash
+agent-notion auth import-desktop                   # macOS only — reads token from Notion Desktop app
+```
+
+Required for v3 commands: export, backlinks, history, activity, inline comments.
 
 Multiple workspaces are supported:
 
@@ -99,8 +111,54 @@ Markdown conversion supports: headings, lists, todos, code fences, blockquotes, 
 
 ```bash
 agent-notion comment list <page-id>
-agent-notion comment add <page-id> "This looks good!"
+agent-notion comment page <page-id> "This looks good!"
+agent-notion comment inline <block-id> "Great point!" --text "target phrase"           # v3
+agent-notion comment inline <block-id> "Second one" --text "the" --occurrence 2        # v3
 ```
+
+Inline comments are anchored to specific text within a block and require a v3 desktop session.
+
+## v3 Features (requires `auth import-desktop`)
+
+These commands use Notion's internal API and require a desktop session token.
+
+### Export
+
+```bash
+agent-notion export page <page-id>                             # export as markdown zip
+agent-notion export page <page-id> --format html --recursive   # export page tree as HTML
+agent-notion export workspace                                  # export entire workspace
+agent-notion export workspace --output my-backup.zip           # custom output path
+```
+
+Options: `--format markdown|html`, `--recursive` (page only), `--output <path>`, `--timeout <seconds>`
+
+### Backlinks
+
+```bash
+agent-notion backlinks <page-id>                               # pages linking to this page
+```
+
+Returns `{ backlinks: [{ blockId, pageId, pageTitle }], total }`. Deduplicated by page.
+
+### History
+
+```bash
+agent-notion history <page-id>                                 # recent version snapshots
+agent-notion history <page-id> --limit 50                      # fetch more
+```
+
+Returns `{ snapshots: [{ id, version, lastVersion, timestamp, authors }], total }`.
+
+### Activity
+
+```bash
+agent-notion activity                                          # workspace-wide activity
+agent-notion activity --page <page-id>                         # scoped to a page
+agent-notion activity --limit 50                               # fetch more entries
+```
+
+Returns `{ activities: [{ id, type, pageId, pageTitle, authors, editTypes, startTime, endTime }], total }`.
 
 ## Users
 
@@ -142,11 +200,15 @@ Every command group has a `usage` subcommand with detailed, LLM-optimized docs:
 
 ```bash
 agent-notion usage                # top-level overview (~1000 tokens)
-agent-notion search --usage       # search command details
+agent-notion search usage         # search command details
 agent-notion database usage       # database commands
 agent-notion page usage           # page commands
 agent-notion block usage          # block commands
-agent-notion comment usage        # comment commands
+agent-notion comment usage        # comment commands (page + inline)
+agent-notion export usage         # export commands (v3)
+agent-notion backlinks usage      # backlinks (v3)
+agent-notion history usage        # version history (v3)
+agent-notion activity usage       # activity log (v3)
 agent-notion user usage           # user commands
 agent-notion auth usage           # auth + workspace management
 agent-notion config usage         # CLI settings keys, defaults, validation

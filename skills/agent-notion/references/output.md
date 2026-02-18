@@ -326,13 +326,26 @@ Adds:
 
 `author` is `null` for bot-created comments without a user context.
 
-## Comment add (`comment add`)
+## Comment page (`comment page`)
 
 ```json
 {
   "id": "...",
+  "discussionId": "...",
   "body": "This looks good!",
   "createdAt": "2026-01-15T10:30:00.000Z"
+}
+```
+
+## Comment inline (`comment inline`) — v3
+
+```json
+{
+  "id": "...",
+  "discussionId": "...",
+  "body": "Great point!",
+  "createdAt": "2026-01-15T10:30:00.000Z",
+  "anchorText": "target phrase"
 }
 ```
 
@@ -358,6 +371,94 @@ Adds:
   "name": "My Integration",
   "type": "bot",
   "workspaceName": "Acme Corp"
+}
+```
+
+## Export page (`export page`) — v3
+
+```json
+{
+  "exported": "/absolute/path/to/notion-export-1234567890.zip",
+  "format": "markdown",
+  "pagesExported": 15,
+  "recursive": true
+}
+```
+
+## Export workspace (`export workspace`) — v3
+
+```json
+{
+  "exported": "/absolute/path/to/notion-export-1234567890.zip",
+  "format": "markdown",
+  "pagesExported": 250
+}
+```
+
+## Backlinks (`backlinks`) — v3
+
+```json
+{
+  "backlinks": [
+    { "blockId": "...", "pageId": "...", "pageTitle": "Meeting Notes" },
+    { "blockId": "...", "pageId": "...", "pageTitle": "Project Plan" }
+  ],
+  "total": 2
+}
+```
+
+Results are deduplicated by `pageId` — each linking page appears at most once.
+
+## History (`history`) — v3
+
+```json
+{
+  "snapshots": [
+    {
+      "id": "...",
+      "version": 42,
+      "lastVersion": 40,
+      "timestamp": "2026-01-15T10:30:00.000Z",
+      "authors": ["user-id-1", "user-id-2"]
+    }
+  ],
+  "total": 20
+}
+```
+
+## Activity (`activity`) — v3
+
+```json
+{
+  "activities": [
+    {
+      "id": "...",
+      "type": "page-edited",
+      "pageId": "...",
+      "pageTitle": "Meeting Notes",
+      "authors": ["Alice", "Bob"],
+      "editTypes": ["content-change"],
+      "startTime": "2026-01-15T10:00:00.000Z",
+      "endTime": "2026-01-15T10:30:00.000Z"
+    }
+  ],
+  "total": 20
+}
+```
+
+## Auth import-desktop (`auth import-desktop`) — v3
+
+```json
+{
+  "ok": true,
+  "session": {
+    "user": "Alice Example",
+    "email": "alice@example.com",
+    "space": "Acme Corp",
+    "space_id": "...",
+    "storage": "keychain",
+    "extracted_at": "2026-01-15T10:30:00.000Z"
+  }
 }
 ```
 

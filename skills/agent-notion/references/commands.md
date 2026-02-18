@@ -13,10 +13,11 @@ Run `agent-notion <command> usage` for detailed per-command docs.
 - `agent-notion auth workspace switch <alias>` — set default workspace
 - `agent-notion auth workspace set-default <alias>` — alias for switch
 - `agent-notion auth workspace remove <alias>` — remove a stored workspace
+- `agent-notion auth import-desktop [--skip-validation]` — import session from Notion Desktop app (macOS only, required for v3 commands)
 
 ## Search
 
-- `agent-notion search <query> [--filter <type>] [--limit <n>] [--cursor <cursor>] [--usage]` — search pages and databases by title (type: "page" | "database")
+- `agent-notion search <query> [--filter <type>] [--limit <n>] [--cursor <cursor>]` — search pages and databases by title (type: "page" | "database")
 
 **Note:** Notion search is title-only. It does not match page content, comments, or property values.
 
@@ -42,12 +43,30 @@ Run `agent-notion <command> usage` for detailed per-command docs.
 ## Comment
 
 - `agent-notion comment list <page-id> [--limit <n>] [--cursor <cursor>]` — list comments on a page
-- `agent-notion comment add <page-id> <body>` — add a comment to a page
+- `agent-notion comment page <page-id> <body>` — add a page-level comment
+- `agent-notion comment inline <block-id> <body> --text <target> [--occurrence <n>]` — add an inline comment anchored to specific text (v3, requires desktop session)
 
 ## User
 
 - `agent-notion user list [--limit <n>] [--cursor <cursor>]` — list workspace users
 - `agent-notion user me` — current authenticated user/bot
+
+## Export (v3)
+
+- `agent-notion export page <page-id> [--format <markdown|html>] [--recursive] [--output <path>] [--timeout <seconds>]` — export page (or page tree with `--recursive`) to markdown/HTML zip
+- `agent-notion export workspace [--format <markdown|html>] [--output <path>] [--timeout <seconds>]` — export entire workspace
+
+## Backlinks (v3)
+
+- `agent-notion backlinks <page-id>` — find pages that link to a given page (deduplicated by page)
+
+## History (v3)
+
+- `agent-notion history <page-id> [--limit <n>]` — version history snapshots for a page (default limit: 20)
+
+## Activity (v3)
+
+- `agent-notion activity [--page <page-id>] [--limit <n>]` — recent workspace or page activity log (default limit: 20)
 
 ## Config
 
@@ -60,12 +79,16 @@ Run `agent-notion <command> usage` for detailed per-command docs.
 
 - `agent-notion usage` — LLM-optimized top-level docs (~1000 tokens)
 - `agent-notion <command> usage` — detailed per-command docs:
-  - `agent-notion search --usage`
+  - `agent-notion search usage`
   - `agent-notion database usage`
   - `agent-notion page usage`
   - `agent-notion block usage`
   - `agent-notion comment usage`
   - `agent-notion user usage`
+  - `agent-notion export usage`
+  - `agent-notion backlinks usage`
+  - `agent-notion history usage`
+  - `agent-notion activity usage`
   - `agent-notion auth usage`
   - `agent-notion config usage`
 
