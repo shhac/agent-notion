@@ -1,11 +1,34 @@
 import type { Command } from "commander";
-import { registerRun } from "./run.ts";
+import { withBackend } from "../../notion/client.ts";
+import { handleAction } from "../../lib/errors.ts";
+import { printPaginated, resolvePageSize } from "../../lib/output.ts";
 import { registerUsage } from "./usage.ts";
 
 export function registerSearchCommand(program: Command): void {
   const search = program
     .command("search")
-    .description("Search Notion by title (pages and databases)");
-  registerRun(search);
+    .description("Search Notion by title (pages and databases)")
+    .argument("<query>", "Search text (matched against titles)")
+    .option("--filter <type>", "Filter by type: page | database")
+    .option("--limit <n>", "Max results")
+    .option("--cursor <cursor>", "Pagination cursor")
+    .action(async (query: string, opts: Record<string, string | boolean | undefined>) => {
+      await handleAction(async () => {
+        const result = await withBackend((backend) =>
+          backend.search({
+            query,
+            filter: opts.filter as "page" | "database" | undefined,
+            limit: resolvePageSize(opts as Record<string, string | undefined>),
+            cursor: opts.cursor as string | undefined,
+          }),
+        );
+
+        printPaginated(result.items, {
+          hasMore: result.hasMore,
+          nextCursor: result.nextCursor,
+        });
+      });
+    });
+
   registerUsage(search);
 }
