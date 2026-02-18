@@ -23,6 +23,7 @@ import {
   transformV3UserMe,
   transformV3Comment,
   extractAnchorText,
+  injectCommentDecoration,
   getBlock,
   getCollection,
   getAllBlocks,
@@ -1053,5 +1054,29 @@ describe("RecordMap accessors", () => {
 
   test("getUser returns user by id", () => {
     expect(getUser(recordMap, "u1")?.id).toBe("u1");
+  });
+});
+
+// =============================================================================
+// injectCommentDecoration
+// =============================================================================
+
+describe("injectCommentDecoration", () => {
+  test("injects decoration on found text", () => {
+    const richText: any = [["Hello world"]];
+    const result = injectCommentDecoration(richText, "world", "disc-1");
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual(["Hello "]);
+    expect(result[1]).toEqual(["world", [["m", "disc-1"]]]);
+  });
+
+  test("throws when text is not found", () => {
+    const richText: any = [["Hello world"]];
+    expect(() => injectCommentDecoration(richText, "missing", "disc-1")).toThrow(/not found/);
+  });
+
+  test("throws when target text is empty", () => {
+    const richText: any = [["Hello"]];
+    expect(() => injectCommentDecoration(richText, "", "disc-1")).toThrow(/cannot be empty/);
   });
 });

@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { CliError, handleAction } from "../src/lib/errors.ts";
+import { V3HttpError } from "../src/notion/v3/client.ts";
 
 describe("CliError", () => {
   test("creates error with message", () => {
@@ -97,5 +98,50 @@ describe("handleAction", () => {
     });
     expect(stderrOutput).toBe("");
     expect(process.exitCode).toBe(0);
+  });
+
+  test("handles V3HttpError 401 expired token", async () => {
+    await handleAction(async () => {
+      throw new V3HttpError("Unauthorized", 401, "/api/v3/loadPageChunk");
+    });
+    expect(JSON.parse(stderrOutput)).toEqual({
+      error: "Desktop token expired. Run 'agent-notion auth import-desktop' to re-import.",
+    });
+  });
+
+  test("handles V3HttpError 403 access denied", async () => {
+    await handleAction(async () => {
+      throw new V3HttpError("Forbidden", 403, "/api/v3/loadPageChunk");
+    });
+    expect(JSON.parse(stderrOutput)).toEqual({
+      error: "Access denied. The token may not have access to this resource, or it may have expired.",
+    });
+  });
+
+  test("handles V3HttpError 404 not found", async () => {
+    await handleAction(async () => {
+      throw new V3HttpError("Not Found", 404, "/api/v3/loadPageChunk");
+    });
+    expect(JSON.parse(stderrOutput)).toEqual({
+      error: "Not found. Check the ID, or ensure the page is accessible with your desktop token.",
+    });
+  });
+
+  test("handles V3HttpError 429 rate limited", async () => {
+    await handleAction(async () => {
+      throw new V3HttpError("Too Many Requests", 429, "/api/v3/search");
+    });
+    expect(JSON.parse(stderrOutput)).toEqual({
+      error: "Rate limited by Notion. Wait a moment and retry.",
+    });
+  });
+
+  test("handles V3HttpError 500 with endpoint in message", async () => {
+    await handleAction(async () => {
+      throw new V3HttpError("Internal Server Error", 500, "/api/v3/saveTransactions");
+    });
+    expect(JSON.parse(stderrOutput)).toEqual({
+      error: "v3 API error (500 on /api/v3/saveTransactions): Internal Server Error",
+    });
   });
 });

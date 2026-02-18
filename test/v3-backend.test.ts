@@ -837,3 +837,674 @@ describe("V3Backend.getAllBlocks", () => {
     expect(result.blocks).toHaveLength(1);
   });
 });
+
+// =============================================================================
+// createPage
+// =============================================================================
+
+describe("V3Backend.createPage", () => {
+  test("creates a page under a regular page parent", async () => {
+    const parentBlock = makeBlock({ id: "parent-1", type: "page" });
+    const { client, calls } = createMockClient({
+      loadPageChunk: () => ({
+        recordMap: { block: { "parent-1": wrapBlock(parentBlock) } },
+        cursor: { stack: [] },
+      }),
+    });
+
+    const backend = new V3Backend(client);
+    const result = await backend.createPage({
+      parentId: "parent-1",
+      title: "New Page",
+    });
+
+    expect(result.title).toBe("New Page");
+    expect(result.id).toBeDefined();
+    expect(result.url).toContain("notion.so");
+    expect(result.parent).toEqual({ type: "page_id", page_id: "parent-1" });
+    expect(result.createdAt).toBeDefined();
+
+    // Verify saveTransactions was called with createBlockOps (set, listAfter, editMeta)
+    expect(calls.saveTransactions).toHaveLength(1);
+    const ops = calls.saveTransactions![0] as V3Operation[];
+    expect(ops).toHaveLength(3);
+    expect(ops[0]!.command).toBe("set");
+    expect((ops[0]!.args as any).type).toBe("page");
+    expect((ops[0]!.args as any).properties.title).toEqual([["New Page"]]);
+    expect((ops[0]!.args as any).parent_table).toBe("block");
+    expect((ops[0]!.args as any).parent_id).toBe("parent-1");
+    expect(ops[1]!.command).toBe("listAfter");
+    expect(ops[2]!.command).toBe("update"); // editMeta
+  });
+
+  test("creates a page under a database parent with schema mapping", async () => {
+    const parentBlock = makeBlock({
+      id: "db-1",
+      type: "collection_view_page",
+      collection_id: "col-1",
+    } as any);
+    const collection: V3Collection = {
+      id: "col-1",
+      version: 1,
+      name: [["Tasks"]],
+      schema: {
+        title: { name: "Name", type: "title" },
+        abc1: { name: "Status", type: "select" },
+      },
+      parent_id: "parent-1",
+      parent_table: "block",
+    };
+
+    const { client, calls } = createMockClient({
+      loadPageChunk: () => ({
+        recordMap: {
+          block: { "db-1": wrapBlock(parentBlock) },
+          collection: { "col-1": { value: collection, role: "reader" } },
+        },
+        cursor: { stack: [] },
+      }),
+    });
+
+    const backend = new V3Backend(client);
+    const result = await backend.createPage({
+      parentId: "db-1",
+      title: "New Row",
+      properties: { Status: "Done" },
+    });
+
+    expect(result.title).toBe("New Row");
+    expect(result.parent).toEqual({ type: "database_id", database_id: "db-1" });
+
+    // Verify ops
+    expect(calls.saveTransactions).toHaveLength(1);
+    const ops = calls.saveTransactions![0] as V3Operation[];
+    const setOp = ops.find((op) => op.command === "set")!;
+    expect((setOp.args as any).parent_table).toBe("collection");
+    expect((setOp.args as any).parent_id).toBe("col-1");
+    // Status mapped to abc1 via schema
+    expect((setOp.args as any).properties.abc1).toEqual([["Done"]]);
+
+    // listAfter and editMeta should target the collection_view_page block, not collection
+    const listAfterOp = ops.find((op) => op.command === "listAfter")!;
+    expect(listAfterOp.pointer.id).toBe("db-1");
+    expect(listAfterOp.pointer.table).toBe("block");
+  });
+
+  test("creates a page with icon", async () => {
+    const parentBlock = makeBlock({ id: "parent-1", type: "page" });
+    const { client, calls } = createMockClient({
+      loadPageChunk: () => ({
+        recordMap: { block: { "parent-1": wrapBlock(parentBlock) } },
+        cursor: { stack: [] },
+      }),
+    });
+
+    const backend = new V3Backend(client);
+    await backend.createPage({
+      parentId: "parent-1",
+      title: "Page with Icon",
+      icon: "🎯",
+    });
+
+    const ops = calls.saveTransactions![0] as V3Operation[];
+    const setOp = ops.find((op) => op.command === "set")!;
+    expect((setOp.args as any).format.page_icon).toBe("🎯");
+  });
+
+  test("throws when parent is database but collection cannot be resolved", async () => {
+    const parentBlock = makeBlock({
+      id: "db-1",
+      type: "collection_view_page",
+      collection_id: "col-missing",
+    } as any);
+
+    const { client } = createMockClient({
+      loadPageChunk: () => ({
+        recordMap: { block: { "db-1": wrapBlock(parentBlock) } },
+        cursor: { stack: [] },
+      }),
+      syncRecordValues: () => ({ recordMap: {} }),
+    });
+
+    const backend = new V3Backend(client);
+    await expect(
+      backend.createPage({ parentId: "db-1", title: "Fail" }),
+    ).rejects.toThrow(/Could not resolve database/);
+  });
+});
+
+// =============================================================================
+// updatePage
+// =============================================================================
+
+describe("V3Backend.updatePage", () => {
+  test("updates title only", async () => {
+    const { client, calls } = createMockClient();
+
+    const backend = new V3Backend(client);
+    const result = await backend.updatePage({ id: "page-1", title: "Updated Title" });
+
+    expect(result.id).toBe("page-1");
+    expect(result.url).toContain("notion.so");
+    expect(result.lastEditedAt).toBeDefined();
+
+    expect(calls.saveTransactions).toHaveLength(1);
+    const ops = calls.saveTransactions![0] as V3Operation[];
+    const titleOp = ops.find(
+      (op) => op.command === "set" && (op.path as string[]).join(".") === "properties.title",
+    )!;
+    expect(titleOp).toBeDefined();
+    expect(titleOp.args).toEqual([["Updated Title"]]);
+  });
+
+  test("updates icon", async () => {
+    const { client, calls } = createMockClient();
+
+    const backend = new V3Backend(client);
+    await backend.updatePage({ id: "page-1", icon: "🚀" });
+
+    const ops = calls.saveTransactions![0] as V3Operation[];
+    const iconOp = ops.find(
+      (op) => op.command === "set" && (op.path as string[]).join(".") === "format.page_icon",
+    )!;
+    expect(iconOp).toBeDefined();
+    expect(iconOp.args).toBe("🚀");
+  });
+
+  test("updates properties on a database row with schema resolution", async () => {
+    const block = makeBlock({
+      id: "row-1",
+      parent_table: "collection",
+      parent_id: "col-1",
+    });
+    const collection: V3Collection = {
+      id: "col-1",
+      version: 1,
+      name: [["Tasks"]],
+      schema: {
+        title: { name: "Name", type: "title" },
+        abc1: { name: "Status", type: "status" },
+      },
+      parent_id: "parent-1",
+      parent_table: "block",
+    };
+
+    const { client, calls } = createMockClient({
+      loadPageChunk: () => ({
+        recordMap: {
+          block: { "row-1": wrapBlock(block) },
+          collection: { "col-1": { value: collection, role: "reader" } },
+        },
+        cursor: { stack: [] },
+      }),
+    });
+
+    const backend = new V3Backend(client);
+    await backend.updatePage({
+      id: "row-1",
+      properties: { Status: "Done" },
+    });
+
+    const ops = calls.saveTransactions![0] as V3Operation[];
+    // Should have a set op for the schema-mapped property abc1
+    const statusOp = ops.find(
+      (op) => op.command === "set" && (op.path as string[])[1] === "abc1",
+    )!;
+    expect(statusOp).toBeDefined();
+    expect(statusOp.args).toEqual([["Done"]]);
+  });
+
+  test("produces only editMeta when no properties provided", async () => {
+    const { client, calls } = createMockClient();
+
+    const backend = new V3Backend(client);
+    await backend.updatePage({ id: "page-1" });
+
+    const ops = calls.saveTransactions![0] as V3Operation[];
+    // Only editMeta op
+    expect(ops).toHaveLength(1);
+    expect(ops[0]!.command).toBe("update");
+  });
+});
+
+// =============================================================================
+// appendBlocks
+// =============================================================================
+
+describe("V3Backend.appendBlocks", () => {
+  test("appends a single block", async () => {
+    const { client, calls } = createMockClient();
+
+    const backend = new V3Backend(client);
+    const result = await backend.appendBlocks({
+      id: "page-1",
+      blocks: [{ type: "paragraph", paragraph: { rich_text: [{ text: { content: "Hello" } }] } }],
+    });
+
+    expect(result.blocksAdded).toBe(1);
+    expect(calls.saveTransactions).toHaveLength(1);
+
+    const ops = calls.saveTransactions![0] as V3Operation[];
+    // 2 ops from createBlockOps (set + listAfter, editMeta filtered) + 1 final editMeta
+    expect(ops).toHaveLength(3);
+    expect(ops[0]!.command).toBe("set");
+    expect((ops[0]!.args as any).type).toBe("text"); // paragraph → text
+    expect(ops[1]!.command).toBe("listAfter");
+    expect(ops[2]!.command).toBe("update"); // final editMeta
+    expect(ops[2]!.pointer.id).toBe("page-1");
+  });
+
+  test("appends multiple blocks with correct ordering via after chain", async () => {
+    const { client, calls } = createMockClient();
+
+    const backend = new V3Backend(client);
+    const result = await backend.appendBlocks({
+      id: "page-1",
+      blocks: [
+        { type: "paragraph", paragraph: { rich_text: [{ text: { content: "First" } }] } },
+        { type: "paragraph", paragraph: { rich_text: [{ text: { content: "Second" } }] } },
+      ],
+    });
+
+    expect(result.blocksAdded).toBe(2);
+
+    const ops = calls.saveTransactions![0] as V3Operation[];
+    // 2 blocks × 2 ops each + 1 final editMeta = 5 ops
+    expect(ops).toHaveLength(5);
+
+    // First block: set + listAfter (no "after")
+    expect(ops[0]!.command).toBe("set");
+    expect(ops[1]!.command).toBe("listAfter");
+    expect((ops[1]!.args as Record<string, string>).after).toBeUndefined();
+
+    // Second block: set + listAfter (with "after" = first block's ID)
+    expect(ops[2]!.command).toBe("set");
+    const firstBlockId = (ops[0]!.args as any).id;
+    expect(ops[3]!.command).toBe("listAfter");
+    expect((ops[3]!.args as Record<string, string>).after).toBe(firstBlockId);
+
+    // Final editMeta for the parent
+    expect(ops[4]!.command).toBe("update");
+    expect(ops[4]!.pointer.id).toBe("page-1");
+  });
+
+  test("produces a single editMeta operation for the parent", async () => {
+    const { client, calls } = createMockClient();
+
+    const backend = new V3Backend(client);
+    await backend.appendBlocks({
+      id: "page-1",
+      blocks: [
+        { type: "paragraph", paragraph: { rich_text: [{ text: { content: "A" } }] } },
+        { type: "paragraph", paragraph: { rich_text: [{ text: { content: "B" } }] } },
+        { type: "paragraph", paragraph: { rich_text: [{ text: { content: "C" } }] } },
+      ],
+    });
+
+    const ops = calls.saveTransactions![0] as V3Operation[];
+    // Only one editMeta op targeting the parent
+    const editMetaOps = ops.filter(
+      (op) => op.command === "update" && op.pointer.id === "page-1",
+    );
+    expect(editMetaOps).toHaveLength(1);
+  });
+});
+
+// =============================================================================
+// addInlineComment
+// =============================================================================
+
+describe("V3Backend.addInlineComment", () => {
+  test("creates an inline comment on found text", async () => {
+    const block = makeBlock({
+      id: "block-1",
+      type: "text",
+      properties: { title: [["Hello world"]] },
+    });
+
+    const { client, calls } = createMockClient({
+      syncRecordValues: () => ({
+        recordMap: { block: { "block-1": wrapBlock(block) } },
+      }),
+    });
+
+    const backend = new V3Backend(client);
+    const result = await backend.addInlineComment({
+      blockId: "block-1",
+      body: "Fix this",
+      text: "world",
+    });
+
+    expect(result.body).toBe("Fix this");
+    expect(result.id).toBeDefined();
+    expect(result.discussionId).toBeDefined();
+    expect(result.createdAt).toBeDefined();
+
+    // Verify saveTransactions was called
+    expect(calls.saveTransactions).toHaveLength(1);
+    const ops = calls.saveTransactions![0] as V3Operation[];
+    // createInlineCommentOps produces 8 ops
+    expect(ops).toHaveLength(8);
+
+    // Verify the block title update includes the decoration
+    const titleSetOp = ops.find(
+      (op) => op.command === "set" && (op.path as string[]).join(".") === "properties.title",
+    )!;
+    expect(titleSetOp).toBeDefined();
+    // The updated title should have the discussion decoration on "world"
+    const updatedTitle = titleSetOp.args as any[];
+    const decoratedSegment = updatedTitle.find(
+      (seg: any) => seg[0] === "world" && seg[1]?.some((d: any) => d[0] === "m"),
+    );
+    expect(decoratedSegment).toBeDefined();
+  });
+
+  test("throws when text is not found in block", async () => {
+    const block = makeBlock({
+      id: "block-1",
+      type: "text",
+      properties: { title: [["Hello world"]] },
+    });
+
+    const { client } = createMockClient({
+      syncRecordValues: () => ({
+        recordMap: { block: { "block-1": wrapBlock(block) } },
+      }),
+    });
+
+    const backend = new V3Backend(client);
+    await expect(
+      backend.addInlineComment({ blockId: "block-1", body: "Note", text: "missing" }),
+    ).rejects.toThrow(/not found/);
+  });
+
+  test("targets the nth occurrence of text", async () => {
+    const block = makeBlock({
+      id: "block-1",
+      type: "text",
+      properties: { title: [["hello hello hello"]] },
+    });
+
+    const { client, calls } = createMockClient({
+      syncRecordValues: () => ({
+        recordMap: { block: { "block-1": wrapBlock(block) } },
+      }),
+    });
+
+    const backend = new V3Backend(client);
+    const result = await backend.addInlineComment({
+      blockId: "block-1",
+      body: "Second one",
+      text: "hello",
+      occurrence: 2,
+    });
+
+    expect(result.body).toBe("Second one");
+
+    // Verify the decoration is on the second "hello" (offset 6-11)
+    const ops = calls.saveTransactions![0] as V3Operation[];
+    const titleSetOp = ops.find(
+      (op) => op.command === "set" && (op.path as string[]).join(".") === "properties.title",
+    )!;
+    const updatedTitle = titleSetOp.args as any[];
+    // Should have: "hello " (no decoration), "hello" (with decoration), " hello" (no decoration)
+    expect(updatedTitle[0][0]).toBe("hello ");
+    expect(updatedTitle[1][0]).toBe("hello");
+    expect(updatedTitle[1][1].some((d: any) => d[0] === "m")).toBe(true);
+    expect(updatedTitle[2][0]).toBe(" hello");
+  });
+
+  test("throws when block has no text content", async () => {
+    const block = makeBlock({
+      id: "block-1",
+      type: "text",
+    });
+
+    const { client } = createMockClient({
+      syncRecordValues: () => ({
+        recordMap: { block: { "block-1": wrapBlock(block) } },
+      }),
+    });
+
+    const backend = new V3Backend(client);
+    await expect(
+      backend.addInlineComment({ blockId: "block-1", body: "Note", text: "anything" }),
+    ).rejects.toThrow(/no text content/);
+  });
+});
+
+// =============================================================================
+// queryDatabase
+// =============================================================================
+
+describe("V3Backend.queryDatabase", () => {
+  test("returns query results with schema-mapped properties", async () => {
+    const dbBlock = makeBlock({
+      id: "db-1",
+      type: "collection_view_page",
+      collection_id: "col-1",
+      view_ids: ["view-1"],
+    } as any);
+    const collection: V3Collection = {
+      id: "col-1",
+      version: 1,
+      name: [["Tasks"]],
+      schema: {
+        title: { name: "Name", type: "title" },
+        abc1: { name: "Status", type: "status" },
+      },
+      parent_id: "parent-1",
+      parent_table: "block",
+    };
+    const row1 = makeBlock({
+      id: "row-1",
+      type: "page",
+      properties: { title: [["Task 1"]], abc1: [["Done"]] },
+    });
+
+    const { client, calls } = createMockClient({
+      loadPageChunk: () => ({
+        recordMap: {
+          block: { "db-1": wrapBlock(dbBlock) },
+          collection: { "col-1": { value: collection, role: "reader" } },
+        },
+        cursor: { stack: [] },
+      }),
+      queryCollection: () => ({
+        result: { blockIds: ["row-1"], total: 1 },
+        recordMap: { block: { "row-1": wrapBlock(row1) } },
+      }),
+    });
+
+    const backend = new V3Backend(client);
+    const result = await backend.queryDatabase({ id: "db-1" });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]!.id).toBe("row-1");
+    expect(result.items[0]!.properties).toEqual({ Name: "Task 1", Status: "Done" });
+
+    // Verify queryCollection was called with correct collection and view IDs
+    expect(calls.queryCollection).toHaveLength(1);
+    expect(calls.queryCollection![0].collectionId).toBe("col-1");
+    expect(calls.queryCollection![0].collectionViewId).toBe("view-1");
+  });
+
+  test("passes filter and sort to queryCollection", async () => {
+    const dbBlock = makeBlock({
+      id: "db-1",
+      type: "collection_view_page",
+      collection_id: "col-1",
+      view_ids: ["view-1"],
+    } as any);
+    const collection: V3Collection = {
+      id: "col-1",
+      version: 1,
+      name: [["Tasks"]],
+      schema: { title: { name: "Name", type: "title" } },
+      parent_id: "parent-1",
+      parent_table: "block",
+    };
+
+    const { client, calls } = createMockClient({
+      loadPageChunk: () => ({
+        recordMap: {
+          block: { "db-1": wrapBlock(dbBlock) },
+          collection: { "col-1": { value: collection, role: "reader" } },
+        },
+        cursor: { stack: [] },
+      }),
+      queryCollection: () => ({
+        result: { blockIds: [], total: 0 },
+        recordMap: {},
+      }),
+    });
+
+    const backend = new V3Backend(client);
+    const myFilter = { property: "Status", value: "Done" };
+    const mySort = { property: "Name", direction: "ascending" };
+    await backend.queryDatabase({ id: "db-1", filter: myFilter, sort: mySort });
+
+    expect(calls.queryCollection).toHaveLength(1);
+    const queryParams = calls.queryCollection![0];
+    expect(queryParams.query.filter).toEqual(myFilter);
+    expect(queryParams.query.sort).toEqual(mySort);
+  });
+});
+
+// =============================================================================
+// listDatabases
+// =============================================================================
+
+describe("V3Backend.listDatabases", () => {
+  test("filters to collection_view_page blocks only", async () => {
+    const pageBlock = makeBlock({ id: "p1", type: "page", properties: { title: [["Page"]] } });
+    const dbBlock = makeBlock({
+      id: "db-1",
+      type: "collection_view_page",
+      collection_id: "col-1",
+      properties: { title: [["My DB"]] },
+    } as any);
+    const collection: V3Collection = {
+      id: "col-1",
+      version: 1,
+      name: [["My DB"]],
+      schema: { title: { name: "Name", type: "title" } },
+      parent_id: "parent-1",
+      parent_table: "block",
+    };
+
+    const { client } = createMockClient({
+      search: () => ({
+        results: [{ id: "p1", score: 1 }, { id: "db-1", score: 1 }],
+        total: 2,
+        recordMap: {
+          block: {
+            "p1": wrapBlock(pageBlock),
+            "db-1": wrapBlock(dbBlock),
+          },
+          collection: { "col-1": { value: collection, role: "reader" } },
+        },
+      }),
+    });
+
+    const backend = new V3Backend(client);
+    const result = await backend.listDatabases();
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]!.id).toBe("db-1");
+    expect(result.items[0]!.title).toBe("My DB");
+  });
+});
+
+// =============================================================================
+// getDatabaseSchema
+// =============================================================================
+
+describe("V3Backend.getDatabaseSchema", () => {
+  test("returns schema properties for a database", async () => {
+    const dbBlock = makeBlock({
+      id: "db-1",
+      type: "collection_view_page",
+      collection_id: "col-1",
+    } as any);
+    const collection: V3Collection = {
+      id: "col-1",
+      version: 1,
+      name: [["My DB"]],
+      schema: {
+        title: { name: "Name", type: "title" },
+        abc1: {
+          name: "Tags",
+          type: "multi_select",
+          options: [
+            { id: "o1", value: "Frontend" },
+            { id: "o2", value: "Backend" },
+          ],
+        },
+      },
+      parent_id: "parent-1",
+      parent_table: "block",
+    };
+
+    const { client } = createMockClient({
+      loadPageChunk: () => ({
+        recordMap: {
+          block: { "db-1": wrapBlock(dbBlock) },
+          collection: { "col-1": { value: collection, role: "reader" } },
+        },
+        cursor: { stack: [] },
+      }),
+    });
+
+    const backend = new V3Backend(client);
+    const result = await backend.getDatabaseSchema("db-1");
+
+    expect(result.id).toBe("db-1");
+    expect(result.title).toBe("My DB");
+    expect(result.properties).toHaveLength(2);
+    expect(result.properties.find((p) => p.name === "Tags")?.options).toEqual(["Frontend", "Backend"]);
+  });
+
+  test("throws when database not found", async () => {
+    const block = makeBlock({ id: "p1", type: "page" });
+    const { client } = createMockClient({
+      loadPageChunk: () => ({
+        recordMap: { block: { "p1": wrapBlock(block) } },
+        cursor: { stack: [] },
+      }),
+    });
+
+    const backend = new V3Backend(client);
+    await expect(backend.getDatabaseSchema("p1")).rejects.toThrow(/not found/);
+  });
+});
+
+// =============================================================================
+// getChildBlocks
+// =============================================================================
+
+describe("V3Backend.getChildBlocks", () => {
+  test("batches requests for >5 block IDs", async () => {
+    const blockIds = ["b1", "b2", "b3", "b4", "b5", "b6", "b7"];
+    const { client, calls } = createMockClient({
+      loadPageChunk: (params: any) => ({
+        recordMap: {
+          block: {
+            [params.pageId]: wrapBlock(makeBlock({ id: params.pageId, content: [] })),
+          },
+        },
+        cursor: { stack: [] },
+      }),
+    });
+
+    const backend = new V3Backend(client);
+    const result = await backend.getChildBlocks(blockIds);
+
+    expect(result.size).toBe(7);
+    for (const blockId of blockIds) {
+      expect(result.has(blockId)).toBe(true);
+    }
+    // getAllBlocks calls loadPageChunk for each block ID
+    expect(calls.loadPageChunk!.length).toBe(7);
+  });
+});
