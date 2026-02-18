@@ -22,6 +22,7 @@ import {
   transformV3User,
   transformV3UserMe,
   transformV3Comment,
+  extractAnchorText,
   getBlock,
   getCollection,
   getAllBlocks,
@@ -895,6 +896,65 @@ describe("transformV3Comment", () => {
     const comment = makeComment({ id: "c1", created_by_id: "" });
     const result = transformV3Comment(comment);
     expect(result.author).toBeNull();
+  });
+
+  test("includes anchorText when provided", () => {
+    const comment = makeComment({ id: "c1", created_by_id: "u1" });
+    const result = transformV3Comment(comment, undefined, "highlighted text");
+    expect(result.anchorText).toBe("highlighted text");
+  });
+
+  test("omits anchorText when not provided", () => {
+    const comment = makeComment({ id: "c1", created_by_id: "u1" });
+    const result = transformV3Comment(comment);
+    expect(result.anchorText).toBeUndefined();
+  });
+});
+
+// =============================================================================
+// extractAnchorText
+// =============================================================================
+
+describe("extractAnchorText", () => {
+  test("extracts text decorated with matching discussion ID", () => {
+    const richText: any = [
+      ["Hello "],
+      ["world", [["m", "disc-1"]]],
+      ["!"],
+    ];
+    expect(extractAnchorText(richText, "disc-1")).toBe("world");
+  });
+
+  test("concatenates multiple segments with same discussion ID", () => {
+    const richText: any = [
+      ["Hello "],
+      ["beautiful", [["b"], ["m", "disc-1"]]],
+      [" ", [["m", "disc-1"]]],
+      ["world", [["m", "disc-1"]]],
+      ["!"],
+    ];
+    expect(extractAnchorText(richText, "disc-1")).toBe("beautiful world");
+  });
+
+  test("returns undefined for non-matching discussion ID", () => {
+    const richText: any = [
+      ["Hello "],
+      ["world", [["m", "disc-other"]]],
+    ];
+    expect(extractAnchorText(richText, "disc-1")).toBeUndefined();
+  });
+
+  test("returns undefined for undefined rich text", () => {
+    expect(extractAnchorText(undefined, "disc-1")).toBeUndefined();
+  });
+
+  test("returns undefined for empty rich text", () => {
+    expect(extractAnchorText([], "disc-1")).toBeUndefined();
+  });
+
+  test("returns undefined when no decorations present", () => {
+    const richText: any = [["Hello world"]];
+    expect(extractAnchorText(richText, "disc-1")).toBeUndefined();
   });
 });
 

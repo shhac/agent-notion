@@ -711,8 +711,8 @@ export function getUser(recordMap: RecordMap, id: string): V3User | undefined {
 }
 
 /** Transform a v3 comment record to a normalized CommentItem. */
-export function transformV3Comment(comment: V3Comment, user?: V3User): CommentItem {
-  return {
+export function transformV3Comment(comment: V3Comment, user?: V3User, anchorText?: string): CommentItem {
+  const item: CommentItem = {
     id: comment.id,
     body: v3RichTextToPlain(comment.text),
     author: user
@@ -722,4 +722,33 @@ export function transformV3Comment(comment: V3Comment, user?: V3User): CommentIt
         : null,
     createdAt: msToIso(comment.created_time),
   };
+  if (anchorText !== undefined) {
+    item.anchorText = anchorText;
+  }
+  return item;
+}
+
+/**
+ * Extract the anchor text for a discussion from a block's rich text.
+ * Looks for characters decorated with ["m", discussionId] and concatenates them.
+ * Returns undefined if no anchor decorations are found.
+ */
+export function extractAnchorText(richText: V3RichText | undefined, discussionId: string): string | undefined {
+  if (!richText || richText.length === 0) return undefined;
+
+  let anchor = "";
+  for (const segment of richText) {
+    const text = segment[0];
+    const decorations = segment.length > 1 ? (segment[1] as V3Decoration[]) : undefined;
+    if (decorations) {
+      const hasDiscussion = decorations.some(
+        (d) => d[0] === "m" && d[1] === discussionId,
+      );
+      if (hasDiscussion) {
+        anchor += text;
+      }
+    }
+  }
+
+  return anchor.length > 0 ? anchor : undefined;
 }

@@ -45,7 +45,7 @@ export function registerInline(comment: Command): void {
           const result = await withBackend((backend) =>
             backend.addInlineComment({ blockId, body, text: opts.text, occurrence }),
           );
-          printJson(result);
+          printJson({ ...result, anchorText: opts.text });
         });
       },
     );

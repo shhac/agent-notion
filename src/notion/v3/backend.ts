@@ -49,6 +49,7 @@ import {
   buildV3PropertyValue,
   addDecorationToRange,
   v3RichTextToPlain,
+  extractAnchorText,
 } from "./transforms.ts";
 import {
   createBlockOps,
@@ -570,15 +571,31 @@ export class V3Backend implements NotionBackend {
     // Load the page — discussions and comments may be included in the recordMap
     const { recordMap } = await this.http.loadPageChunk({ pageId: params.pageId, limit: 100 });
 
-    // Get discussion IDs from the page block's "discussions" property
-    const block = getBlock(recordMap, params.pageId);
-    const discussionIds = ((block as V3Block & { discussions?: string[] })?.discussions) ?? [];
+    // Collect discussion IDs from the page block AND all child blocks
+    const pageBlock = getBlock(recordMap, params.pageId);
+    const allBlocks = getAllBlocks(recordMap);
+
+    // Build a set of all discussion IDs across page + child blocks
+    const discussionIds: string[] = [];
+    const seenDiscussions = new Set<string>();
+
+    // Collect from page block and all blocks in the recordMap that belong to this page
+    const relevantBlocks = [pageBlock, ...allBlocks.filter((b) => b.id !== params.pageId)].filter(Boolean);
+    for (const block of relevantBlocks) {
+      const blockDiscussions = ((block as V3Block & { discussions?: string[] })?.discussions) ?? [];
+      for (const discId of blockDiscussions) {
+        if (!seenDiscussions.has(discId)) {
+          seenDiscussions.add(discId);
+          discussionIds.push(discId);
+        }
+      }
+    }
 
     if (discussionIds.length === 0) {
       return { items: [], hasMore: false, nextCursor: undefined };
     }
 
-    // Fetch any discussions/comments not already in the recordMap
+    // Fetch any discussions not already in the recordMap
     const missingDiscussionIds = discussionIds.filter((id) => !getDiscussion(recordMap, id));
     if (missingDiscussionIds.length > 0) {
       const { recordMap: extraMap } = await this.http.syncRecordValues(
@@ -605,14 +622,34 @@ export class V3Backend implements NotionBackend {
       this.mergeRecordMap(recordMap, extraMap);
     }
 
-    // Transform comments, resolving user names from the recordMap
+    // Build a map of discussionId → anchorText by examining parent blocks
+    const anchorTextMap = new Map<string, string>();
+    for (const discId of discussionIds) {
+      const disc = getDiscussion(recordMap, discId);
+      if (!disc) continue;
+      // Only extract anchor text for discussions parented to a block (not the page itself)
+      if (disc.parent_table === "block" && disc.parent_id !== params.pageId) {
+        const parentBlock = getBlock(recordMap, disc.parent_id);
+        if (parentBlock?.properties?.title) {
+          const anchor = extractAnchorText(parentBlock.properties.title, discId);
+          if (anchor) {
+            anchorTextMap.set(discId, anchor);
+          }
+        }
+      }
+    }
+
+    // Transform comments, resolving user names and anchor text from the recordMap
     const items: CommentItem[] = [];
     for (const commentId of allCommentIds) {
       if (items.length >= limit) break;
       const comment = getComment(recordMap, commentId);
       if (!comment || !comment.alive) continue;
       const user = comment.created_by_id ? getUser(recordMap, comment.created_by_id) : undefined;
-      items.push(transformV3Comment(comment, user));
+      // Find which discussion this comment belongs to
+      const discussionId = comment.parent_id;
+      const anchorText = anchorTextMap.get(discussionId);
+      items.push(transformV3Comment(comment, user, anchorText));
     }
 
     return {

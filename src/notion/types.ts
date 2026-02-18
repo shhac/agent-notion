@@ -149,6 +149,7 @@ export type CommentItem = {
   body: string;
   author?: { id: string; name?: string } | null;
   createdAt?: string;
+  anchorText?: string;
 };
 
 export type CommentCreateResult = {

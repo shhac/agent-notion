@@ -452,6 +452,118 @@ describe("V3Backend.listComments", () => {
     expect(result.items[0]!.body).toBe("Hello");
     expect(calls.syncRecordValues).toHaveLength(2);
   });
+
+  test("collects inline comments from child blocks", async () => {
+    // Page block with no discussions, but has a child block
+    const pageBlock = makeBlock({
+      id: "page-1",
+      content: ["child-1"],
+    });
+    // Child block has an inline comment discussion
+    const childBlock = makeBlock({
+      id: "child-1",
+      type: "text",
+      parent_id: "page-1",
+      parent_table: "block",
+      properties: { title: [["Hello "], ["world", [["m", "disc-inline"]]]], },
+      discussions: ["disc-inline"],
+    } as any);
+    const discussion: V3Discussion = {
+      id: "disc-inline",
+      version: 1,
+      parent_id: "child-1",
+      parent_table: "block",
+      resolved: false,
+      comments: ["c-inline"],
+    };
+    const comment: V3Comment = {
+      id: "c-inline",
+      version: 1,
+      alive: true,
+      parent_id: "disc-inline",
+      parent_table: "discussion",
+      text: [["Fix this typo"]],
+      created_by_id: "u1",
+      created_by_table: "notion_user",
+      created_time: 1700000000000,
+      last_edited_time: 1700000000000,
+    };
+    const user: V3User = {
+      id: "u1",
+      version: 1,
+      email: "jane@example.com",
+      given_name: "Jane",
+      family_name: "Doe",
+    };
+
+    const { client } = createMockClient({
+      loadPageChunk: () => ({
+        recordMap: {
+          block: {
+            "page-1": { value: pageBlock, role: "reader" },
+            "child-1": { value: childBlock, role: "reader" },
+          },
+          discussion: { "disc-inline": { value: discussion, role: "reader" } },
+          comment: { "c-inline": { value: comment, role: "reader" } },
+          notion_user: { "u1": { value: user, role: "reader" } },
+        },
+        cursor: { stack: [] },
+      }),
+    });
+
+    const backend = new V3Backend(client);
+    const result = await backend.listComments({ pageId: "page-1" });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]!.body).toBe("Fix this typo");
+    expect(result.items[0]!.anchorText).toBe("world");
+    expect(result.items[0]!.author).toEqual({ id: "u1", name: "Jane Doe" });
+  });
+
+  test("page-level comments have no anchorText", async () => {
+    const block = makeBlock({
+      id: "page-1",
+      discussions: ["disc-page"],
+    } as any);
+    const discussion: V3Discussion = {
+      id: "disc-page",
+      version: 1,
+      parent_id: "page-1",
+      parent_table: "block",
+      resolved: false,
+      comments: ["c1"],
+    };
+    const comment: V3Comment = {
+      id: "c1",
+      version: 1,
+      alive: true,
+      parent_id: "disc-page",
+      parent_table: "discussion",
+      text: [["Page comment"]],
+      created_by_id: "u1",
+      created_by_table: "notion_user",
+      created_time: 1700000000000,
+      last_edited_time: 1700000000000,
+    };
+
+    const { client } = createMockClient({
+      loadPageChunk: () => ({
+        recordMap: {
+          block: { "page-1": { value: block, role: "reader" } },
+          discussion: { "disc-page": { value: discussion, role: "reader" } },
+          comment: { "c1": { value: comment, role: "reader" } },
+        },
+        cursor: { stack: [] },
+      }),
+    });
+
+    const backend = new V3Backend(client);
+    const result = await backend.listComments({ pageId: "page-1" });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]!.body).toBe("Page comment");
+    expect(result.items[0]!.anchorText).toBeUndefined();
+  });
 });
 
 // =============================================================================
