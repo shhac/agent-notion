@@ -7,6 +7,7 @@
 import type { V3HttpClient } from "./client.ts";
 import type {
   AiModel,
+  ChatResult,
   InferenceTranscript,
   NdjsonEvent,
   RunInferenceParams,
@@ -16,14 +17,111 @@ import type {
   ThreadRecord,
   TranscriptConfigItem,
   TranscriptContextItem,
+  TranscriptItem,
   TranscriptUserItem,
 } from "./ai-types.ts";
 import {
   isAgentInference,
   isPatch,
   isPatchStart,
+  isTitle,
 } from "./ai-types.ts";
 import { parseNdjson } from "./ndjson.ts";
+import { CliError } from "../../lib/errors.ts";
+
+// --- Default config flags for AI inference ---
+
+const DEFAULT_CONFIG_FLAGS = {
+  isCustomAgent: false,
+  isCustomAgentBuilder: false,
+  useCustomAgentDraft: false,
+  use_draft_actor_pointer: false,
+  enableAgentDiffs: true,
+  enableTurnLevelTitleDiff: true,
+  enableAgentCreateDbTemplate: true,
+  enableCsvAttachmentSupport: true,
+  enableAgentCardCustomization: true,
+  enableUpdatePageV2Tool: true,
+  enableUpdatePageAutofixer: true,
+  enableUpdatePageOrderUpdates: true,
+  enableAgentSupportPropertyReorder: true,
+  useServerUndo: true,
+  useReadOnlyMode: false,
+  useSearchToolV2: false,
+  enableAgentAutomations: false,
+  enableAgentIntegrations: false,
+  enableCustomAgents: false,
+  enableExperimentalIntegrations: false,
+  enableAgentViewNotificationsTool: false,
+  enableDatabaseAgents: false,
+  enableAgentThreadTools: false,
+  enableRunAgentTool: false,
+  enableSetupModeTool: false,
+  enableAgentDashboards: false,
+  enableSystemPromptAsPage: false,
+  enableUserSessionContext: false,
+  enableScriptAgentAdvanced: false,
+  enableScriptAgent: false,
+  enableScriptAgentIntegrations: false,
+  enableScriptAgentCustomAgentTools: false,
+  enableAgentGenerateImage: false,
+  enableSpeculativeSearch: false,
+  enableQueryCalendar: false,
+  enableQueryMail: false,
+  enableMailExplicitToolCalls: false,
+  enableAgentVerification: false,
+  enableUpdatePageMarkdownTree: false,
+  databaseAgentConfigMode: false,
+} as const;
+
+// --- Lang tag helpers ---
+
+/** Strip Notion's internal language tag from AI responses */
+export function stripLangTag(s: string): string {
+  return s.replace(/^<lang\s+[^>]*\/>\s*/i, "");
+}
+
+/** Check if string starts with an incomplete lang tag still being streamed */
+export function isIncompleteLangTag(s: string): boolean {
+  return /^<lang\b/i.test(s) && !/>/.test(s);
+}
+
+// --- Model resolution ---
+
+/**
+ * Resolve a model name (codename or display name) to its codename.
+ * Falls back to `configDefault` if no `modelFlag` provided.
+ * Returns undefined if no model specified anywhere (let the API pick).
+ */
+export async function resolveModel(
+  models: AiModel[],
+  modelFlag: string | undefined,
+  configDefault: string | undefined,
+): Promise<string | undefined> {
+  const input = modelFlag ?? configDefault;
+  if (!input) return undefined;
+
+  // Exact codename match
+  const byCodename = models.find((m) => m.model === input);
+  if (byCodename) return byCodename.model;
+
+  // Case-insensitive display name match
+  const lower = input.toLowerCase();
+  const byDisplayName = models.find(
+    (m) => m.modelMessage.toLowerCase() === lower,
+  );
+  if (byDisplayName) return byDisplayName.model;
+
+  // Partial match on display name
+  const byPartial = models.find((m) =>
+    m.modelMessage.toLowerCase().includes(lower),
+  );
+  if (byPartial) return byPartial.model;
+
+  throw new CliError(
+    `Unknown model "${input}". Run 'ai model list --raw' to see available model codenames.`,
+  );
+}
 
 // --- Model listing ---
 
@@ -69,7 +167,7 @@ export async function markTranscriptSeen(
 
 // --- Thread content retrieval ---
 
-export type { ThreadMessage };
+export type { ChatResult, ThreadMessage };
 
 /**
  * Fetch the content of an AI chat thread by ID.
@@ -171,8 +269,7 @@ function parseThreadMessage(
       const value = step.value as Array<{ type: string; content: string }> | undefined;
       const textEntry = value?.find((v) => v.type === "text");
       const raw = textEntry?.content ?? "";
-      // Strip Notion's internal language tag
-      const content = raw.replace(/^<lang\s+[^>]*\/>\s*/i, "");
+      const content = stripLangTag(raw);
       return { id, role: "assistant", content, createdAt };
     }
 
@@ -213,28 +310,9 @@ export type { RunInferenceParams };
 const STREAM_TIMEOUT = 120_000; // 2 minutes for streaming responses
 
 /**
- * Run a Notion AI inference transcript (chat).
- * Returns an AsyncIterable of NDJSON events for streaming consumption.
- *
- * The caller iterates events to extract AI output:
- *   for await (const event of runInferenceTranscript(client, params)) {
- *     if (event.type === "agent-inference") {
- *       // event.value[0].content has cumulative text so far
- *     }
- *   }
- *
- * The final "agent-inference" event includes finishedAt, token counts, and model.
+ * Build the transcript items (config, context, user) for an inference request.
  */
-export async function runInferenceTranscript(
-  client: V3HttpClient,
-  params: RunInferenceParams,
-  options?: { debug?: boolean },
-): Promise<AsyncIterable<NdjsonEvent>> {
-  const debug = options?.debug ?? false;
-  const traceId = crypto.randomUUID();
-  const threadId = params.threadId ?? crypto.randomUUID();
-  const isNewThread = params.isNewThread ?? !params.threadId;
-
+function buildTranscriptItems(params: RunInferenceParams): TranscriptItem[] {
   const configItem: TranscriptConfigItem = {
     id: crypto.randomUUID(),
     type: "config",
@@ -246,46 +324,7 @@ export async function runInferenceTranscript(
       writerMode: false,
       ...(params.model ? { model: params.model } : {}),
       modelFromUser: !!params.model,
-      isCustomAgent: false,
-      isCustomAgentBuilder: false,
-      useCustomAgentDraft: false,
-      use_draft_actor_pointer: false,
-      enableAgentDiffs: true,
-      enableTurnLevelTitleDiff: true,
-      enableAgentCreateDbTemplate: true,
-      enableCsvAttachmentSupport: true,
-      enableAgentCardCustomization: true,
-      enableUpdatePageV2Tool: true,
-      enableUpdatePageAutofixer: true,
-      enableUpdatePageOrderUpdates: true,
-      enableAgentSupportPropertyReorder: true,
-      useServerUndo: true,
-      useReadOnlyMode: false,
-      useSearchToolV2: false,
-      enableAgentAutomations: false,
-      enableAgentIntegrations: false,
-      enableCustomAgents: false,
-      enableExperimentalIntegrations: false,
-      enableAgentViewNotificationsTool: false,
-      enableDatabaseAgents: false,
-      enableAgentThreadTools: false,
-      enableRunAgentTool: false,
-      enableSetupModeTool: false,
-      enableAgentDashboards: false,
-      enableSystemPromptAsPage: false,
-      enableUserSessionContext: false,
-      enableScriptAgentAdvanced: false,
-      enableScriptAgent: false,
-      enableScriptAgentIntegrations: false,
-      enableScriptAgentCustomAgentTools: false,
-      enableAgentGenerateImage: false,
-      enableSpeculativeSearch: false,
-      enableQueryCalendar: false,
-      enableQueryMail: false,
-      enableMailExplicitToolCalls: false,
-      enableAgentVerification: false,
-      enableUpdatePageMarkdownTree: false,
-      databaseAgentConfigMode: false,
+      ...DEFAULT_CONFIG_FLAGS,
     },
   };
 
@@ -316,10 +355,23 @@ export async function runInferenceTranscript(
     createdAt: now,
   };
 
+  return [configItem, contextItem, userItem];
+}
+
+export async function runInferenceTranscript(
+  client: V3HttpClient,
+  params: RunInferenceParams,
+  options?: { debug?: boolean },
+): Promise<AsyncIterable<NdjsonEvent>> {
+  const debug = options?.debug ?? false;
+  const traceId = crypto.randomUUID();
+  const threadId = params.threadId ?? crypto.randomUUID();
+  const isNewThread = params.isNewThread ?? !params.threadId;
+
   const body: RunInferenceTranscriptRequest = {
     traceId,
     spaceId: params.space.id,
-    transcript: [configItem, contextItem, userItem],
+    transcript: buildTranscriptItems(params),
     threadId,
     // threadParentPointer only needed for new threads
     ...(isNewThread
@@ -382,6 +434,65 @@ export async function runInferenceTranscript(
     return normalizePatchStream(rawEvents);
   }
   return rawEvents;
+}
+
+// --- Stream processing ---
+
+/**
+ * Process an inference event stream, accumulating the response and metadata.
+ * Optionally calls `onStreamChunk` for each new text delta (for --stream mode).
+ */
+export async function processInferenceStream(
+  events: AsyncIterable<NdjsonEvent>,
+  onStreamChunk?: (text: string) => void,
+): Promise<ChatResult> {
+  let lastContent = "";
+  let streamedLength = 0;
+  let title: string | undefined;
+  let model: string | undefined;
+  let inputTokens: number | undefined;
+  let outputTokens: number | undefined;
+  let cachedTokens: number | undefined;
+
+  for await (const event of events) {
+    if (isAgentInference(event)) {
+      const textEntry = event.value?.find(
+        (v) => v && typeof v === "object" && v.type === "text",
+      );
+      const content = textEntry?.content ?? "";
+
+      if (onStreamChunk) {
+        if (!isIncompleteLangTag(content)) {
+          const display = stripLangTag(content);
+          if (display.length > streamedLength) {
+            onStreamChunk(display.slice(streamedLength));
+            streamedLength = display.length;
+          }
+        }
+      }
+
+      lastContent = content;
+
+      if (event.finishedAt) {
+        model = event.model;
+        inputTokens = event.inputTokens;
+        outputTokens = event.outputTokens;
+        cachedTokens = event.cachedTokensRead;
+      }
+    } else if (isTitle(event)) {
+      title = event.value;
+    }
+  }
+
+  return {
+    response: stripLangTag(lastContent),
+    title,
+    model,
+    tokens:
+      inputTokens !== undefined
+        ? { input: inputTokens, output: outputTokens, cached: cachedTokens }
+        : undefined,
+  };
 }
 
 /**

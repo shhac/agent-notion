@@ -1,50 +1,15 @@
 import type { Command } from "commander";
 import { createV3Client } from "../../notion/client.ts";
 import { getV3Session, readConfig } from "../../lib/config.ts";
-import { handleAction, CliError } from "../../lib/errors.ts";
+import { handleAction } from "../../lib/errors.ts";
 import { printJson } from "../../lib/output.ts";
 import { normalizeId } from "../../lib/ids.ts";
 import {
   runInferenceTranscript,
   getAvailableModels,
+  resolveModel,
+  processInferenceStream,
 } from "../../notion/v3/ai.ts";
-import type { AiModel } from "../../notion/v3/ai-types.ts";
-import { isAgentInference, isTitle } from "../../notion/v3/ai-types.ts";
-
-/**
- * Resolve a model name (codename or display name) to its codename.
- * Falls back to `ai.defaultModel` config if no --model flag provided.
- * Returns undefined if no model specified anywhere (let the API pick).
- */
-async function resolveModel(
-  models: AiModel[],
-  modelFlag: string | undefined,
-  configDefault: string | undefined,
-): Promise<string | undefined> {
-  const input = modelFlag ?? configDefault;
-  if (!input) return undefined;
-
-  // Exact codename match
-  const byCodename = models.find((m) => m.model === input);
-  if (byCodename) return byCodename.model;
-
-  // Case-insensitive display name match
-  const lower = input.toLowerCase();
-  const byDisplayName = models.find(
-    (m) => m.modelMessage.toLowerCase() === lower,
-  );
-  if (byDisplayName) return byDisplayName.model;
-
-  // Partial match on display name
-  const byPartial = models.find((m) =>
-    m.modelMessage.toLowerCase().includes(lower),
-  );
-  if (byPartial) return byPartial.model;
-
-  throw new CliError(
-    `Unknown model "${input}". Run 'ai model list --raw' to see available model codenames.`,
-  );
-}
 
 export function registerChatSend(chat: Command): void {
   chat
@@ -108,75 +73,24 @@ export function registerChatSend(chat: Command): void {
             },
           }, { debug: opts.debug });
 
-          let lastContent = "";
-          let streamedLength = 0;
-          let title: string | undefined;
-          let model: string | undefined;
-          let inputTokens: number | undefined;
-          let outputTokens: number | undefined;
-          let cachedTokens: number | undefined;
-
-          for await (const event of events) {
-            if (opts.debug) {
-              process.stderr.write(
-                `[debug] ${event.type}: ${JSON.stringify(event).slice(0, 500)}\n`,
-              );
-            }
-            if (isAgentInference(event)) {
-              // Find the "text" entry in value array (may also contain "thinking" entries)
-              // In patch mode, value entries may be partially constructed
-              const textEntry = event.value?.find(
-                (v) => v && typeof v === "object" && v.type === "text",
-              );
-              const content = textEntry?.content ?? "";
-
-              if (opts.stream) {
-                // Strip Notion language tag for display.
-                // Suppress output while tag is still being built up.
-                if (/^<lang\b/i.test(content) && !/>/.test(content)) {
-                  // Tag still incomplete — don't stream yet
-                } else {
-                  const display = content.replace(/^<lang\s+[^>]*\/>\s*/i, "");
-                  if (display.length > streamedLength) {
-                    process.stderr.write(display.slice(streamedLength));
-                    streamedLength = display.length;
-                  }
+          let didStream = false;
+          const result = await processInferenceStream(
+            events,
+            opts.stream
+              ? (text) => {
+                  didStream = true;
+                  process.stderr.write(text);
                 }
-              }
+              : undefined,
+          );
 
-              lastContent = content;
-
-              if (event.finishedAt) {
-                model = event.model;
-                inputTokens = event.inputTokens;
-                outputTokens = event.outputTokens;
-                cachedTokens = event.cachedTokensRead;
-              }
-            } else if (isTitle(event)) {
-              title = event.value;
-            }
-          }
-
-          if (opts.stream && streamedLength > 0) {
+          if (didStream) {
             process.stderr.write("\n");
           }
 
-          // Strip Notion's internal language tag from response
-          const cleanContent = lastContent.replace(/^<lang\s+[^>]*\/>\s*/i, "");
-
           printJson({
             threadId,
-            title,
-            response: cleanContent,
-            model,
-            tokens:
-              inputTokens !== undefined
-                ? {
-                    input: inputTokens,
-                    output: outputTokens,
-                    cached: cachedTokens,
-                  }
-                : undefined,
+            ...result,
           });
         });
       },

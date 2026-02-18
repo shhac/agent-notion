@@ -260,6 +260,15 @@ export type ThreadMessage = {
   toolState?: string;
 };
 
+// --- Chat result (from processInferenceStream) ---
+
+export type ChatResult = {
+  response: string;
+  title?: string;
+  model?: string;
+  tokens?: { input: number; output?: number; cached?: number };
+};
+
 // --- RunInference params ---
 
 export type RunInferenceParams = {
