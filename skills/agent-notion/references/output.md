@@ -60,7 +60,7 @@ Single-item commands (e.g., `page get`, `user me`) return the object directly:
 }
 ```
 
-## Search results (`search`)
+## Search results (`search query`)
 
 ```json
 {
@@ -395,7 +395,7 @@ Adds:
 }
 ```
 
-## Backlinks (`backlinks`) — v3
+## Backlinks (`page backlinks`) — v3
 
 ```json
 {
@@ -409,7 +409,7 @@ Adds:
 
 Results are deduplicated by `pageId` — each linking page appears at most once.
 
-## History (`history`) — v3
+## History (`page history`) — v3
 
 ```json
 {
@@ -426,7 +426,7 @@ Results are deduplicated by `pageId` — each linking page appears at most once.
 }
 ```
 
-## Activity (`activity`) — v3
+## Activity (`activity log`) — v3
 
 ```json
 {

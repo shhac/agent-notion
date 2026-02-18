@@ -45,7 +45,7 @@ agent-notion auth status
 agent-notion auth import-desktop                   # macOS only — reads token from Notion Desktop app
 ```
 
-Required for v3 commands: export, backlinks, history, activity, inline comments.
+Required for v3 commands: export, page backlinks, page history, activity log, inline comments.
 
 Multiple workspaces are supported:
 
@@ -62,9 +62,9 @@ agent-notion auth workspace remove <alias>
 **Important: Notion search is title-only.** It does not search page content, comments, or property values.
 
 ```bash
-agent-notion search "meeting notes"
-agent-notion search "Q1 Plan" --filter database
-agent-notion search "design doc" --filter page --limit 5
+agent-notion search query "meeting notes"
+agent-notion search query "Q1 Plan" --filter database
+agent-notion search query "design doc" --filter page --limit 5
 ```
 
 ## Databases
@@ -136,7 +136,7 @@ Options: `--format markdown|html`, `--recursive` (page only), `--output <path>`,
 ### Backlinks
 
 ```bash
-agent-notion backlinks <page-id>                               # pages linking to this page
+agent-notion page backlinks <page-id>                          # pages linking to this page
 ```
 
 Returns `{ backlinks: [{ blockId, pageId, pageTitle }], total }`. Deduplicated by page.
@@ -144,8 +144,8 @@ Returns `{ backlinks: [{ blockId, pageId, pageTitle }], total }`. Deduplicated b
 ### History
 
 ```bash
-agent-notion history <page-id>                                 # recent version snapshots
-agent-notion history <page-id> --limit 50                      # fetch more
+agent-notion page history <page-id>                            # recent version snapshots
+agent-notion page history <page-id> --limit 50                 # fetch more
 ```
 
 Returns `{ snapshots: [{ id, version, lastVersion, timestamp, authors }], total }`.
@@ -153,9 +153,9 @@ Returns `{ snapshots: [{ id, version, lastVersion, timestamp, authors }], total 
 ### Activity
 
 ```bash
-agent-notion activity                                          # workspace-wide activity
-agent-notion activity --page <page-id>                         # scoped to a page
-agent-notion activity --limit 50                               # fetch more entries
+agent-notion activity log                                      # workspace-wide activity
+agent-notion activity log --page <page-id>                     # scoped to a page
+agent-notion activity log --limit 50                           # fetch more entries
 ```
 
 Returns `{ activities: [{ id, type, pageId, pageTitle, authors, editTypes, startTime, endTime }], total }`.
@@ -206,8 +206,6 @@ agent-notion page usage           # page commands
 agent-notion block usage          # block commands
 agent-notion comment usage        # comment commands (page + inline)
 agent-notion export usage         # export commands (v3)
-agent-notion backlinks usage      # backlinks (v3)
-agent-notion history usage        # version history (v3)
 agent-notion activity usage       # activity log (v3)
 agent-notion user usage           # user commands
 agent-notion auth usage           # auth + workspace management

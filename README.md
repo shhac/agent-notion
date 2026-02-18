@@ -42,7 +42,7 @@ agent-notion auth login --token ntn_...
 ### 2. Search and explore
 
 ```bash
-agent-notion search "meeting notes"
+agent-notion search query "meeting notes"
 agent-notion database list
 agent-notion database schema <database-id>
 ```
@@ -68,7 +68,9 @@ agent-notion comment page <page-id> "Looks good!"
 
 ```text
 agent-notion [--full] [--expand <fields>]
-├── search <query> [--filter page|database] [--limit] [--cursor]
+├── search
+│   ├── query <query> [--filter page|database] [--limit] [--cursor]
+│   └── usage
 ├── database
 │   ├── list [--limit] [--cursor]
 │   ├── get <database-id>
@@ -80,6 +82,8 @@ agent-notion [--full] [--expand <fields>]
 │   ├── create --parent <id> --title <title> [--properties <json>] [--icon <emoji>]
 │   ├── update <page-id> [--title] [--properties <json>] [--icon <emoji>]
 │   ├── archive <page-id>
+│   ├── backlinks <page-id>                                        ◆
+│   ├── history <page-id> [--limit]                                ◆
 │   └── usage
 ├── block
 │   ├── list <page-id> [--raw] [--limit] [--cursor]
@@ -90,9 +94,16 @@ agent-notion [--full] [--expand <fields>]
 │   ├── page <page-id> <body>
 │   ├── inline <block-id> <body> --text <target> [--occurrence <n>]  ◆
 │   └── usage
+├── export                                                           ◆
+│   ├── page <page-id> [--format md|html] [--recursive] [--output] [--timeout]
+│   ├── workspace [--format md|html] [--output] [--timeout]
+│   └── usage
 ├── user
 │   ├── list [--limit] [--cursor]
 │   ├── me
+│   └── usage
+├── activity                                                       ◆
+│   ├── log [--page <page-id>] [--limit]
 │   └── usage
 ├── config
 │   ├── get [key]
@@ -105,6 +116,7 @@ agent-notion [--full] [--expand <fields>]
 │   ├── login [--alias <name>] [--token <token>] [--port <port>]
 │   ├── logout [--all] [--workspace <alias>]
 │   ├── status
+│   ├── import-desktop [--skip-validation]                           ◆
 │   ├── workspace list | switch <alias> | remove <alias>
 │   └── usage
 └── usage                              # LLM-optimized docs
@@ -160,9 +172,9 @@ v3 commands (marked with `◆` in the command map):
 | ------- | ----------- |
 | `export page <id> [--recursive]` | Export page (or page tree) to markdown/HTML zip |
 | `export workspace` | Export entire workspace |
-| `backlinks <page-id>` | Find pages that link to a given page |
-| `history <page-id>` | Version history snapshots |
-| `activity [--page <id>]` | Workspace or page activity log |
+| `page backlinks <page-id>` | Find pages that link to a given page |
+| `page history <page-id>` | Version history snapshots |
+| `activity log [--page <id>]` | Workspace or page activity log |
 | `comment inline <block-id> <body> --text <t>` | Inline comment anchored to specific text |
 
 Run `<command> usage` for full options and output format (e.g., `agent-notion export usage`).

@@ -17,7 +17,7 @@ Run `agent-notion <command> usage` for detailed per-command docs.
 
 ## Search
 
-- `agent-notion search <query> [--filter <type>] [--limit <n>] [--cursor <cursor>]` — search pages and databases by title (type: "page" | "database")
+- `agent-notion search query <query> [--filter <type>] [--limit <n>] [--cursor <cursor>]` — search pages and databases by title (type: "page" | "database")
 
 **Note:** Notion search is title-only. It does not match page content, comments, or property values.
 
@@ -34,6 +34,8 @@ Run `agent-notion <command> usage` for detailed per-command docs.
 - `agent-notion page create --parent <id> --title <title> [--properties <json>] [--icon <emoji>]` — create page (auto-detects database vs page parent)
 - `agent-notion page update <page-id> [--title <title>] [--properties <json>] [--icon <emoji>]` — update page properties (at least one option required)
 - `agent-notion page archive <page-id>` — archive a page
+- `agent-notion page backlinks <page-id>` — find pages that link to a given page (v3, deduplicated by page)
+- `agent-notion page history <page-id> [--limit <n>]` — version history snapshots for a page (v3, default limit: 20)
 
 ## Block
 
@@ -56,17 +58,9 @@ Run `agent-notion <command> usage` for detailed per-command docs.
 - `agent-notion export page <page-id> [--format <markdown|html>] [--recursive] [--output <path>] [--timeout <seconds>]` — export page (or page tree with `--recursive`) to markdown/HTML zip
 - `agent-notion export workspace [--format <markdown|html>] [--output <path>] [--timeout <seconds>]` — export entire workspace
 
-## Backlinks (v3)
-
-- `agent-notion backlinks <page-id>` — find pages that link to a given page (deduplicated by page)
-
-## History (v3)
-
-- `agent-notion history <page-id> [--limit <n>]` — version history snapshots for a page (default limit: 20)
-
 ## Activity (v3)
 
-- `agent-notion activity [--page <page-id>] [--limit <n>]` — recent workspace or page activity log (default limit: 20)
+- `agent-notion activity log [--page <page-id>] [--limit <n>]` — recent workspace or page activity log (default limit: 20)
 
 ## Config
 
@@ -86,8 +80,6 @@ Run `agent-notion <command> usage` for detailed per-command docs.
   - `agent-notion comment usage`
   - `agent-notion user usage`
   - `agent-notion export usage`
-  - `agent-notion backlinks usage`
-  - `agent-notion history usage`
   - `agent-notion activity usage`
   - `agent-notion auth usage`
   - `agent-notion config usage`
