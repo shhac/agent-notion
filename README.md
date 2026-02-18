@@ -145,6 +145,27 @@ agent-notion auth logout --all                 # clear everything
 
 Token resolution order: `NOTION_TOKEN` env > active workspace credentials.
 
+## Advanced commands (v3 API)
+
+Some commands use Notion's internal v3 API instead of the public API. These provide capabilities not available through official integrations but require a desktop session token:
+
+```bash
+agent-notion auth import-desktop               # macOS only — reads token from Notion Desktop app
+```
+
+v3 commands (marked with `◆` in the command map):
+
+| Command | Description |
+| ------- | ----------- |
+| `export page <id> [--recursive]` | Export page (or page tree) to markdown/HTML zip |
+| `export workspace` | Export entire workspace |
+| `backlinks <page-id>` | Find pages that link to a given page |
+| `history <page-id>` | Version history snapshots |
+| `activity [--page <id>]` | Workspace or page activity log |
+| `comment inline <block-id> <body> --text <t>` | Inline comment anchored to specific text |
+
+Run `<command> usage` for full options and output format (e.g., `agent-notion export usage`).
+
 ## Output
 
 - All output is JSON to stdout
