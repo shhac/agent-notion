@@ -137,7 +137,12 @@ export type NdjsonEvent =
 export type AgentInferenceEvent = {
   type: "agent-inference";
   id: string;
-  value: Array<{ type: string; content: string }>;
+  value: Array<{
+    type: string; // "text" | "thinking"
+    content: string;
+    encryptedContent?: string;
+    id?: string;
+  }>;
   traceId: string;
   startedAt: number;
   previousAttemptValues: unknown[];

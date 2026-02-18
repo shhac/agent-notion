@@ -5,8 +5,12 @@ const USAGE_TEXT = `agent-notion ai — Notion AI chat and models (v3 desktop se
 SUBCOMMANDS:
   ai model list [--raw]                              List available AI models
   ai chat list [--limit <n>]                         List recent chat threads
+  ai chat get <thread-id> [--raw]                    Get thread content (messages)
   ai chat send <message> [options]                   Send message to Notion AI
   ai chat mark-read <thread-id>                      Mark a thread as read
+
+CHAT GET OPTIONS:
+  --raw                  Include raw record data for debugging
 
 CHAT SEND OPTIONS:
   --thread <thread-id>   Continue an existing thread (omit to start new)
@@ -24,6 +28,7 @@ OUTPUT:
   model list:       { models: [{ name, family, tier }] }
   model list --raw: { models: [<full model objects with codename>] }
   chat list:        { items: [{ id, title, created_at, updated_at, ... }], unreadThreadIds, hasMore }
+  chat get:         { title, messages: [{ id, role, content, createdAt }] }
   chat send:        { threadId, title, response, model, tokens: { input, output, cached } }
   chat mark-read:   { ok: true }
 
@@ -34,6 +39,8 @@ EXAMPLES:
   ai model list                                      List active models
   ai model list --raw                                Include codenames and disabled models
   ai chat list --limit 10                            Recent 10 threads
+  ai chat get <thread-id>                            Read thread messages
+  ai chat get <thread-id> --raw                      With raw record data
   ai chat send "Summarize my recent projects"        New conversation
   ai chat send "Tell me more" --thread <id>          Continue thread
   ai chat send "Explain this page" --page <id>       With page context

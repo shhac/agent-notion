@@ -7,6 +7,8 @@ import type { V3Operation } from "./operations.ts";
 const BASE_URL = "https://www.notion.so/api/v3";
 const DEFAULT_TIMEOUT = 30_000;
 const COLLECTION_TIMEOUT = 60_000;
+// Notion may gate features on client version — use a recent desktop version
+const NOTION_CLIENT_VERSION = "23.13.20260217.2221";
 
 export class V3HttpError extends Error {
   constructor(
@@ -44,6 +46,8 @@ export class V3HttpClient {
         "Content-Type": "application/json",
         Cookie: `token_v2=${this.tokenV2}`,
         "x-notion-active-user-header": this.userId,
+        "notion-client-version": NOTION_CLIENT_VERSION,
+        "notion-audit-log-platform": "web",
         ...options?.extraHeaders,
       };
 
@@ -90,6 +94,8 @@ export class V3HttpClient {
         Cookie: `token_v2=${this.tokenV2}`,
         "x-notion-active-user-header": this.userId,
         "x-notion-space-id": this.spaceId,
+        "notion-client-version": NOTION_CLIENT_VERSION,
+        "notion-audit-log-platform": "web",
         ...options?.extraHeaders,
       };
 
@@ -324,6 +330,23 @@ export class V3HttpClient {
       ...(params.navigableBlockId ? { navigableBlockId: params.navigableBlockId } : {}),
       limit: params.limit ?? 20,
       ...(params.startingAfterId ? { startingAfterId: params.startingAfterId } : {}),
+    });
+  }
+
+  // --- Record fetching ---
+
+  async syncRecordValuesForPointers(
+    pointers: Array<{ id: string; table: string; spaceId?: string }>,
+  ): Promise<{ recordMap: RecordMap }> {
+    return this.post("syncRecordValuesMain", {
+      requests: pointers.map((p) => ({
+        pointer: {
+          id: p.id,
+          table: p.table,
+          ...(p.spaceId ? { spaceId: p.spaceId } : {}),
+        },
+        version: -1,
+      })),
     });
   }
 

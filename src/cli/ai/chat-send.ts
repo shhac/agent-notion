@@ -59,6 +59,7 @@ export function registerChatSend(chat: Command): void {
     .option("--page <page-id>", "Page context for the conversation")
     .option("--no-search", "Disable workspace and web search")
     .option("--stream", "Stream response text to stderr as it arrives")
+    .option("--debug", "Dump raw NDJSON events to stderr")
     .action(
       async (
         message: string,
@@ -68,6 +69,7 @@ export function registerChatSend(chat: Command): void {
           page?: string;
           search: boolean;
           stream?: boolean;
+          debug?: boolean;
         },
       ) => {
         await handleAction(async () => {
@@ -88,12 +90,14 @@ export function registerChatSend(chat: Command): void {
           }
 
           // Generate threadId so we can return it in output
+          const isNewThread = !opts.thread;
           const threadId = opts.thread ?? crypto.randomUUID();
 
           const events = await runInferenceTranscript(client, {
             message,
             model: modelCodename,
             threadId,
+            isNewThread,
             pageId: opts.page ? normalizeId(opts.page) : undefined,
             noSearch: !opts.search,
             user: {
@@ -105,7 +109,7 @@ export function registerChatSend(chat: Command): void {
               id: session.space_id,
               name: session.space_name,
             },
-          });
+          }, { debug: opts.debug });
 
           let lastContent = "";
           let streamedLength = 0;
@@ -116,9 +120,16 @@ export function registerChatSend(chat: Command): void {
           let cachedTokens: number | undefined;
 
           for await (const event of events) {
+            if (opts.debug) {
+              process.stderr.write(
+                `[debug] ${event.type}: ${JSON.stringify(event).slice(0, 500)}\n`,
+              );
+            }
             if (event.type === "agent-inference") {
               const ae = event as AgentInferenceEvent;
-              const content = ae.value?.[0]?.content ?? "";
+              // Find the "text" entry in value array (may also contain "thinking" entries)
+              const textEntry = ae.value?.find((v) => v.type === "text");
+              const content = textEntry?.content ?? "";
 
               if (opts.stream && content.length > streamedLength) {
                 process.stderr.write(content.slice(streamedLength));
