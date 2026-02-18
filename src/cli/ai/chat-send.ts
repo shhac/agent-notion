@@ -128,12 +128,24 @@ export function registerChatSend(chat: Command): void {
             if (event.type === "agent-inference") {
               const ae = event as AgentInferenceEvent;
               // Find the "text" entry in value array (may also contain "thinking" entries)
-              const textEntry = ae.value?.find((v) => v.type === "text");
+              // In patch mode, value entries may be partially constructed
+              const textEntry = ae.value?.find(
+                (v) => v && typeof v === "object" && v.type === "text",
+              );
               const content = textEntry?.content ?? "";
 
-              if (opts.stream && content.length > streamedLength) {
-                process.stderr.write(content.slice(streamedLength));
-                streamedLength = content.length;
+              if (opts.stream) {
+                // Strip Notion language tag for display.
+                // Suppress output while tag is still being built up.
+                if (/^<lang\b/i.test(content) && !/>/.test(content)) {
+                  // Tag still incomplete — don't stream yet
+                } else {
+                  const display = content.replace(/^<lang\s+[^>]*\/>\s*/i, "");
+                  if (display.length > streamedLength) {
+                    process.stderr.write(display.slice(streamedLength));
+                    streamedLength = display.length;
+                  }
+                }
               }
 
               lastContent = content;
@@ -153,10 +165,13 @@ export function registerChatSend(chat: Command): void {
             process.stderr.write("\n");
           }
 
+          // Strip Notion's internal language tag from response
+          const cleanContent = lastContent.replace(/^<lang\s+[^>]*\/>\s*/i, "");
+
           printJson({
             threadId,
             title,
-            response: lastContent,
+            response: cleanContent,
             model,
             tokens:
               inputTokens !== undefined

@@ -9,6 +9,8 @@ import type {
   AiModel,
   InferenceTranscript,
   NdjsonEvent,
+  PatchEvent,
+  PatchStartEvent,
   RunInferenceTranscriptRequest,
   TranscriptConfigItem,
   TranscriptContextItem,
@@ -62,15 +64,19 @@ export async function markTranscriptSeen(
 
 export type ThreadMessage = {
   id: string;
-  role: string;
+  role: "user" | "assistant" | "tool" | "system";
   content: string;
   createdAt?: number;
+  /** For tool messages: the tool name */
+  toolName?: string;
+  /** For tool messages: whether it succeeded */
+  toolState?: string;
 };
 
 /**
  * Fetch the content of an AI chat thread by ID.
- * Tries multiple record table names since Notion's internal schema isn't documented.
- * Returns the raw recordMap for debugging if no messages are parseable.
+ * Uses the `thread` table for the thread record and `thread_message` for messages.
+ * Each thread_message has a `step` field with `type` and `value`.
  */
 export async function getThreadContent(
   client: V3HttpClient,
@@ -81,109 +87,122 @@ export async function getThreadContent(
   title?: string;
   raw?: Record<string, unknown>;
 }> {
-  // Try table names one at a time since invalid table names cause 400 errors
-  const candidateTables = [
-    "inference_transcript",
-    "thread",
-  ];
-
+  // Fetch thread record
+  // syncRecordValues nests records as: recordMap.thread[id].value.value = { ...actual data }
   let threadRecord: Record<string, unknown> | undefined;
-  let foundTable: string | undefined;
-  const errors: string[] = [];
-
-  for (const table of candidateTables) {
-    try {
-      const result = await client.syncRecordValuesForPointers([
-        { id: threadId, table, spaceId },
-      ]);
-      const tableData = result.recordMap[table];
-      if (tableData?.[threadId]?.value) {
-        threadRecord = tableData[threadId].value as Record<string, unknown>;
-        foundTable = table;
-        break;
-      }
-    } catch (err: unknown) {
-      errors.push(`${table}: ${(err as Error).message}`);
-    }
+  try {
+    const result = await client.syncRecordValuesForPointers([
+      { id: threadId, table: "thread", spaceId },
+    ]);
+    const entry = result.recordMap.thread?.[threadId];
+    const wrapper = entry?.value as Record<string, unknown> | undefined;
+    threadRecord = wrapper?.value as Record<string, unknown> | undefined;
+  } catch {
+    // thread table failed
   }
 
   if (!threadRecord) {
     return {
       messages: [],
-      raw: {
-        _note: "No record found. Table probing results:",
-        _errors: errors,
-      },
+      raw: { _note: "Thread not found in 'thread' table" },
     };
   }
 
-  const title = threadRecord.title as string | undefined;
-  const messageIds = (threadRecord.content as string[] | undefined) ?? [];
+  // Title is at data.title
+  const data = threadRecord.data as Record<string, unknown> | undefined;
+  const title = (data?.title as string | undefined) ?? (threadRecord.title as string | undefined);
+
+  // Message IDs are in the `messages` field
+  const messageIds = (threadRecord.messages as string[] | undefined) ?? [];
 
   if (messageIds.length === 0) {
-    return {
-      messages: [],
-      title,
-      raw: { _foundTable: foundTable, record: threadRecord },
-    };
+    return { messages: [], title };
   }
 
-  // Fetch messages using the same table pattern (thread → thread_message)
-  const msgTable = foundTable === "thread" ? "thread_message" : `${foundTable}_message`;
-
-  let msgRecordMap: Record<string, unknown> = {};
+  // Fetch all thread_message records
+  // Same nesting: recordMap.thread_message[id].value.value = { ...actual data }
+  let rawMsgTable: Record<string, unknown> | undefined;
   try {
     const msgResult = await client.syncRecordValuesForPointers(
-      messageIds.map((id) => ({ id, table: msgTable, spaceId })),
+      messageIds.map((id) => ({ id, table: "thread_message", spaceId })),
     );
-    msgRecordMap = msgResult.recordMap as unknown as Record<string, unknown>;
+    rawMsgTable = msgResult.recordMap.thread_message as Record<string, unknown> | undefined;
   } catch {
-    // If the message table doesn't exist, return what we have
+    // thread_message table failed
+  }
+
+  if (!rawMsgTable) {
+    return { messages: [], title };
   }
 
   const messages: ThreadMessage[] = [];
-  const msgTableData = (msgRecordMap as Record<string, Record<string, { value: Record<string, unknown> }>>)[msgTable];
-  if (msgTableData) {
-    for (const id of messageIds) {
-      const rec = msgTableData[id]?.value;
-      if (!rec) continue;
+  for (const id of messageIds) {
+    const entry = rawMsgTable[id] as { value?: { value?: Record<string, unknown> } } | undefined;
+    const rec = entry?.value?.value;
+    if (!rec) continue;
 
-      const content =
-        extractMessageContent(rec.value) ??
-        extractMessageContent(rec.text) ??
-        (rec.content as string | undefined) ??
-        "";
+    const step = rec.step as Record<string, unknown> | undefined;
+    if (!step) continue;
 
-      messages.push({
-        id,
-        role: (rec.type as string) ?? "unknown",
-        content,
-        createdAt: rec.created_time as number | undefined,
-      });
-    }
+    const stepType = step.type as string;
+    const msg = parseThreadMessage(id, stepType, step, rec);
+    if (msg) messages.push(msg);
   }
 
-  return {
-    messages,
-    title,
-    ...(messages.length === 0 ? { raw: { _foundTable: foundTable, record: threadRecord, msgTable, msgRecordMap } } : {}),
-  };
+  return { messages, title };
 }
 
 /**
- * Try to extract text content from various message value shapes.
- * Notion thread messages may use [[text]], [{type, content}], or plain strings.
+ * Parse a thread_message record's `step` into a ThreadMessage.
+ * Returns null for message types we skip (config, context, title, record-map).
  */
-function extractMessageContent(value: unknown): string | undefined {
+function parseThreadMessage(
+  id: string,
+  stepType: string,
+  step: Record<string, unknown>,
+  rec: Record<string, unknown>,
+): ThreadMessage | null {
+  const createdAt = rec.created_time as number | undefined;
+
+  switch (stepType) {
+    case "user": {
+      const value = step.value as unknown;
+      const content = extractRichText(value) ?? "";
+      return { id, role: "user", content, createdAt };
+    }
+
+    case "agent-inference": {
+      const value = step.value as Array<{ type: string; content: string }> | undefined;
+      const textEntry = value?.find((v) => v.type === "text");
+      const raw = textEntry?.content ?? "";
+      // Strip Notion's internal language tag
+      const content = raw.replace(/^<lang\s+[^>]*\/>\s*/i, "");
+      return { id, role: "assistant", content, createdAt };
+    }
+
+    case "agent-tool-result": {
+      const toolName = step.toolName as string | undefined;
+      const state = step.state as string | undefined;
+      const error = step.error as string | undefined;
+      const content = error
+        ? `Tool "${toolName}" failed: ${error}`
+        : `Tool "${toolName}" completed`;
+      return { id, role: "tool", content, createdAt, toolName, toolState: state };
+    }
+
+    // Skip config, context, title, agent-turn-full-record-map
+    default:
+      return null;
+  }
+}
+
+/**
+ * Extract text from Notion rich-text array format: [["text"], ["more text"]].
+ */
+function extractRichText(value: unknown): string | undefined {
   if (!value) return undefined;
   if (typeof value === "string") return value;
-
-  // Array of [{type: "text", content: "..."}] (agent-inference style)
   if (Array.isArray(value) && value.length > 0) {
-    if (typeof value[0] === "object" && value[0]?.content) {
-      return value.map((v: { content?: string }) => v.content ?? "").join("");
-    }
-    // [[text]] (user message style)
     if (Array.isArray(value[0]) && typeof value[0][0] === "string") {
       return value.map((v: string[]) => v[0]).join("");
     }
@@ -327,17 +346,23 @@ export async function runInferenceTranscript(
     spaceId: params.space.id,
     transcript: [configItem, contextItem, userItem],
     threadId,
-    threadParentPointer: {
-      table: "space",
-      id: params.space.id,
-      spaceId: params.space.id,
-    },
+    // threadParentPointer only needed for new threads
+    ...(isNewThread
+      ? {
+          threadParentPointer: {
+            table: "space",
+            id: params.space.id,
+            spaceId: params.space.id,
+          },
+        }
+      : {}),
     createThread: isNewThread,
     generateTitle: isNewThread,
     saveAllThreadOperations: true,
     threadType: "workflow",
-    isPartialTranscript: false,
-    asPatchResponse: false,
+    // For replies: server reconstructs history from threadId
+    isPartialTranscript: !isNewThread,
+    asPatchResponse: !isNewThread,
     debugOverrides: {
       emitAgentSearchExtractedResults: true,
       cachedInferences: {},
@@ -373,7 +398,125 @@ export async function runInferenceTranscript(
     }
   }
 
-  return parseNdjson<NdjsonEvent>(response, debug ? (line) => {
+  const rawEvents = parseNdjson<NdjsonEvent>(response, debug ? (line) => {
     process.stderr.write(`[debug:raw] ${line.slice(0, 500)}\n`);
   } : undefined);
+
+  // For replies (asPatchResponse), normalize patch events into standard events
+  if (!isNewThread) {
+    return normalizePatchStream(rawEvents);
+  }
+  return rawEvents;
+}
+
+/**
+ * Convert patch-format stream (used for thread replies) into standard NdjsonEvents.
+ *
+ * Patch format: patch-start initializes a slots array `s`, then patch events apply
+ * JSON-pointer ops to it. We track the state and emit synthetic agent-inference
+ * and record-map events.
+ */
+async function* normalizePatchStream(
+  events: AsyncIterable<NdjsonEvent>,
+): AsyncIterable<NdjsonEvent> {
+  // State slots from patch-start
+  let slots: Array<Record<string, unknown>> = [];
+
+  for await (const event of events) {
+    if (event.type === "patch-start") {
+      const ps = event as PatchStartEvent;
+      slots = (ps.data?.s ?? []) as Array<Record<string, unknown>>;
+      continue;
+    }
+
+    if (event.type === "patch") {
+      const pe = event as PatchEvent;
+      for (const op of pe.v) {
+        applyPatchOp(slots, op.o, op.p, op.v);
+      }
+
+      // Find the agent-inference slot and emit it
+      const inferenceSlot = slots.find(
+        (s) => s.type === "agent-inference",
+      );
+      if (inferenceSlot) {
+        yield inferenceSlot as unknown as NdjsonEvent;
+      }
+      continue;
+    }
+
+    // Pass through record-map and other events
+    yield event;
+  }
+}
+
+/**
+ * Apply a single patch operation to the slots array.
+ * Supports: "a" (add), "x" (text append), "r" (replace).
+ * Path format: /s/{index}/... or /s/-
+ */
+function applyPatchOp(
+  slots: Array<Record<string, unknown>>,
+  op: string,
+  path: string,
+  value: unknown,
+): void {
+  const parts = path.split("/").filter(Boolean); // ["s", "2", "value", "0", "content"]
+  if (parts.length < 2 || parts[0] !== "s") return;
+  const slotKey = parts[1]!;
+
+  // /s/- means append to slots array
+  if (slotKey === "-" && op === "a") {
+    slots.push(value as Record<string, unknown>);
+    return;
+  }
+
+  const slotIdx = parseInt(slotKey, 10);
+  if (isNaN(slotIdx) || slotIdx >= slots.length) return;
+
+  if (parts.length === 2) {
+    if (op === "r") slots[slotIdx] = value as Record<string, unknown>;
+    return;
+  }
+
+  // Navigate to the target within the slot
+  let target: unknown = slots[slotIdx];
+  const fieldParts = parts.slice(2);
+
+  for (let i = 0; i < fieldParts.length - 1; i++) {
+    const key = fieldParts[i]!;
+    if (target == null || typeof target !== "object") return;
+
+    if (Array.isArray(target)) {
+      if (key === "-") return;
+      target = target[parseInt(key, 10)];
+    } else {
+      target = (target as Record<string, unknown>)[key];
+    }
+  }
+
+  const lastKey = fieldParts[fieldParts.length - 1]!;
+  if (target == null || typeof target !== "object") return;
+
+  if (Array.isArray(target)) {
+    if (lastKey === "-" && op === "a") {
+      target.push(value);
+    } else {
+      const idx = parseInt(lastKey, 10);
+      if (op === "a") target[idx] = value;
+      else if (op === "r") {
+        // "r" = remove element from array (splice out)
+        target.splice(idx, 1);
+      } else if (op === "x" && typeof target[idx] === "string") {
+        target[idx] = (target[idx] as string) + (value as string);
+      }
+    }
+  } else {
+    const obj = target as Record<string, unknown>;
+    if (op === "a") obj[lastKey] = value;
+    else if (op === "r") delete obj[lastKey];
+    else if (op === "x" && typeof obj[lastKey] === "string") {
+      obj[lastKey] = (obj[lastKey] as string) + (value as string);
+    }
+  }
 }

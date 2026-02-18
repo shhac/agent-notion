@@ -104,7 +104,7 @@ export type RunInferenceTranscriptRequest = {
   spaceId: string;
   transcript: TranscriptItem[];
   threadId: string;
-  threadParentPointer: {
+  threadParentPointer?: {
     table: string;
     id: string;
     spaceId: string;
@@ -132,6 +132,8 @@ export type NdjsonEvent =
   | TitleEvent
   | RecordMapEvent
   | AgentTurnEvent
+  | PatchStartEvent
+  | PatchEvent
   | UnknownEvent;
 
 export type AgentInferenceEvent = {
@@ -184,6 +186,28 @@ export type RecordMapEvent = {
 export type AgentTurnEvent = {
   type: "agent-turn-full-record-map";
   [key: string]: unknown;
+};
+
+export type PatchStartEvent = {
+  type: "patch-start";
+  data: {
+    s: Array<Record<string, unknown>>;
+  };
+  version: number;
+};
+
+export type PatchOp = {
+  /** "x" = text append, "a" = add, "r" = replace */
+  o: string;
+  /** JSON pointer path, e.g. "/s/2/value/0/content" */
+  p: string;
+  /** Value to append/add/replace */
+  v?: unknown;
+};
+
+export type PatchEvent = {
+  type: "patch";
+  v: PatchOp[];
 };
 
 export type UnknownEvent = {
