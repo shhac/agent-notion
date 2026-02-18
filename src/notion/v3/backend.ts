@@ -571,16 +571,30 @@ export class V3Backend implements NotionBackend {
     // Load the page — discussions and comments may be included in the recordMap
     const { recordMap } = await this.http.loadPageChunk({ pageId: params.pageId, limit: 100 });
 
-    // Collect discussion IDs from the page block AND all child blocks
+    // Collect discussion IDs from the page block and its descendant blocks
     const pageBlock = getBlock(recordMap, params.pageId);
-    const allBlocks = getAllBlocks(recordMap);
 
-    // Build a set of all discussion IDs across page + child blocks
+    // Build a set of all discussion IDs across page + descendant blocks
     const discussionIds: string[] = [];
     const seenDiscussions = new Set<string>();
 
-    // Collect from page block and all blocks in the recordMap that belong to this page
-    const relevantBlocks = [pageBlock, ...allBlocks.filter((b) => b.id !== params.pageId)].filter(Boolean);
+    // Walk the content tree from the page block to collect only true descendants
+    const relevantBlocks: (typeof pageBlock)[] = [];
+    const queue: string[] = [params.pageId];
+    const visited = new Set<string>();
+    while (queue.length > 0) {
+      const blockId = queue.pop()!;
+      if (visited.has(blockId)) continue;
+      visited.add(blockId);
+      const block = getBlock(recordMap, blockId);
+      if (!block) continue;
+      relevantBlocks.push(block);
+      if (block.content) {
+        for (const childId of block.content) {
+          queue.push(childId);
+        }
+      }
+    }
     for (const block of relevantBlocks) {
       const blockDiscussions = ((block as V3Block & { discussions?: string[] })?.discussions) ?? [];
       for (const discId of blockDiscussions) {

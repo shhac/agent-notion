@@ -1,9 +1,9 @@
 import type { Command } from "commander";
 import { createV3Client } from "../../notion/client.ts";
-import { handleAction } from "../../lib/errors.ts";
+import { handleAction, CliError } from "../../lib/errors.ts";
 import { normalizeId } from "../../lib/ids.ts";
 import { printJson } from "../../lib/output.ts";
-import { exportAndDownload, defaultExportFilename, type ExportFormat } from "./poll.ts";
+import { exportAndDownload, defaultExportFilename, validateFormat } from "./poll.ts";
 
 export function registerPage(parent: Command): void {
   parent
@@ -48,9 +48,14 @@ export function registerPage(parent: Command): void {
             },
           };
 
+          const timeoutSec = parseInt(opts.timeout, 10);
+          if (isNaN(timeoutSec) || timeoutSec <= 0) {
+            throw new CliError("--timeout must be a positive number (seconds)");
+          }
+
           const output = opts.output ?? defaultExportFilename();
           const result = await exportAndDownload(client, task, output, {
-            timeout: parseInt(opts.timeout, 10) * 1000,
+            timeout: timeoutSec * 1000,
           });
 
           printJson({
@@ -64,9 +69,3 @@ export function registerPage(parent: Command): void {
     );
 }
 
-function validateFormat(format: string): ExportFormat {
-  if (format === "markdown" || format === "html") return format;
-  throw new Error(
-    `Invalid format "${format}". Use "markdown" or "html".`,
-  );
-}

@@ -228,11 +228,7 @@ function isUnauthorizedError(err: unknown): boolean {
     return true;
   if ("code" in err && (err as { code: string }).code === "unauthorized")
     return true;
-  // v3 API may return 400/403 for expired desktop tokens
-  if (
-    err instanceof V3HttpError &&
-    (err.status === 400 || err.status === 403)
-  )
-    return true;
+  // v3 API may return 403 for expired desktop tokens
+  if (err instanceof V3HttpError && err.status === 403) return true;
   return false;
 }

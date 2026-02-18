@@ -13,6 +13,13 @@ const DOWNLOAD_TIMEOUT = 10 * 60_000; // 10 minutes
 
 export type ExportFormat = "markdown" | "html";
 
+export function validateFormat(format: string): ExportFormat {
+  if (format === "markdown" || format === "html") return format;
+  throw new Error(
+    `Invalid format "${format}". Use "markdown" or "html".`,
+  );
+}
+
 export type PollOptions = {
   pollInterval?: number;
   timeout?: number;

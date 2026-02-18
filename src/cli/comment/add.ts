@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { withBackend } from "../../notion/client.ts";
-import { handleAction } from "../../lib/errors.ts";
+import { handleAction, CliError } from "../../lib/errors.ts";
 import { normalizeId } from "../../lib/ids.ts";
 import { printJson } from "../../lib/output.ts";
 
@@ -38,8 +38,7 @@ export function registerInline(comment: Command): void {
         const blockId = normalizeId(rawBlockId);
         const occurrence = parseInt(opts.occurrence, 10);
         if (isNaN(occurrence) || occurrence < 1) {
-          console.error("Error: --occurrence must be a positive integer");
-          process.exit(1);
+          throw new CliError("--occurrence must be a positive integer");
         }
         await handleAction(async () => {
           const result = await withBackend((backend) =>

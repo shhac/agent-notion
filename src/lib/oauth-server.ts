@@ -13,11 +13,14 @@ const SUCCESS_HTML = `<!DOCTYPE html>
 <p>You can close this tab and return to the terminal.</p>
 </body></html>`;
 
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
 const ERROR_HTML = (msg: string) => `<!DOCTYPE html>
 <html><head><title>agent-notion</title></head>
 <body style="font-family:system-ui;text-align:center;padding:60px">
 <h2>Error</h2>
-<p>${msg}</p>
+<p>${escapeHtml(msg)}</p>
 </body></html>`;
 
 /**
