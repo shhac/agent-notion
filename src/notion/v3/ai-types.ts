@@ -1,0 +1,187 @@
+/**
+ * TypeScript types for Notion AI API request/response shapes.
+ * Reference: design-docs/notion-ai-api.md
+ */
+
+// --- Models ---
+
+export type AiModel = {
+  /** Internal codename (e.g., "oatmeal-cookie") */
+  model: string;
+  /** Human-readable name (e.g., "GPT-5.2") */
+  modelMessage: string;
+  /** Provider family: "openai" | "anthropic" | "gemini" */
+  modelFamily: string;
+  /** "fast" or "intelligent" */
+  displayGroup: string;
+  /** Whether the model is currently disabled */
+  isDisabled?: boolean;
+  /** Capabilities per surface */
+  markdownChat?: { beta?: boolean };
+  workflow?: { finalModelName?: string; beta?: boolean };
+};
+
+export type GetAvailableModelsResponse = {
+  models: AiModel[];
+};
+
+// --- Inference Transcripts (conversation list) ---
+
+export type InferenceTranscript = {
+  id: string;
+  title: string;
+  created_at: number;
+  updated_at: number;
+  created_by_display_name: string;
+  type: string;
+};
+
+export type GetInferenceTranscriptsResponse = {
+  transcripts: InferenceTranscript[];
+  threadIds: string[];
+  unreadThreadIds: string[];
+  hasMore: boolean;
+};
+
+// --- Mark transcript seen ---
+
+export type MarkTranscriptSeenResponse = {
+  ok: boolean;
+};
+
+// --- runInferenceTranscript request ---
+
+export type TranscriptConfigItem = {
+  id: string;
+  type: "config";
+  value: {
+    type: "workflow";
+    availableConnectors?: string[];
+    searchScopes?: Array<{ type: string }>;
+    useWebSearch?: boolean;
+    writerMode?: boolean;
+    model?: string;
+    enableAgentDiffs?: boolean;
+    useServerUndo?: boolean;
+    [key: string]: unknown;
+  };
+};
+
+export type TranscriptContextItem = {
+  id: string;
+  neverCompress: true;
+  type: "context";
+  value: {
+    timezone: string;
+    userName: string;
+    userId: string;
+    userEmail: string;
+    spaceName: string;
+    spaceId: string;
+    spaceViewId?: string;
+    currentDatetime: string;
+    surface: string;
+    blockId?: string;
+    visibleCollectionViewIds?: Record<string, unknown>;
+  };
+};
+
+export type TranscriptUserItem = {
+  id: string;
+  type: "user";
+  value: string[][];
+  userId: string;
+  createdAt: string;
+};
+
+export type TranscriptItem =
+  | TranscriptConfigItem
+  | TranscriptContextItem
+  | TranscriptUserItem;
+
+export type RunInferenceTranscriptRequest = {
+  traceId: string;
+  spaceId: string;
+  transcript: TranscriptItem[];
+  threadId: string;
+  threadParentPointer: {
+    table: string;
+    id: string;
+    spaceId: string;
+  };
+  createThread: boolean;
+  generateTitle: boolean;
+  saveAllThreadOperations: boolean;
+  threadType: string;
+  isPartialTranscript: boolean;
+  asPatchResponse: boolean;
+  debugOverrides?: {
+    emitAgentSearchExtractedResults?: boolean;
+    cachedInferences?: Record<string, unknown>;
+    annotationInferences?: Record<string, unknown>;
+    emitInferences?: boolean;
+  };
+};
+
+// --- runInferenceTranscript NDJSON stream events ---
+
+export type NdjsonEvent =
+  | AgentInferenceEvent
+  | AgentToolResultEvent
+  | ConfigEvent
+  | TitleEvent
+  | RecordMapEvent
+  | AgentTurnEvent
+  | UnknownEvent;
+
+export type AgentInferenceEvent = {
+  type: "agent-inference";
+  id: string;
+  value: Array<{ type: string; content: string }>;
+  traceId: string;
+  startedAt: number;
+  previousAttemptValues: unknown[];
+  /** Present only on final event */
+  finishedAt?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cachedTokensRead?: number;
+  maxContextTokens?: number;
+  maxInputTokens?: number;
+  model?: string;
+};
+
+export type AgentToolResultEvent = {
+  type: "agent-tool-result";
+  toolName: string;
+  toolType: string;
+  input: Record<string, unknown>;
+  state: "pending" | "applied";
+  result?: Record<string, unknown>;
+};
+
+export type ConfigEvent = {
+  type: "config";
+  [key: string]: unknown;
+};
+
+export type TitleEvent = {
+  type: "title";
+  value?: string;
+  [key: string]: unknown;
+};
+
+export type RecordMapEvent = {
+  type: "record-map";
+  [key: string]: unknown;
+};
+
+export type AgentTurnEvent = {
+  type: "agent-turn-full-record-map";
+  [key: string]: unknown;
+};
+
+export type UnknownEvent = {
+  type: string;
+  [key: string]: unknown;
+};

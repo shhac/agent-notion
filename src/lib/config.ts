@@ -40,6 +40,9 @@ export type Settings = {
   truncation?: {
     max_length?: number;
   };
+  ai?: {
+    default_model?: string;
+  };
 };
 
 export type V3Session = {

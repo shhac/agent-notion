@@ -69,6 +69,57 @@ export class V3HttpClient {
     }
   }
 
+  /**
+   * POST request that returns the raw Response for streaming consumption.
+   * Unlike post<T>(), this does NOT consume response.json().
+   * The caller is responsible for reading response.body (e.g., via parseNdjson).
+   */
+  async postStream(
+    endpoint: string,
+    body: unknown,
+    options?: { timeout?: number; extraHeaders?: Record<string, string> },
+  ): Promise<Response> {
+    const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Accept: "application/x-ndjson",
+        Cookie: `token_v2=${this.tokenV2}`,
+        "x-notion-active-user-header": this.userId,
+        "x-notion-space-id": this.spaceId,
+        ...options?.extraHeaders,
+      };
+
+      const response = await fetch(`${BASE_URL}/${endpoint}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new V3HttpError(
+          `v3 API error: ${response.status} ${response.statusText}${text ? ` — ${text.slice(0, 200)}` : ""}`,
+          response.status,
+          endpoint,
+        );
+      }
+
+      // Don't clear timer here — the caller controls when streaming ends.
+      // Instead, clear it when the body is fully consumed or on abort.
+      // For safety, set a generous streaming timeout.
+      clearTimeout(timer);
+      return response;
+    } catch (err) {
+      clearTimeout(timer);
+      throw err;
+    }
+  }
+
   // --- Read endpoints ---
 
   async getSpaces(): Promise<Record<string, unknown>> {
@@ -273,6 +324,58 @@ export class V3HttpClient {
       ...(params.navigableBlockId ? { navigableBlockId: params.navigableBlockId } : {}),
       limit: params.limit ?? 20,
       ...(params.startingAfterId ? { startingAfterId: params.startingAfterId } : {}),
+    });
+  }
+
+  // --- AI endpoints ---
+
+  async getAvailableModels(spaceId: string): Promise<{
+    models: Array<{
+      model: string;
+      modelMessage: string;
+      modelFamily: string;
+      displayGroup: string;
+      isDisabled?: boolean;
+      markdownChat?: { beta?: boolean };
+      workflow?: { finalModelName?: string; beta?: boolean };
+    }>;
+  }> {
+    return this.post("getAvailableModels", { spaceId });
+  }
+
+  async getInferenceTranscriptsForUser(params: {
+    spaceId: string;
+    limit?: number;
+  }): Promise<{
+    transcripts: Array<{
+      id: string;
+      title: string;
+      created_at: number;
+      updated_at: number;
+      created_by_display_name: string;
+      type: string;
+    }>;
+    threadIds: string[];
+    unreadThreadIds: string[];
+    hasMore: boolean;
+  }> {
+    return this.post("getInferenceTranscriptsForUser", {
+      threadParentPointer: {
+        table: "space",
+        id: params.spaceId,
+        spaceId: params.spaceId,
+      },
+      limit: params.limit ?? 50,
+    });
+  }
+
+  async markInferenceTranscriptSeen(params: {
+    spaceId: string;
+    threadId: string;
+  }): Promise<{ ok: boolean }> {
+    return this.post("markInferenceTranscriptSeen", {
+      spaceId: params.spaceId,
+      threadId: params.threadId,
     });
   }
 }

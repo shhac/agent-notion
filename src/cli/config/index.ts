@@ -57,6 +57,25 @@ export const SETTING_DEFS: Record<string, SettingDef> = {
     description: "Default number of results for list commands (default: 50, max: 100)",
     default: 50,
   },
+  "ai.defaultModel": {
+    get: (s) => s.ai?.default_model,
+    set: (s, v) => {
+      if (!s.ai) s.ai = {};
+      s.ai.default_model = v as string;
+    },
+    reset: (s) => {
+      if (s.ai) delete s.ai.default_model;
+    },
+    parse: (v) => {
+      if (!v || !v.trim()) {
+        throw new Error("Model name cannot be empty. Use 'ai model list' to see available models.");
+      }
+      return v.trim();
+    },
+    description:
+      "Default AI model codename (e.g., oatmeal-cookie). Use 'ai model list' to see options.",
+    default: undefined,
+  },
 };
 
 export const VALID_KEYS = Object.keys(SETTING_DEFS);
