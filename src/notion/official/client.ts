@@ -3,6 +3,7 @@
  * Implements NotionBackend interface.
  */
 import { Client } from "@notionhq/client";
+import { CliError } from "../../lib/errors.ts";
 import type { NotionBackend } from "../interface.ts";
 import type {
   Paginated,
@@ -322,7 +323,9 @@ export class OfficialBackend implements NotionBackend {
     text: string;
     occurrence?: number;
   }): Promise<CommentCreateResult> {
-    throw new Error("Inline comments require the v3 backend (desktop session).");
+    throw new CliError(
+      "Inline comments require the v3 backend. Run 'agent-notion auth import-desktop' to set up.",
+    );
   }
 
   // --- Users ---

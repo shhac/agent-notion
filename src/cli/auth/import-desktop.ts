@@ -30,6 +30,11 @@ export function registerImportDesktop(parent: Command): void {
             space_id: "",
             space_name: "",
           };
+          process.stderr.write(
+            "Warning: --skip-validation skips identity lookup. user_id and space_id are empty.\n" +
+              "Some commands (search, write operations) may fail. " +
+              "Re-run without --skip-validation to populate.\n",
+          );
         } else {
           sessionInfo = await validateDesktopToken(token_v2);
         }

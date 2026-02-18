@@ -14,7 +14,7 @@ import { getV3Session, resolveV3Token } from "../lib/config.ts";
 import type { NotionBackend } from "./interface.ts";
 import { OfficialBackend } from "./official/client.ts";
 import { V3Backend } from "./v3/backend.ts";
-import { V3HttpClient } from "./v3/client.ts";
+import { V3HttpClient, V3HttpError } from "./v3/client.ts";
 
 export class NotionClientError extends Error {
   constructor(
@@ -227,6 +227,12 @@ function isUnauthorizedError(err: unknown): boolean {
   if ("status" in err && (err as { status: number }).status === 401)
     return true;
   if ("code" in err && (err as { code: string }).code === "unauthorized")
+    return true;
+  // v3 API may return 400/403 for expired desktop tokens
+  if (
+    err instanceof V3HttpError &&
+    (err.status === 400 || err.status === 403)
+  )
     return true;
   return false;
 }
