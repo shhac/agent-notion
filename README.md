@@ -9,6 +9,8 @@ Notion CLI for humans and LLMs.
 - **Markdown conversion** — page content rendered as markdown, append content from markdown
 - **Zero runtime deps** — single compiled binary via `bun build --compile`
 
+**Website:** [agent-notion.paulie.app](https://agent-notion.paulie.app/)
+
 ## Installation
 
 ```bash
