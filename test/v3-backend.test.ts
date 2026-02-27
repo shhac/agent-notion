@@ -1,5 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import type { V3Block, V3Collection, V3User, V3Comment, V3Discussion } from "../src/notion/v3/client.ts";
+import { normalizeRecordMapResponse } from "../src/notion/v3/client.ts";
 import { V3Backend } from "../src/notion/v3/backend.ts";
 import type { V3Operation } from "../src/notion/v3/operations.ts";
 
@@ -1506,5 +1507,91 @@ describe("V3Backend.getChildBlocks", () => {
     }
     // getAllBlocks calls loadPageChunk for each block ID
     expect(calls.loadPageChunk!.length).toBe(7);
+  });
+});
+
+// =============================================================================
+// normalizeRecordMapResponse
+// =============================================================================
+
+describe("normalizeRecordMapResponse", () => {
+  test("unwraps new spaceId-wrapped recordMap entries", () => {
+    const block: V3Block = makeBlock({ id: "page-1" });
+    const input = {
+      recordMap: {
+        block: {
+          "page-1": {
+            spaceId: "space-1",
+            value: { value: block, role: "reader" },
+          },
+        },
+      },
+      cursor: { stack: [] },
+    };
+
+    const result = normalizeRecordMapResponse(input);
+
+    // Should unwrap to old format: { value: V3Block, role: string }
+    const entry = result.recordMap.block["page-1"] as any;
+    expect(entry.value).toEqual(block);
+    expect(entry.role).toBe("reader");
+    expect(entry.spaceId).toBeUndefined();
+  });
+
+  test("passes through old-format recordMap entries unchanged", () => {
+    const block: V3Block = makeBlock({ id: "page-1" });
+    const input = {
+      recordMap: {
+        block: {
+          "page-1": { value: block, role: "reader" },
+        },
+      },
+      cursor: { stack: [] },
+    };
+
+    const result = normalizeRecordMapResponse(input);
+
+    const entry = result.recordMap.block["page-1"] as any;
+    expect(entry.value).toEqual(block);
+    expect(entry.role).toBe("reader");
+  });
+
+  test("normalizes all tables in the recordMap", () => {
+    const block: V3Block = makeBlock({ id: "page-1" });
+    const collection: V3Collection = {
+      id: "col-1",
+      version: 1,
+      name: [["Test"]],
+      schema: {},
+      parent_id: "p1",
+      parent_table: "block",
+    };
+    const input = {
+      recordMap: {
+        block: {
+          "page-1": {
+            spaceId: "space-1",
+            value: { value: block, role: "reader" },
+          },
+        },
+        collection: {
+          "col-1": {
+            spaceId: "space-1",
+            value: { value: collection, role: "reader" },
+          },
+        },
+      },
+    };
+
+    const result = normalizeRecordMapResponse(input);
+
+    expect((result.recordMap.block["page-1"] as any).value.id).toBe("page-1");
+    expect((result.recordMap.collection["col-1"] as any).value.id).toBe("col-1");
+  });
+
+  test("returns non-recordMap responses unchanged", () => {
+    const input = { taskId: "abc-123" };
+    const result = normalizeRecordMapResponse(input);
+    expect(result).toEqual(input);
   });
 });

@@ -72,7 +72,8 @@ export class V3HttpClient {
         );
       }
 
-      return (await response.json()) as T;
+      const result = (await response.json()) as T;
+      return normalizeRecordMapResponse(result) as T;
     } finally {
       clearTimeout(timer);
     }
@@ -384,6 +385,56 @@ export class V3HttpClient {
       threadId: params.threadId,
     });
   }
+}
+
+// --- RecordMap normalization ---
+
+/**
+ * Notion's v3 API changed the recordMap entry format from:
+ *   { value: V3Block, role?: string }
+ * to:
+ *   { spaceId: string, value: { value: V3Block, role?: string } }
+ *
+ * This function unwraps the extra nesting so all consumers work unchanged.
+ * Applied automatically in the post() method to all API responses.
+ */
+export function normalizeRecordMapResponse<T>(result: T): T {
+  if (!result || typeof result !== "object" || !("recordMap" in result)) {
+    return result;
+  }
+
+  const r = result as Record<string, unknown>;
+  const rm = r.recordMap;
+  if (!rm || typeof rm !== "object") return result;
+
+  const normalized: Record<string, unknown> = {};
+  for (const [table, records] of Object.entries(rm as Record<string, unknown>)) {
+    if (!records || typeof records !== "object") {
+      normalized[table] = records;
+      continue;
+    }
+
+    const tableRecords: Record<string, unknown> = {};
+    for (const [id, entry] of Object.entries(records as Record<string, unknown>)) {
+      const e = entry as Record<string, unknown> | null;
+      // Detect new format: entry has "spaceId" and entry.value has nested "value"
+      if (
+        e &&
+        "spaceId" in e &&
+        e.value &&
+        typeof e.value === "object" &&
+        "value" in (e.value as Record<string, unknown>)
+      ) {
+        tableRecords[id] = e.value;
+      } else {
+        tableRecords[id] = entry;
+      }
+    }
+    normalized[table] = tableRecords;
+  }
+
+  r.recordMap = normalized;
+  return result;
 }
 
 // --- Export task type ---
