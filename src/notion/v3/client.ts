@@ -417,15 +417,19 @@ export function normalizeRecordMapResponse<T>(result: T): T {
     const tableRecords: Record<string, unknown> = {};
     for (const [id, entry] of Object.entries(records as Record<string, unknown>)) {
       const e = entry as Record<string, unknown> | null;
-      // Detect new format: entry has "spaceId" and entry.value has nested "value"
+      // Detect new format: entry.value has nested "value" containing the actual record.
+      // Variant A: { spaceId, value: { value: V3Block, role } }
+      // Variant B: { value: { value: V3Block, role } }  (no spaceId)
+      // Old format: { value: V3Block, role }  (value.value would be a primitive like version number)
+      const inner = e?.value as Record<string, unknown> | undefined;
       if (
-        e &&
-        "spaceId" in e &&
-        e.value &&
-        typeof e.value === "object" &&
-        "value" in (e.value as Record<string, unknown>)
+        inner &&
+        typeof inner === "object" &&
+        "value" in inner &&
+        inner.value &&
+        typeof inner.value === "object"
       ) {
-        tableRecords[id] = e.value;
+        tableRecords[id] = inner;
       } else {
         tableRecords[id] = entry;
       }

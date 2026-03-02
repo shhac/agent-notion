@@ -1589,6 +1589,52 @@ describe("normalizeRecordMapResponse", () => {
     expect((result.recordMap.collection["col-1"] as any).value.id).toBe("col-1");
   });
 
+  test("unwraps nested entries without spaceId", () => {
+    const block: V3Block = makeBlock({ id: "child-1", type: "paragraph" });
+    const input = {
+      recordMap: {
+        block: {
+          "child-1": {
+            value: { value: block, role: "reader" },
+          },
+        },
+      },
+      cursor: { stack: [] },
+    };
+
+    const result = normalizeRecordMapResponse(input);
+
+    const entry = result.recordMap.block["child-1"] as any;
+    expect(entry.value).toEqual(block);
+    expect(entry.role).toBe("reader");
+  });
+
+  test("handles mixed spaceId and non-spaceId entries", () => {
+    const parent: V3Block = makeBlock({ id: "page-1", type: "page", content: ["child-1"] });
+    const child: V3Block = makeBlock({ id: "child-1", type: "paragraph", parent_id: "page-1" });
+    const input = {
+      recordMap: {
+        block: {
+          "page-1": {
+            spaceId: "space-1",
+            value: { value: parent, role: "reader" },
+          },
+          "child-1": {
+            value: { value: child, role: "reader" },
+          },
+        },
+      },
+      cursor: { stack: [] },
+    };
+
+    const result = normalizeRecordMapResponse(input);
+
+    expect((result.recordMap.block["page-1"] as any).value.id).toBe("page-1");
+    expect((result.recordMap.block["page-1"] as any).value.type).toBe("page");
+    expect((result.recordMap.block["child-1"] as any).value.id).toBe("child-1");
+    expect((result.recordMap.block["child-1"] as any).value.type).toBe("paragraph");
+  });
+
   test("returns non-recordMap responses unchanged", () => {
     const input = { taskId: "abc-123" };
     const result = normalizeRecordMapResponse(input);
