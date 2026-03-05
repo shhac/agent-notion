@@ -64,6 +64,9 @@ agent-notion database query <database-id>          # all rows
 agent-notion page create --parent <id> --title "New Page"
 agent-notion page update <page-id> --properties '{"Status":"Done"}'
 agent-notion block append <page-id> --content "## New Section\n\nContent here."
+agent-notion block update <block-id> --content "Updated text"
+agent-notion block delete <block-id>
+agent-notion block replace <page-id> --content "# Fresh Content\n\nReplaced everything."
 agent-notion comment page <page-id> "Looks good!"
 ```
 
@@ -91,6 +94,10 @@ agent-notion [--full] [--expand <fields>]
 ├── block
 │   ├── list <page-id> [--raw] [--limit] [--cursor]
 │   ├── append <page-id> [--content <markdown>] [--blocks <json>]
+│   ├── update <block-id> --content <text>
+│   ├── delete <block-id>
+│   ├── move <block-id> [--parent <block-id>] [--after <block-id>]     ◆
+│   ├── replace <page-id> [--content <markdown>] [--blocks <json>]
 │   └── usage
 ├── comment
 │   ├── list <page-id> [--limit] [--cursor]
@@ -185,6 +192,7 @@ v3 commands (marked with `◆` in the command map):
 | `page backlinks <page-id>` | Find pages that link to a given page |
 | `page history <page-id>` | Version history snapshots |
 | `activity log [--page <id>]` | Workspace or page activity log |
+| `block move <block-id> [--parent <id>] [--after <id>]` | Reorder blocks or move into containers |
 | `comment inline <block-id> <body> --text <t>` | Inline comment anchored to specific text |
 | `ai model list` | List available AI models |
 | `ai chat list` | List recent AI chat threads |

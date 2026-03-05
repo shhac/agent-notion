@@ -6,7 +6,7 @@ description: |
   - Querying database rows with filters and sorts
   - Reading page properties and content (as markdown or structured blocks)
   - Creating, updating, or archiving pages
-  - Reading or appending block content (markdown or JSON blocks)
+  - Reading, appending, updating, deleting, or replacing block content
   - Listing or adding comments on pages (page-level or inline on specific text)
   - Exporting pages or entire workspaces as markdown/HTML
   - Finding backlinks (pages that link to a given page)
@@ -102,12 +102,19 @@ Property values in `--properties` are auto-converted: strings become select valu
 
 ```bash
 agent-notion block list <page-id>                                   # markdown (default)
-agent-notion block list <page-id> --raw                             # structured block objects (paginated)
+agent-notion block list <page-id> --raw                             # structured block objects with IDs
 agent-notion block append <page-id> --content "## New Section\n\nParagraph text"
 agent-notion block append <page-id> --blocks '[{"type":"paragraph","paragraph":{"rich_text":[{"text":{"content":"Hello"}}]}}]'
+agent-notion block update <block-id> --content "New text"           # edit a single block's content
+agent-notion block delete <block-id>                                # remove a block
+agent-notion block move <block-id> --after <other-block-id>               # reorder (v3)
+agent-notion block move <block-id> --parent <callout-id>                 # move into container (v3)
+agent-notion block replace <page-id> --content "# Fresh\n\nAll new content"  # replace all page content
 ```
 
 Markdown conversion supports: headings, lists, todos, code fences, blockquotes, dividers, and paragraphs.
+
+Use `block list --raw` to get block IDs for `update` and `delete`. Use `block replace` to swap all content at once.
 
 ## Comments
 

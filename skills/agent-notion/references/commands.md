@@ -41,6 +41,10 @@ Run `agent-notion <command> usage` for detailed per-command docs.
 
 - `agent-notion block list <page-id> [--raw] [--limit <n>] [--cursor <cursor>]` — page content as markdown (default) or structured blocks (`--raw`, paginated)
 - `agent-notion block append <page-id> [--content <markdown>] [--blocks <json>]` — append content as markdown or Notion block objects (one required)
+- `agent-notion block update <block-id> --content <text>` — replace a block's text content
+- `agent-notion block delete <block-id>` — delete a block
+- `agent-notion block move <block-id> [--parent <block-id>] [--after <block-id>]` — move a block to a new position or into a container; `--parent` for cross-parent moves (e.g. into a callout/toggle); omit `--after` for first position (v3, preserves block ID)
+- `agent-notion block replace <page-id> [--content <markdown>] [--blocks <json>]` — delete all blocks on a page, then append new content (one required)
 
 ## Comment
 
