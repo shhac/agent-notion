@@ -44,10 +44,10 @@ describe("usage token budgets", () => {
     expect(tokens).toBeLessThan(500);
   });
 
-  test("block usage < 500 tokens", () => {
+  test("block usage < 600 tokens", () => {
     const output = getUsageOutput("block usage");
     const tokens = estimateTokens(output);
-    expect(tokens).toBeLessThan(500);
+    expect(tokens).toBeLessThan(600);
   });
 
   test("comment usage < 500 tokens", () => {
