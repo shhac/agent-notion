@@ -18,6 +18,9 @@ import type {
   PageArchiveResult,
   NormalizedBlock,
   BlockListResult,
+  BlockUpdateResult,
+  BlockDeleteResult,
+  BlockMoveResult,
   CommentItem,
   CommentCreateResult,
   UserItem,
@@ -278,6 +281,48 @@ export class OfficialBackend implements NotionBackend {
       children: params.blocks,
     } as Parameters<typeof this.client.blocks.children.append>[0]);
     return { blocksAdded: result.results.length };
+  }
+
+  async updateBlock(params: {
+    id: string;
+    content?: string;
+    type?: string;
+  }): Promise<BlockUpdateResult> {
+    // First retrieve the block to get its current type
+    const existing = await this.client.blocks.retrieve({ block_id: params.id }) as Record<string, unknown>;
+    const blockType = (params.type ?? existing.type) as string;
+
+    const updateParams: Record<string, unknown> = { block_id: params.id };
+
+    if (params.content !== undefined) {
+      updateParams[blockType] = {
+        rich_text: [{ type: "text", text: { content: params.content } }],
+      };
+    }
+
+    const result = await this.client.blocks.update(
+      updateParams as Parameters<typeof this.client.blocks.update>[0],
+    );
+    const b = result as Record<string, unknown>;
+    return {
+      id: b.id as string,
+      lastEditedAt: b.last_edited_time as string | undefined,
+    };
+  }
+
+  async deleteBlock(id: string): Promise<BlockDeleteResult> {
+    await this.client.blocks.delete({ block_id: id });
+    return { id, deleted: true };
+  }
+
+  async moveBlock(_params: {
+    id: string;
+    parentId?: string;
+    afterId?: string;
+  }): Promise<BlockMoveResult> {
+    throw new CliError(
+      "Block reordering requires the v3 backend. Run 'agent-notion auth import-desktop' to set up.",
+    );
   }
 
   // --- Comments ---

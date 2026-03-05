@@ -142,6 +142,22 @@ export type BlockListResult = {
   hasMore: boolean;
 };
 
+export type BlockUpdateResult = {
+  id: string;
+  lastEditedAt?: string;
+};
+
+export type BlockDeleteResult = {
+  id: string;
+  deleted: true;
+};
+
+export type BlockMoveResult = {
+  id: string;
+  parentId: string;
+  afterId?: string;
+};
+
 // --- Comment ---
 
 export type CommentItem = {

@@ -17,6 +17,9 @@ import type {
   PageArchiveResult,
   NormalizedBlock,
   BlockListResult,
+  BlockUpdateResult,
+  BlockDeleteResult,
+  BlockMoveResult,
   CommentItem,
   CommentCreateResult,
   UserItem,
@@ -54,6 +57,7 @@ import {
 import {
   createBlockOps,
   archiveBlockOps,
+  moveBlockOps,
   updatePropertyOps,
   createCommentOps,
   createInlineCommentOps,
@@ -557,6 +561,103 @@ export class V3Backend implements NotionBackend {
     await this.http.saveTransactions(allOps);
 
     return { blocksAdded: params.blocks.length };
+  }
+
+  async updateBlock(params: {
+    id: string;
+    content?: string;
+    type?: string;
+  }): Promise<BlockUpdateResult> {
+    const spaceId = this.http.spaceId_;
+    const userId = this.http.userId_;
+
+    // Fetch current block to know its type
+    const { recordMap } = await this.http.syncRecordValues([
+      { pointer: { id: params.id, table: "block" }, version: -1 },
+    ]);
+    const block = getBlock(recordMap, params.id);
+    if (!block) throw new Error(`Block not found: ${params.id}`);
+
+    const v3Props: Record<string, unknown> = {};
+    if (params.content !== undefined) {
+      v3Props.title = toV3RichText(params.content);
+    }
+
+    const ops = updatePropertyOps({
+      id: params.id,
+      spaceId,
+      userId,
+      ...(Object.keys(v3Props).length > 0 ? { properties: v3Props } : {}),
+    });
+
+    await this.http.saveTransactions(ops);
+
+    return {
+      id: params.id,
+      lastEditedAt: new Date().toISOString(),
+    };
+  }
+
+  async deleteBlock(id: string): Promise<BlockDeleteResult> {
+    const spaceId = this.http.spaceId_;
+    const userId = this.http.userId_;
+
+    // Fetch the block to get parent info for listRemove
+    const { recordMap } = await this.http.syncRecordValues([
+      { pointer: { id, table: "block" }, version: -1 },
+    ]);
+    const block = getBlock(recordMap, id);
+    if (!block) throw new Error(`Block not found: ${id}`);
+
+    const ops = archiveBlockOps({
+      id,
+      parentId: block.parent_id,
+      parentTable: block.parent_table,
+      spaceId,
+      userId,
+    });
+
+    await this.http.saveTransactions(ops);
+
+    return { id, deleted: true };
+  }
+
+  async moveBlock(params: {
+    id: string;
+    parentId?: string;
+    afterId?: string;
+  }): Promise<BlockMoveResult> {
+    const spaceId = this.http.spaceId_;
+    const userId = this.http.userId_;
+
+    // Fetch the block to get its current parent
+    const { recordMap } = await this.http.syncRecordValues([
+      { pointer: { id: params.id, table: "block" }, version: -1 },
+    ]);
+    const block = getBlock(recordMap, params.id);
+    if (!block) throw new Error(`Block not found: ${params.id}`);
+
+    const newParentId = params.parentId ?? block.parent_id;
+    const newParentTable = params.parentId ? "block" : block.parent_table;
+
+    const ops = moveBlockOps({
+      id: params.id,
+      oldParentId: block.parent_id,
+      oldParentTable: block.parent_table,
+      newParentId,
+      newParentTable,
+      spaceId,
+      userId,
+      afterId: params.afterId,
+    });
+
+    await this.http.saveTransactions(ops);
+
+    return {
+      id: params.id,
+      parentId: newParentId,
+      afterId: params.afterId,
+    };
   }
 
   // --- Comments (via discussion/comment records) ---

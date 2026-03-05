@@ -15,6 +15,9 @@ import type {
   PageArchiveResult,
   NormalizedBlock,
   BlockListResult,
+  BlockUpdateResult,
+  BlockDeleteResult,
+  BlockMoveResult,
   CommentItem,
   CommentCreateResult,
   UserItem,
@@ -89,6 +92,20 @@ export interface NotionBackend {
     id: string;
     blocks: unknown[];
   }): Promise<{ blocksAdded: number }>;
+
+  updateBlock(params: {
+    id: string;
+    content?: string;
+    type?: string;
+  }): Promise<BlockUpdateResult>;
+
+  deleteBlock(id: string): Promise<BlockDeleteResult>;
+
+  moveBlock(params: {
+    id: string;
+    parentId?: string;
+    afterId?: string;
+  }): Promise<BlockMoveResult>;
 
   // --- Comments ---
   listComments(params: {

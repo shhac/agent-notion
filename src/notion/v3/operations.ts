@@ -53,6 +53,13 @@ function listAfterOp(pointer: V3Pointer, listPath: string, childId: string, afte
   return { pointer, path: [listPath], command: "listAfter", args };
 }
 
+/** Prepend a child ID to a list (or before a specific item). */
+function listBeforeOp(pointer: V3Pointer, listPath: string, childId: string, beforeId?: string): V3Operation {
+  const args: Record<string, string> = { id: childId };
+  if (beforeId) args.before = beforeId;
+  return { pointer, path: [listPath], command: "listBefore", args };
+}
+
 /** Remove a child ID from a list. */
 function listRemoveOp(pointer: V3Pointer, listPath: string, childId: string): V3Operation {
   return { pointer, path: [listPath], command: "listRemove", args: { id: childId } };
@@ -133,6 +140,48 @@ export function archiveBlockOps(params: {
     listRemoveOp(pp, "content", params.id),
     editMetaOp(pp, params.userId),
   ];
+}
+
+/** Operations to move a block within or across parents. */
+export function moveBlockOps(params: {
+  id: string;
+  oldParentId: string;
+  oldParentTable: string;
+  newParentId: string;
+  newParentTable: string;
+  spaceId: string;
+  userId: string;
+  afterId?: string;
+}): V3Operation[] {
+  const bp = blockPtr(params.id, params.spaceId);
+  const oldPp = ptr(params.oldParentTable, params.oldParentId, params.spaceId);
+  const newPp = ptr(params.newParentTable, params.newParentId, params.spaceId);
+  const crossParent = params.oldParentId !== params.newParentId;
+
+  const insertOp = params.afterId
+    ? listAfterOp(newPp, "content", params.id, params.afterId)
+    : listBeforeOp(newPp, "content", params.id);
+
+  const ops: V3Operation[] = [
+    listRemoveOp(oldPp, "content", params.id),
+    insertOp,
+  ];
+
+  if (crossParent) {
+    ops.push(
+      updateOp(bp, {
+        parent_id: params.newParentId,
+        parent_table: params.newParentTable,
+        last_edited_time: Date.now(),
+        last_edited_by_table: "notion_user",
+        last_edited_by_id: params.userId,
+      }),
+      editMetaOp(oldPp, params.userId),
+    );
+  }
+
+  ops.push(editMetaOp(newPp, params.userId));
+  return ops;
 }
 
 /** Operations to update properties on a block via path-based set. */
