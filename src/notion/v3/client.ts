@@ -149,7 +149,7 @@ export class V3HttpClient {
     chunkNumber?: number;
   }): Promise<{ recordMap: RecordMap; cursor: { stack: unknown[] } }> {
     return this.post("loadPageChunk", {
-      pageId: params.pageId,
+      page: { id: params.pageId, spaceId: this.spaceId },
       limit: params.limit ?? 100,
       cursor: params.cursor ?? { stack: [] },
       chunkNumber: params.chunkNumber ?? 0,
@@ -190,7 +190,10 @@ export class V3HttpClient {
     if (params.query?.filter) query2.filter = params.query.filter;
     if (params.query?.sort) query2.sort = params.query.sort;
 
-    return this.post(
+    const raw = await this.post<{
+      result: Record<string, unknown>;
+      recordMap: RecordMap;
+    }>(
       "queryCollection",
       {
         collection: { id: params.collectionId },
@@ -203,6 +206,25 @@ export class V3HttpClient {
         extraHeaders: { "x-notion-space-id": this.spaceId },
       },
     );
+
+    // Normalize: blockIds may be at result.blockIds (old) or
+    // result.reducerResults.collection_group_results.blockIds (new)
+    const result = raw.result;
+    const blockIds: string[] =
+      (result.blockIds as string[] | undefined) ??
+      ((result.reducerResults as Record<string, unknown>)
+        ?.collection_group_results as { blockIds?: string[] })?.blockIds ??
+      [];
+    const total =
+      (result.total as number | undefined) ??
+      ((result.reducerResults as Record<string, unknown>)
+        ?.collection_group_results as { total?: number })?.total ??
+      blockIds.length;
+
+    return {
+      result: { blockIds, total, reducerResults: result.reducerResults },
+      recordMap: raw.recordMap,
+    };
   }
 
   async search(params: {
