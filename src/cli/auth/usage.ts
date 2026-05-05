@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { defineCommand, type Command } from "../../lib/cli.ts";
 
 const USAGE_TEXT = `agent-notion auth — Manage Notion authentication and workspaces
 
@@ -65,10 +65,13 @@ OUTPUT:
   Token refresh is automatic on 401 for OAuth workspaces.`;
 
 export function registerUsage(parent: Command): void {
-  parent
-    .command("usage")
-    .description("Show detailed auth documentation (LLM-optimized)")
-    .action(() => {
-      console.log(USAGE_TEXT);
-    });
+  parent.addCommand(
+    defineCommand({
+      use: "usage",
+      short: "Show detailed auth documentation (LLM-optimized)",
+      action: () => {
+        console.log(USAGE_TEXT);
+      },
+    }),
+  );
 }

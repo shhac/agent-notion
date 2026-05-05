@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { defineCommand, type Command } from "../../lib/cli.ts";
 
 const USAGE_TEXT = `agent-notion comment — Page and inline comments
 
@@ -37,10 +37,13 @@ LIMITATIONS:
 `;
 
 export function registerUsage(comment: Command): void {
-  comment
-    .command("usage")
-    .description("Print detailed comment documentation (LLM-optimized)")
-    .action(() => {
-      console.log(USAGE_TEXT.trim());
-    });
+  comment.addCommand(
+    defineCommand({
+      use: "usage",
+      short: "Print detailed comment documentation (LLM-optimized)",
+      action: () => {
+        console.log(USAGE_TEXT.trim());
+      },
+    }),
+  );
 }

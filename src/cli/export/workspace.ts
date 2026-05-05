@@ -1,22 +1,28 @@
-import type { Command } from "commander";
+import { defineCommand, type Command } from "../../lib/cli.ts";
 import { createV3Client } from "../../notion/client.ts";
 import { handleAction, CliError } from "../../lib/errors.ts";
 import { printJson } from "../../lib/output.ts";
 import { exportAndDownload, defaultExportFilename, validateFormat } from "./poll.ts";
 
 export function registerWorkspace(parent: Command): void {
-  parent
-    .command("workspace")
-    .description("Export the entire workspace to markdown or HTML")
-    .option("--format <format>", "Export format: markdown or html", "markdown")
-    .option("--output <path>", "Output file path")
-    .option(
-      "--timeout <seconds>",
-      "Maximum time to wait for export (seconds)",
-      "600",
-    )
-    .action(
-      async (opts: { format: string; output?: string; timeout: string }) => {
+  parent.addCommand(
+    defineCommand({
+      use: "workspace",
+      short: "Export the entire workspace to markdown or HTML",
+      options: {
+        format: {
+          type: "string",
+          default: "markdown",
+          description: "Export format: markdown or html",
+        },
+        output: { type: "string", description: "Output file path" },
+        timeout: {
+          type: "string",
+          default: "600",
+          description: "Maximum time to wait for export (seconds)",
+        },
+      },
+      action: async (_args, opts) => {
         await handleAction(async () => {
           const format = validateFormat(opts.format);
           const client = createV3Client();
@@ -42,7 +48,7 @@ export function registerWorkspace(parent: Command): void {
           const output = opts.output ?? defaultExportFilename();
           const result = await exportAndDownload(client, task, output, {
             timeout: timeoutSec * 1000,
-            pollInterval: 5_000, // workspace exports are slower, poll less frequently
+            pollInterval: 5_000,
           });
 
           printJson({
@@ -52,6 +58,6 @@ export function registerWorkspace(parent: Command): void {
           });
         });
       },
-    );
+    }),
+  );
 }
-

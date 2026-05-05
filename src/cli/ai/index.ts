@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { Command, type Command as VipvotCommand } from "vipvot";
 import { registerModelList } from "./model-list.ts";
 import { registerChatList } from "./chat-list.ts";
 import { registerChatGet } from "./chat-get.ts";
@@ -6,19 +6,23 @@ import { registerChatSend } from "./chat-send.ts";
 import { registerChatMarkRead } from "./chat-mark-read.ts";
 import { registerUsage } from "./usage.ts";
 
-export function registerAiCommand(program: Command): void {
-  const ai = program
-    .command("ai")
-    .description("Notion AI chat and models (v3 desktop session required)");
+export function registerAiCommand(program: VipvotCommand): void {
+  const ai = Command({
+    use: "ai",
+    short: "Notion AI chat and models (v3 desktop session required)",
+  });
 
-  const model = ai.command("model").description("AI model operations");
+  const model = Command({ use: "model", short: "AI model operations" });
   registerModelList(model);
+  ai.addCommand(model);
 
-  const chat = ai.command("chat").description("AI chat conversations");
+  const chat = Command({ use: "chat", short: "AI chat conversations" });
   registerChatList(chat);
   registerChatGet(chat);
   registerChatSend(chat);
   registerChatMarkRead(chat);
+  ai.addCommand(chat);
 
   registerUsage(ai);
+  program.addCommand(ai);
 }

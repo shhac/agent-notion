@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { defineCommand, type Command } from "../../lib/cli.ts";
 
 const USAGE_TEXT = `agent-notion user — Workspace user information
 
@@ -22,10 +22,13 @@ EXAMPLES:
 `;
 
 export function registerUsage(user: Command): void {
-  user
-    .command("usage")
-    .description("Print detailed user documentation (LLM-optimized)")
-    .action(() => {
-      console.log(USAGE_TEXT.trim());
-    });
+  user.addCommand(
+    defineCommand({
+      use: "usage",
+      short: "Print detailed user documentation (LLM-optimized)",
+      action: () => {
+        console.log(USAGE_TEXT.trim());
+      },
+    }),
+  );
 }

@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { defineCommand, type Command } from "../../lib/cli.ts";
 
 const USAGE_TEXT = `agent-notion block — Read and write page content (blocks)
 
@@ -52,10 +52,13 @@ NESTED BLOCKS: Blocks with children (toggles, columns) are recursively fetched i
 `;
 
 export function registerUsage(block: Command): void {
-  block
-    .command("usage")
-    .description("Print detailed block documentation (LLM-optimized)")
-    .action(() => {
-      console.log(USAGE_TEXT.trim());
-    });
+  block.addCommand(
+    defineCommand({
+      use: "usage",
+      short: "Print detailed block documentation (LLM-optimized)",
+      action: () => {
+        console.log(USAGE_TEXT.trim());
+      },
+    }),
+  );
 }

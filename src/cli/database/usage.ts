@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { defineCommand, type Command } from "../../lib/cli.ts";
 
 const USAGE_TEXT = `agent-notion database — Database exploration and querying
 
@@ -30,10 +30,13 @@ PAGINATION: --limit <n> --cursor <cursor>
 `;
 
 export function registerUsage(database: Command): void {
-  database
-    .command("usage")
-    .description("Print detailed database documentation (LLM-optimized)")
-    .action(() => {
-      console.log(USAGE_TEXT.trim());
-    });
+  database.addCommand(
+    defineCommand({
+      use: "usage",
+      short: "Print detailed database documentation (LLM-optimized)",
+      action: () => {
+        console.log(USAGE_TEXT.trim());
+      },
+    }),
+  );
 }

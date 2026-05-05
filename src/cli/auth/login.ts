@@ -1,6 +1,6 @@
-import { Command } from "commander";
 import { execFileSync } from "node:child_process";
 import { platform } from "node:os";
+import { defineCommand, type Command } from "../../lib/cli.ts";
 import {
   deriveAlias,
   getOAuthConfig,
@@ -14,14 +14,16 @@ import { printError, printJson } from "../../lib/output.ts";
 import { createNotionClientWithToken } from "../../notion/client.ts";
 
 export function registerLogin(parent: Command): void {
-  parent
-    .command("login")
-    .description("Authenticate with a Notion workspace")
-    .option("--alias <name>", "Custom workspace alias")
-    .option("--port <port>", "Localhost port for OAuth callback", "9876")
-    .option("--token <token>", "Internal integration token (skips OAuth)")
-    .action(
-      async (opts: { alias?: string; port: string; token?: string }) => {
+  parent.addCommand(
+    defineCommand({
+      use: "login",
+      short: "Authenticate with a Notion workspace",
+      options: {
+        alias: { type: "string", description: "Custom workspace alias" },
+        port: { type: "string", default: "9876", description: "Localhost port for OAuth callback" },
+        token: { type: "string", description: "Internal integration token (skips OAuth)" },
+      },
+      action: async (_args, opts) => {
         try {
           if (opts.token) {
             await loginWithToken(opts.token, opts.alias);
@@ -29,25 +31,17 @@ export function registerLogin(parent: Command): void {
             await loginWithOAuth(opts.alias, parseInt(opts.port, 10));
           }
         } catch (err) {
-          printError(
-            err instanceof Error ? err.message : "Login failed",
-          );
+          printError(err instanceof Error ? err.message : "Login failed");
         }
       },
-    );
+    }),
+  );
 }
 
-async function loginWithToken(
-  token: string,
-  alias?: string,
-): Promise<void> {
+async function loginWithToken(token: string, alias?: string): Promise<void> {
   const trimmed = token.trim();
 
-  if (
-    !trimmed.startsWith("ntn_") &&
-    !trimmed.startsWith("secret_")
-  ) {
-    // Warn but proceed — Notion may change token formats
+  if (!trimmed.startsWith("ntn_") && !trimmed.startsWith("secret_")) {
     console.error(
       JSON.stringify({
         warning:
@@ -56,7 +50,6 @@ async function loginWithToken(
     );
   }
 
-  // Validate token against Notion API
   const client = createNotionClientWithToken(trimmed);
   let me: Awaited<ReturnType<typeof client.users.me>>;
   try {
@@ -67,8 +60,6 @@ async function loginWithToken(
     );
   }
 
-  // For internal integrations, get workspace info by searching for bot info
-  // The /users/me endpoint returns the bot user for integrations
   const botId = me.id;
   const workspaceName = alias ?? "default";
 
@@ -85,8 +76,6 @@ async function loginWithToken(
     auth_type: "internal_integration",
   } as Parameters<typeof storeWorkspace>[1] & { access_token: string });
 
-  // Re-store with actual token since storeWorkspace needs it
-  // Actually, let's pass the token properly
   storeWorkspaceWithToken(resolvedAlias, {
     workspace_id: botId,
     workspace_name: resolvedAlias,
@@ -126,11 +115,7 @@ function storeWorkspaceWithToken(
   return storeWorkspace(alias, ws);
 }
 
-async function loginWithOAuth(
-  alias?: string,
-  port: number = 9876,
-): Promise<void> {
-  // 1. Check OAuth is configured
+async function loginWithOAuth(alias?: string, port: number = 9876): Promise<void> {
   const oauth = getOAuthConfig();
   if (!oauth) {
     throw new Error(
@@ -138,7 +123,6 @@ async function loginWithOAuth(
     );
   }
 
-  // 2. Resolve client_secret
   const clientSecret = resolveOAuthClientSecret();
   if (!clientSecret) {
     throw new Error(
@@ -146,13 +130,10 @@ async function loginWithOAuth(
     );
   }
 
-  // 3. Generate state parameter
   const state = crypto.randomUUID();
 
-  // 4. Start localhost server and wait for callback
   const serverPromise = startOAuthServer(state, port);
 
-  // 5. Open browser
   const redirectUri = `http://localhost:${port}/callback`;
   const authUrl = new URL("https://api.notion.com/v1/oauth/authorize");
   authUrl.searchParams.set("client_id", oauth.client_id);
@@ -163,30 +144,25 @@ async function loginWithOAuth(
 
   openBrowser(authUrl.toString());
 
-  // 6. Wait for callback
   const { code, port: actualPort } = await serverPromise;
   const actualRedirectUri = `http://localhost:${actualPort}/callback`;
 
-  // 7. Exchange code for tokens
-  const basicAuth = Buffer.from(
-    `${oauth.client_id}:${clientSecret}`,
-  ).toString("base64");
-
-  const tokenResponse = await fetch(
-    "https://api.notion.com/v1/oauth/token",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${basicAuth}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: actualRedirectUri,
-      }),
-    },
+  const basicAuth = Buffer.from(`${oauth.client_id}:${clientSecret}`).toString(
+    "base64",
   );
+
+  const tokenResponse = await fetch("https://api.notion.com/v1/oauth/token", {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${basicAuth}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: actualRedirectUri,
+    }),
+  });
 
   if (!tokenResponse.ok) {
     const errorBody = (await tokenResponse.json().catch(() => ({}))) as {
@@ -212,12 +188,10 @@ async function loginWithOAuth(
     refresh_token?: string;
   };
 
-  // 8. Determine alias
   const existingAliases = Object.keys(getWorkspaces());
   const resolvedAlias =
     alias ?? deriveAlias(tokenData.workspace_name, existingAliases);
 
-  // 9. Store credentials
   const config = readConfig();
   const isDefault = !config.default_workspace;
 
@@ -248,8 +222,7 @@ async function loginWithOAuth(
       name: tokenData.workspace_name,
       id: tokenData.workspace_id,
       bot_id: tokenData.bot_id,
-      default:
-        isDefault || config.default_workspace === resolvedAlias,
+      default: isDefault || config.default_workspace === resolvedAlias,
     },
     hint: "Add more workspaces with 'agent-notion auth login --alias <name>'",
   });
@@ -266,7 +239,6 @@ function openBrowser(url: string): void {
       execFileSync("cmd", ["/c", "start", url], { stdio: "ignore" });
     }
   } catch {
-    // If we can't open the browser, print the URL for manual opening
     console.error(
       JSON.stringify({
         warning: `Could not open browser. Please visit: ${url}`,

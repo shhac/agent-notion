@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { defineCommand, type Command } from "../../lib/cli.ts";
 
 const USAGE_TEXT = `agent-notion activity — Recent workspace or page activity log
 
@@ -25,10 +25,13 @@ EXAMPLES:
 `;
 
 export function registerUsage(activity: Command): void {
-  activity
-    .command("usage")
-    .description("Print detailed activity documentation (LLM-optimized)")
-    .action(() => {
-      console.log(USAGE_TEXT.trim());
-    });
+  activity.addCommand(
+    defineCommand({
+      use: "usage",
+      short: "Print detailed activity documentation (LLM-optimized)",
+      action: () => {
+        console.log(USAGE_TEXT.trim());
+      },
+    }),
+  );
 }

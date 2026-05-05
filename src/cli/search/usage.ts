@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { defineCommand, type Command } from "../../lib/cli.ts";
 
 const USAGE_TEXT = `agent-notion search — Search Notion by title (NOT full-text content search)
 
@@ -23,10 +23,13 @@ EXAMPLES:
 `;
 
 export function registerUsage(search: Command): void {
-  search
-    .command("usage")
-    .description("Print detailed search documentation (LLM-optimized)")
-    .action(() => {
-      console.log(USAGE_TEXT.trim());
-    });
+  search.addCommand(
+    defineCommand({
+      use: "usage",
+      short: "Print detailed search documentation (LLM-optimized)",
+      action: () => {
+        console.log(USAGE_TEXT.trim());
+      },
+    }),
+  );
 }

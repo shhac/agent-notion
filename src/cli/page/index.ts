@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { Command, type Command as VipvotCommand } from "vipvot";
 import { registerGet } from "./get.ts";
 import { registerCreate } from "./create.ts";
 import { registerUpdate } from "./update.ts";
@@ -7,8 +7,8 @@ import { registerBacklinks } from "./backlinks.ts";
 import { registerHistory } from "./history.ts";
 import { registerUsage } from "./usage.ts";
 
-export function registerPageCommand(program: Command): void {
-  const page = program.command("page").description("Page operations");
+export function registerPageCommand(program: VipvotCommand): void {
+  const page = Command({ use: "page", short: "Page operations" });
   registerGet(page);
   registerCreate(page);
   registerUpdate(page);
@@ -16,4 +16,5 @@ export function registerPageCommand(program: Command): void {
   registerBacklinks(page);
   registerHistory(page);
   registerUsage(page);
+  program.addCommand(page);
 }

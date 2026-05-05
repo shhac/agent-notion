@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { defineCommand, ExactArgs, type Command } from "../../lib/cli.ts";
 import { createV3Client } from "../../notion/client.ts";
 import { handleAction, CliError } from "../../lib/errors.ts";
 import { normalizeId } from "../../lib/ids.ts";
@@ -6,30 +6,28 @@ import { printJson } from "../../lib/output.ts";
 import { exportAndDownload, defaultExportFilename, validateFormat } from "./poll.ts";
 
 export function registerPage(parent: Command): void {
-  parent
-    .command("page")
-    .description("Export a page (and optionally subpages) to markdown or HTML")
-    .argument("<page-id>", "Page UUID or dashless ID")
-    .option("--format <format>", "Export format: markdown or html", "markdown")
-    .option("--recursive", "Include subpages recursively", false)
-    .option("--output <path>", "Output file path")
-    .option(
-      "--timeout <seconds>",
-      "Maximum time to wait for export (seconds)",
-      "120",
-    )
-    .action(
-      async (
-        rawPageId: string,
-        opts: {
-          format: string;
-          recursive: boolean;
-          output?: string;
-          timeout: string;
+  parent.addCommand(
+    defineCommand({
+      use: "page <page-id>",
+      short: "Export a page (and optionally subpages) to markdown or HTML",
+      args: ExactArgs(1),
+      options: {
+        format: {
+          type: "string",
+          default: "markdown",
+          description: "Export format: markdown or html",
         },
-      ) => {
+        recursive: { type: "bool", description: "Include subpages recursively" },
+        output: { type: "string", description: "Output file path" },
+        timeout: {
+          type: "string",
+          default: "120",
+          description: "Maximum time to wait for export (seconds)",
+        },
+      },
+      action: async ([rawPageId], opts) => {
         await handleAction(async () => {
-          const pageId = normalizeId(rawPageId);
+          const pageId = normalizeId(rawPageId!);
           const format = validateFormat(opts.format);
           const client = createV3Client();
 
@@ -66,6 +64,6 @@ export function registerPage(parent: Command): void {
           });
         });
       },
-    );
+    }),
+  );
 }
-

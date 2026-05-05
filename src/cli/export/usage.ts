@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { defineCommand, type Command } from "../../lib/cli.ts";
 
 const USAGE_TEXT = `agent-notion export — Export pages or workspace (v3 desktop session required)
 
@@ -36,10 +36,13 @@ EXAMPLES:
 `;
 
 export function registerUsage(exp: Command): void {
-  exp
-    .command("usage")
-    .description("Print detailed export documentation (LLM-optimized)")
-    .action(() => {
-      console.log(USAGE_TEXT.trim());
-    });
+  exp.addCommand(
+    defineCommand({
+      use: "usage",
+      short: "Print detailed export documentation (LLM-optimized)",
+      action: () => {
+        console.log(USAGE_TEXT.trim());
+      },
+    }),
+  );
 }

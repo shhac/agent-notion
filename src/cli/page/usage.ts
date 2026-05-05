@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { defineCommand, type Command } from "../../lib/cli.ts";
 
 const USAGE_TEXT = `agent-notion page — Page operations (get, create, update, archive, backlinks, history)
 
@@ -45,10 +45,13 @@ FILE URLS: Image/file URLs expire after ~1 hour. Re-fetch for fresh URLs.
 `;
 
 export function registerUsage(page: Command): void {
-  page
-    .command("usage")
-    .description("Print detailed page documentation (LLM-optimized)")
-    .action(() => {
-      console.log(USAGE_TEXT.trim());
-    });
+  page.addCommand(
+    defineCommand({
+      use: "usage",
+      short: "Print detailed page documentation (LLM-optimized)",
+      action: () => {
+        console.log(USAGE_TEXT.trim());
+      },
+    }),
+  );
 }

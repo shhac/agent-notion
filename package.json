@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@notionhq/client": "^2.3.0",
-    "commander": "^14.0.1"
+    "vipvot": "^0.3.2"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",

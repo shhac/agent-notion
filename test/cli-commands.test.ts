@@ -8,7 +8,7 @@ function getHelpOutput(command: string): string {
       timeout: 10000,
     }).trim();
   } catch (e: unknown) {
-    // Commander exits with code 0 for --help but execSync may still capture stdout
+    // --help exits 0 but execSync may still surface stdout via the error object
     const err = e as { stdout?: string };
     return err.stdout?.trim() ?? "";
   }

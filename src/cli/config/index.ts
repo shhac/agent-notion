@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { Command, type Command as VipvotCommand } from "vipvot";
 import type { Settings } from "../../lib/config.ts";
 import { registerGet } from "./get.ts";
 import { registerSet } from "./set.ts";
@@ -68,7 +68,9 @@ export const SETTING_DEFS: Record<string, SettingDef> = {
     },
     parse: (v) => {
       if (!v || !v.trim()) {
-        throw new Error("Model name cannot be empty. Use 'ai model list' to see available models.");
+        throw new Error(
+          "Model name cannot be empty. Use 'ai model list' to see available models.",
+        );
       }
       return v.trim();
     },
@@ -80,11 +82,12 @@ export const SETTING_DEFS: Record<string, SettingDef> = {
 
 export const VALID_KEYS = Object.keys(SETTING_DEFS);
 
-export function registerConfigCommand(program: Command): void {
-  const config = program.command("config").description("View and update CLI settings");
+export function registerConfigCommand(program: VipvotCommand): void {
+  const config = Command({ use: "config", short: "View and update CLI settings" });
   registerGet(config);
   registerSet(config);
   registerReset(config);
   registerListKeys(config);
   registerUsage(config);
+  program.addCommand(config);
 }

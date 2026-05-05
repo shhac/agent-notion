@@ -1,31 +1,36 @@
-import type { Command } from "commander";
+import { defineCommand, ExactArgs, type Command } from "../../lib/cli.ts";
 import { withBackend } from "../../notion/client.ts";
 import { handleAction } from "../../lib/errors.ts";
 import { printPaginated, resolvePageSize } from "../../lib/output.ts";
 
 export function registerQuery(search: Command): void {
-  search
-    .command("query")
-    .description("Search Notion by title (pages and databases)")
-    .argument("<query>", "Search text (matched against titles)")
-    .option("--filter <type>", "Filter by type: page | database")
-    .option("--limit <n>", "Max results")
-    .option("--cursor <cursor>", "Pagination cursor")
-    .action(async (query: string, opts: Record<string, string | boolean | undefined>) => {
-      await handleAction(async () => {
-        const result = await withBackend((backend) =>
-          backend.search({
-            query,
-            filter: opts.filter as "page" | "database" | undefined,
-            limit: resolvePageSize(opts as Record<string, string | undefined>),
-            cursor: opts.cursor as string | undefined,
-          }),
-        );
+  search.addCommand(
+    defineCommand({
+      use: "query <query>",
+      short: "Search Notion by title (pages and databases)",
+      args: ExactArgs(1),
+      options: {
+        filter: { type: "string", description: "Filter by type: page | database" },
+        limit: { type: "string", description: "Max results" },
+        cursor: { type: "string", description: "Pagination cursor" },
+      },
+      action: async ([query], opts) => {
+        await handleAction(async () => {
+          const result = await withBackend((backend) =>
+            backend.search({
+              query: query!,
+              filter: opts.filter as "page" | "database" | undefined,
+              limit: resolvePageSize({ limit: opts.limit }),
+              cursor: opts.cursor,
+            }),
+          );
 
-        printPaginated(result.items, {
-          hasMore: result.hasMore,
-          nextCursor: result.nextCursor,
+          printPaginated(result.items, {
+            hasMore: result.hasMore,
+            nextCursor: result.nextCursor,
+          });
         });
-      });
-    });
+      },
+    }),
+  );
 }

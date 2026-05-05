@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { defineCommand, type Command } from "../../lib/cli.ts";
 
 const USAGE_TEXT = `agent-notion ai — Notion AI chat and models (v3 desktop session required)
 
@@ -50,10 +50,13 @@ EXAMPLES:
 `;
 
 export function registerUsage(ai: Command): void {
-  ai
-    .command("usage")
-    .description("Print detailed AI documentation (LLM-optimized)")
-    .action(() => {
-      console.log(USAGE_TEXT.trim());
-    });
+  ai.addCommand(
+    defineCommand({
+      use: "usage",
+      short: "Print detailed AI documentation (LLM-optimized)",
+      action: () => {
+        console.log(USAGE_TEXT.trim());
+      },
+    }),
+  );
 }

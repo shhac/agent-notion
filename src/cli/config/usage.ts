@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { defineCommand, type Command } from "../../lib/cli.ts";
 
 const USAGE_TEXT = `agent-notion config — View and update persistent CLI settings
 
@@ -27,10 +27,13 @@ OUTPUT: JSON to stdout. Unknown keys return error with valid key list.
 `;
 
 export function registerUsage(config: Command): void {
-  config
-    .command("usage")
-    .description("Print detailed config documentation (LLM-optimized)")
-    .action(() => {
-      console.log(USAGE_TEXT.trim());
-    });
+  config.addCommand(
+    defineCommand({
+      use: "usage",
+      short: "Print detailed config documentation (LLM-optimized)",
+      action: () => {
+        console.log(USAGE_TEXT.trim());
+      },
+    }),
+  );
 }

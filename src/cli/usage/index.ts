@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { defineCommand, type Command } from "../../lib/cli.ts";
 
 const USAGE_TEXT = `agent-notion — Notion CLI for humans and LLMs (JSON output, LLM-friendly)
 
@@ -67,10 +67,13 @@ DETAIL: Run "<command> usage" for detailed per-command docs (e.g. "database usag
 `;
 
 export function registerUsageCommand(program: Command): void {
-  program
-    .command("usage")
-    .description("Print concise documentation (LLM-optimized)")
-    .action(() => {
-      console.log(USAGE_TEXT.trim());
-    });
+  program.addCommand(
+    defineCommand({
+      use: "usage",
+      short: "Print concise documentation (LLM-optimized)",
+      action: () => {
+        console.log(USAGE_TEXT.trim());
+      },
+    }),
+  );
 }
