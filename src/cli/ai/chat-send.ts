@@ -25,6 +25,7 @@ export function registerChatSend(chat: Command): void {
         search: {
           type: "bool",
           default: true,
+          negatable: true,
           description: "Enable workspace and web search (use --no-search to disable)",
         },
         stream: {

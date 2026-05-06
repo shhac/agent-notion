@@ -6,7 +6,7 @@
       "name": "agent-notion",
       "dependencies": {
         "@notionhq/client": "^2.3.0",
-        "vipvot": "^0.3.2",
+        "vipvot": "^0.4.0",
       },
       "devDependencies": {
         "@types/bun": "^1.2.0",
@@ -135,7 +135,7 @@
 
     "undici-types": ["undici-types@7.16.0", "", {}, "sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw=="],
 
-    "vipvot": ["vipvot@0.3.2", "", {}, "sha512-owAOY6IhiRfKI8nf1CHPeTgrtHafgwkO62Sj0Vak7SUo8VOREnsHF0WLufBkPjqueXCJpBKM3pbELMq0+p7kag=="],
+    "vipvot": ["vipvot@0.4.0", "", {}, "sha512-ZJbKLjI8yFzkMm5yIoEjm82FRDYewibj/pmz9Ptno/BpCWm4RI8+qhgHhzhL4ul8LHHGnicUedeidrp2ef4/GQ=="],
 
     "webidl-conversions": ["webidl-conversions@3.0.1", "", {}, "sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ=="],
 

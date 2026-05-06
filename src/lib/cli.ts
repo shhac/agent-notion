@@ -18,6 +18,7 @@ export type BoolOpt = {
   short?: string;
   default?: boolean;
   description: string;
+  negatable?: boolean;
 };
 
 export type Opt = StringOpt | BoolOpt;
@@ -100,6 +101,7 @@ export function defineCommand<S extends Record<string, Opt> | undefined>(
         const defaultValue = opt.default ?? false;
         const r = ref<boolean>(defaultValue);
         flags.boolVarP(r, flagName, opt.short ?? "", defaultValue, opt.description);
+        if (opt.negatable) flags.markFlagNegatable(flagName);
         registered.push({
           optKey,
           flagName,
