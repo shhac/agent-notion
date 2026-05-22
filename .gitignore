@@ -25,6 +25,3 @@ yarn-error.log*
 # claude
 .claude/*.local.json
 CLAUDE.local.md
-
-# design docs
-design-docs/
