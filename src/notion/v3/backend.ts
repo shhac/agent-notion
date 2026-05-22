@@ -15,6 +15,7 @@ import type {
   PageCreateResult,
   PageUpdateResult,
   PageArchiveResult,
+  PageTrashResult,
   NormalizedBlock,
   BlockListResult,
   BlockUpdateResult,
@@ -56,7 +57,8 @@ import {
 } from "./transforms.ts";
 import {
   createBlockOps,
-  archiveBlockOps,
+  trashBlockOps,
+  archivedPageOps,
   moveBlockOps,
   updatePropertyOps,
   createCommentOps,
@@ -374,16 +376,15 @@ export class V3Backend implements NotionBackend {
     };
   }
 
-  async archivePage(id: string): Promise<PageArchiveResult> {
+  async trashPage(id: string): Promise<PageTrashResult> {
     const spaceId = this.http.spaceId_;
     const userId = this.http.userId_;
 
-    // Fetch the page to get parent info for listRemove
     const { recordMap } = await this.http.loadPageChunk({ pageId: id, limit: 1 });
     const block = getBlock(recordMap, id);
     if (!block) throw new Error(`Page not found: ${id}`);
 
-    const ops = archiveBlockOps({
+    const ops = trashBlockOps({
       id,
       parentId: block.parent_id,
       parentTable: block.parent_table,
@@ -393,7 +394,34 @@ export class V3Backend implements NotionBackend {
 
     await this.http.saveTransactions(ops);
 
+    return { id, trashed: true };
+  }
+
+  async restorePage(id: string): Promise<PageTrashResult> {
+    await this.http.restoreRecord({ id, table: "block" });
+    return { id, trashed: false };
+  }
+
+  async archivePage(id: string): Promise<PageArchiveResult> {
+    const ops = archivedPageOps({
+      id,
+      spaceId: this.http.spaceId_,
+      userId: this.http.userId_,
+      archive: true,
+    });
+    await this.http.saveTransactions(ops);
     return { id, archived: true };
+  }
+
+  async unarchivePage(id: string): Promise<PageArchiveResult> {
+    const ops = archivedPageOps({
+      id,
+      spaceId: this.http.spaceId_,
+      userId: this.http.userId_,
+      archive: false,
+    });
+    await this.http.saveTransactions(ops);
+    return { id, archived: false };
   }
 
   // --- Blocks ---
@@ -609,7 +637,7 @@ export class V3Backend implements NotionBackend {
     const block = getBlock(recordMap, id);
     if (!block) throw new Error(`Block not found: ${id}`);
 
-    const ops = archiveBlockOps({
+    const ops = trashBlockOps({
       id,
       parentId: block.parent_id,
       parentTable: block.parent_table,

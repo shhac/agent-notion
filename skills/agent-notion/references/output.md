@@ -271,12 +271,39 @@ Adds:
 }
 ```
 
-## Page archive (`page archive`)
+## Page trash (`page trash`)
+
+```json
+{
+  "id": "...",
+  "trashed": true
+}
+```
+
+## Page restore (`page restore`)
+
+```json
+{
+  "id": "...",
+  "trashed": false
+}
+```
+
+## Page archive (`page archive`) — v3 only
 
 ```json
 {
   "id": "...",
   "archived": true
+}
+```
+
+## Page unarchive (`page unarchive`) — v3 only
+
+```json
+{
+  "id": "...",
+  "archived": false
 }
 ```
 

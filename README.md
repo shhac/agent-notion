@@ -4,7 +4,7 @@ Notion CLI for humans and LLMs.
 
 - **Structured JSON output** — all output is JSON to stdout, errors to stderr
 - **LLM-optimized** — `agent-notion usage` prints concise docs for agent consumption
-- **Full CRUD** — search, read, create, update, and archive pages and databases
+- **Full CRUD** — search, read, create, update, trash/restore, and archive pages and databases
 - **AI chat** — send messages to Notion AI, list models and threads, stream responses
 - **Markdown conversion** — page content rendered as markdown, append content from markdown
 - **Zero runtime deps** — single compiled binary via `bun build --compile`
@@ -87,7 +87,10 @@ agent-notion [--full] [--expand <fields>]
 │   ├── get <page-id> [--content] [--raw-content]
 │   ├── create --parent <id> --title <title> [--properties <json>] [--icon <emoji>]
 │   ├── update <page-id> [--title] [--properties <json>] [--icon <emoji>]
-│   ├── archive <page-id>
+│   ├── trash <page-id>
+│   ├── restore <page-id>
+│   ├── archive <page-id>                                            ◆
+│   ├── unarchive <page-id>                                          ◆
 │   ├── backlinks <page-id>                                        ◆
 │   ├── history <page-id> [--limit]                                ◆
 │   └── usage

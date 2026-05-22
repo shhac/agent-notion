@@ -13,6 +13,7 @@ import type {
   PageCreateResult,
   PageUpdateResult,
   PageArchiveResult,
+  PageTrashResult,
   NormalizedBlock,
   BlockListResult,
   BlockUpdateResult,
@@ -71,7 +72,21 @@ export interface NotionBackend {
     icon?: string;
   }): Promise<PageUpdateResult>;
 
+  /** Move page to Trash (recoverable via restorePage). */
+  trashPage(id: string): Promise<PageTrashResult>;
+
+  /** Restore a trashed page. */
+  restorePage(id: string): Promise<PageTrashResult>;
+
+  /**
+   * Real Archive (distinct from Trash): hides from search but keeps the page
+   * `alive`. Only available on the v3 backend; the official REST API does not
+   * expose this state.
+   */
   archivePage(id: string): Promise<PageArchiveResult>;
+
+  /** Undo real Archive. v3-only. */
+  unarchivePage(id: string): Promise<PageArchiveResult>;
 
   // --- Blocks ---
 

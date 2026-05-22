@@ -1,31 +1,29 @@
 import { defineCommand, type Command } from "../../lib/cli.ts";
 
-const USAGE_TEXT = `agent-notion page — Page operations (get, create, update, archive, backlinks, history)
+const USAGE_TEXT = `agent-notion page — Page operations
 
 GET:
-  page get <page-id>                         Page properties only
-  page get <page-id> --content               Properties + content as markdown
-  page get <page-id> --raw-content           Properties + content as block objects
+  page get <page-id>                         Properties only
+  page get <page-id> --content               Properties + markdown content
+  page get <page-id> --raw-content           Properties + block objects
 
 CREATE:
-  page create --parent <id> --title <title>  Create page
-    [--properties <json>]                    Property values (for database parents)
-    [--icon <emoji>]                         Page icon
+  page create --parent <id> --title <title> [--properties <json>] [--icon <emoji>]
 
   Database parent example:
     page create --parent <db-id> --title "New Task" --properties '{"Status":"Not started","Priority":"High"}'
 
-  Page parent example:
-    page create --parent <page-id> --title "Sub-page"
-
 UPDATE:
   page update <page-id> [--title <title>] [--properties <json>] [--icon <emoji>]
+  Page content cannot be updated here — use "block append <id> --content <md>".
 
-  Note: Page content (blocks) cannot be updated via page update.
-  Use "block append <id> --content <md>" to add content.
+TRASH / RESTORE / ARCHIVE:
+  page trash     <page-id>                   Move to Trash (alive=false, recoverable)
+  page restore   <page-id>                   Restore from Trash
+  page archive   <page-id>                   Archive: hide from search, page stays alive (v3)
+  page unarchive <page-id>                   Undo archive (v3)
 
-ARCHIVE:
-  page archive <page-id>                     Move to trash (no permanent delete via API)
+  Archive and Trash are independent states. v3 commands need: auth import-desktop.
 
 BACKLINKS (v3):
   page backlinks <page-id>                   Pages that link to a given page

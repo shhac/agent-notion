@@ -13,7 +13,10 @@ COMMANDS:
   page get <page-id> [--content]             Page properties + optional content (markdown)
   page create --parent <id> --title <title>  Create page
   page update <page-id> [--title] [--properties]  Update properties
-  page archive <page-id>                     Move to trash
+  page trash <page-id>                       Move to Trash (recoverable)
+  page restore <page-id>                     Restore from Trash
+  page archive <page-id>                     Archive: hide from search, page stays alive (v3)
+  page unarchive <page-id>                   Undo archive (v3)
   page backlinks <page-id>                   Pages that link to a given page (v3)
   page history <page-id> [--limit <n>]       Version history for a page (v3)
 

@@ -93,8 +93,13 @@ agent-notion page create --parent <db-id> --title "Task" --properties '{"Status"
 agent-notion page create --parent <id> --title "Notes" --icon "📝"
 agent-notion page update <page-id> --title "Updated Title"
 agent-notion page update <page-id> --properties '{"Status":"Done"}' --icon "✅"
-agent-notion page archive <page-id>
+agent-notion page trash <page-id>                                   # move to Trash (recoverable)
+agent-notion page restore <page-id>                                 # restore from Trash
+agent-notion page archive <page-id>                                 # archive (v3-only) — hides from search, keeps page alive
+agent-notion page unarchive <page-id>                               # undo archive (v3-only)
 ```
+
+Archive and Trash are independent Notion states. Trash sets `alive=false` and is reachable on every backend; Archive sets `archived_*` fields, leaves the page alive, and requires the v3 backend (run `agent-notion auth import-desktop` to set up). A page can be in either, both, or neither state.
 
 Property values in `--properties` are auto-converted: strings become select values, numbers become number properties, booleans become checkboxes, arrays become multi-select. Pass Notion API format for complex types.
 

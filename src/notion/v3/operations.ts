@@ -119,8 +119,16 @@ export function createBlockOps(params: CreateBlockParams): V3Operation[] {
   ];
 }
 
-/** Operations to archive (soft-delete) a block. */
-export function archiveBlockOps(params: {
+/**
+ * Operations to move a block to Trash (Notion's "delete to trash" — recoverable).
+ *
+ * Uses the legacy alive:false + listRemove shape, which the v3 server still
+ * accepts. The current desktop client uses a different two-step flow
+ * (saveTransactionsFanout removeChild + REST deleteContentRecords). See
+ * design-docs/notion-page-lifecycle-har.md for the modern shape if we ever
+ * need to migrate.
+ */
+export function trashBlockOps(params: {
   id: string;
   parentId: string;
   parentTable: string;
@@ -140,6 +148,35 @@ export function archiveBlockOps(params: {
     listRemoveOp(pp, "content", params.id),
     editMetaOp(pp, params.userId),
   ];
+}
+
+/**
+ * Operations to set or clear the real Archive state on a page.
+ *
+ * Archive is distinct from Trash: it keeps the page `alive` but hides it from
+ * search and shows an "archived by" banner. Pass `archive: true` to archive,
+ * `archive: false` to unarchive.
+ */
+export function archivedPageOps(params: {
+  id: string;
+  spaceId: string;
+  userId: string;
+  archive: boolean;
+}): V3Operation[] {
+  const bp = blockPtr(params.id, params.spaceId);
+  const args = params.archive
+    ? {
+        archived_by_id: params.userId,
+        archived_by_table: "notion_user",
+        archived_time: Date.now(),
+      }
+    : {
+        archived_by_id: null,
+        archived_by_table: null,
+        archived_time: null,
+      };
+
+  return [updateOp(bp, args), editMetaOp(bp, params.userId)];
 }
 
 /** Operations to move a block within or across parents. */

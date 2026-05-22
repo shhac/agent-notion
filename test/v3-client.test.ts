@@ -137,3 +137,32 @@ describe("V3HttpClient.queryCollection", () => {
     expect(result.result.total).toBe(0);
   });
 });
+
+// =============================================================================
+// restoreRecord — request format
+// =============================================================================
+
+describe("V3HttpClient.restoreRecord", () => {
+  test("posts to restoreRecord with a block pointer including spaceId", async () => {
+    installMockFetch({ recordMap: {} });
+    const client = createClient();
+
+    await client.restoreRecord({ id: "page-xyz" });
+
+    expect(fetchCalls).toHaveLength(1);
+    expect(fetchCalls[0]!.url).toContain("/api/v3/restoreRecord");
+    expect(fetchCalls[0]!.body).toEqual({
+      pointer: { table: "block", id: "page-xyz", spaceId: "space-bbb" },
+    });
+  });
+
+  test("respects table override", async () => {
+    installMockFetch({ recordMap: {} });
+    const client = createClient();
+
+    await client.restoreRecord({ id: "row-1", table: "block" });
+
+    const body = fetchCalls[0]!.body as Record<string, unknown>;
+    expect((body.pointer as Record<string, unknown>).table).toBe("block");
+  });
+});

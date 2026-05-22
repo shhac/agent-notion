@@ -1,7 +1,8 @@
 import { describe, test, expect } from "bun:test";
 import {
   createBlockOps,
-  archiveBlockOps,
+  trashBlockOps,
+  archivedPageOps,
   updatePropertyOps,
   officialBlockToV3Args,
 } from "../src/notion/v3/operations.ts";
@@ -106,9 +107,9 @@ describe("createBlockOps", () => {
   });
 });
 
-describe("archiveBlockOps", () => {
+describe("trashBlockOps", () => {
   test("creates update + listRemove + editMeta operations", () => {
-    const ops = archiveBlockOps({
+    const ops = trashBlockOps({
       id: "block-id",
       parentId: "parent-id",
       parentTable: "block",
@@ -133,6 +134,48 @@ describe("archiveBlockOps", () => {
     // editMeta on parent
     expect(ops[2]!.command).toBe("update");
     expect(ops[2]!.pointer.id).toBe("parent-id");
+  });
+});
+
+describe("archivedPageOps", () => {
+  test("archive: sets archived_* fields on the page block", () => {
+    const ops = archivedPageOps({
+      id: "page-id",
+      spaceId: "space-id",
+      userId: "user-id",
+      archive: true,
+    });
+
+    expect(ops).toHaveLength(2);
+
+    expect(ops[0]!.command).toBe("update");
+    expect(ops[0]!.pointer).toEqual({ table: "block", id: "page-id", spaceId: "space-id" });
+    const args = ops[0]!.args as Record<string, unknown>;
+    expect(args.archived_by_id).toBe("user-id");
+    expect(args.archived_by_table).toBe("notion_user");
+    expect(typeof args.archived_time).toBe("number");
+    // alive must not be touched — Archive is distinct from Trash
+    expect(args).not.toHaveProperty("alive");
+
+    // editMeta on the same block
+    expect(ops[1]!.command).toBe("update");
+    expect(ops[1]!.pointer.id).toBe("page-id");
+  });
+
+  test("unarchive: nulls archived_* fields", () => {
+    const ops = archivedPageOps({
+      id: "page-id",
+      spaceId: "space-id",
+      userId: "user-id",
+      archive: false,
+    });
+
+    expect(ops).toHaveLength(2);
+    const args = ops[0]!.args as Record<string, unknown>;
+    expect(args.archived_by_id).toBeNull();
+    expect(args.archived_by_table).toBeNull();
+    expect(args.archived_time).toBeNull();
+    expect(args).not.toHaveProperty("alive");
   });
 });
 

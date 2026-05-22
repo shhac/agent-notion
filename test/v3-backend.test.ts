@@ -12,6 +12,7 @@ type MockResponses = {
   syncRecordValues?: (requests: any) => any;
   queryCollection?: (params: any) => any;
   saveTransactions?: (ops: V3Operation[]) => void;
+  restoreRecord?: (params: any) => any;
   loadUserContent?: () => any;
   enqueueTask?: (task: any) => any;
   getTasks?: (taskIds: string[]) => any;
@@ -47,6 +48,10 @@ function createMockClient(responses: MockResponses = {}) {
     saveTransactions: async (ops: V3Operation[]) => {
       track("saveTransactions", ops);
       responses.saveTransactions?.(ops);
+    },
+    restoreRecord: async (params: any) => {
+      track("restoreRecord", params);
+      return responses.restoreRecord?.(params) ?? { recordMap: {} };
     },
     loadUserContent: async () => {
       track("loadUserContent", {});
@@ -285,11 +290,11 @@ describe("V3Backend.listBlocks", () => {
 });
 
 // =============================================================================
-// archivePage
+// trashPage
 // =============================================================================
 
-describe("V3Backend.archivePage", () => {
-  test("sends archive operations", async () => {
+describe("V3Backend.trashPage", () => {
+  test("sends trash operations", async () => {
     const block = makeBlock({ id: "page-1", parent_id: "parent-1", parent_table: "block" });
     const { client, calls } = createMockClient({
       loadPageChunk: () => ({
@@ -299,9 +304,9 @@ describe("V3Backend.archivePage", () => {
     });
 
     const backend = new V3Backend(client);
-    const result = await backend.archivePage("page-1");
+    const result = await backend.trashPage("page-1");
 
-    expect(result).toEqual({ id: "page-1", archived: true });
+    expect(result).toEqual({ id: "page-1", trashed: true });
     expect(calls.saveTransactions).toHaveLength(1);
     const ops = calls.saveTransactions![0] as V3Operation[];
     expect(ops).toHaveLength(3);
@@ -323,7 +328,68 @@ describe("V3Backend.archivePage", () => {
     });
 
     const backend = new V3Backend(client);
-    await expect(backend.archivePage("missing")).rejects.toThrow(/not found/);
+    await expect(backend.trashPage("missing")).rejects.toThrow(/not found/);
+  });
+});
+
+// =============================================================================
+// restorePage
+// =============================================================================
+
+describe("V3Backend.restorePage", () => {
+  test("calls restoreRecord with a block pointer", async () => {
+    const { client, calls } = createMockClient();
+    const backend = new V3Backend(client);
+    const result = await backend.restorePage("page-1");
+
+    expect(result).toEqual({ id: "page-1", trashed: false });
+    expect(calls.restoreRecord).toHaveLength(1);
+    expect(calls.restoreRecord![0]).toEqual({ id: "page-1", table: "block" });
+  });
+});
+
+// =============================================================================
+// archivePage / unarchivePage (real Archive)
+// =============================================================================
+
+describe("V3Backend.archivePage (real)", () => {
+  test("sends a single update setting archived_* fields", async () => {
+    const { client, calls } = createMockClient();
+    const backend = new V3Backend(client);
+    const result = await backend.archivePage("page-1");
+
+    expect(result).toEqual({ id: "page-1", archived: true });
+    expect(calls.saveTransactions).toHaveLength(1);
+
+    const ops = calls.saveTransactions![0] as V3Operation[];
+    expect(ops).toHaveLength(2);
+    const args = ops[0]!.args as Record<string, unknown>;
+    expect(args.archived_by_id).toBe("user-1");
+    expect(args.archived_by_table).toBe("notion_user");
+    expect(typeof args.archived_time).toBe("number");
+    expect(args).not.toHaveProperty("alive");
+  });
+
+  test("does not call loadPageChunk (no parent lookup needed)", async () => {
+    const { client, calls } = createMockClient();
+    const backend = new V3Backend(client);
+    await backend.archivePage("page-1");
+    expect(calls.loadPageChunk ?? []).toHaveLength(0);
+  });
+});
+
+describe("V3Backend.unarchivePage", () => {
+  test("sends a single update nulling archived_* fields", async () => {
+    const { client, calls } = createMockClient();
+    const backend = new V3Backend(client);
+    const result = await backend.unarchivePage("page-1");
+
+    expect(result).toEqual({ id: "page-1", archived: false });
+    const ops = calls.saveTransactions![0] as V3Operation[];
+    const args = ops[0]!.args as Record<string, unknown>;
+    expect(args.archived_by_id).toBeNull();
+    expect(args.archived_by_table).toBeNull();
+    expect(args.archived_time).toBeNull();
   });
 });
 

@@ -16,6 +16,7 @@ import type {
   PageCreateResult,
   PageUpdateResult,
   PageArchiveResult,
+  PageTrashResult,
   NormalizedBlock,
   BlockListResult,
   BlockUpdateResult,
@@ -205,9 +206,26 @@ export class OfficialBackend implements NotionBackend {
     };
   }
 
-  async archivePage(id: string): Promise<PageArchiveResult> {
+  async trashPage(id: string): Promise<PageTrashResult> {
     await this.client.pages.update({ page_id: id, archived: true } as Parameters<typeof this.client.pages.update>[0]);
-    return { id, archived: true };
+    return { id, trashed: true };
+  }
+
+  async restorePage(id: string): Promise<PageTrashResult> {
+    await this.client.pages.update({ page_id: id, archived: false } as Parameters<typeof this.client.pages.update>[0]);
+    return { id, trashed: false };
+  }
+
+  async archivePage(_id: string): Promise<PageArchiveResult> {
+    throw new CliError(
+      "Real Archive (distinct from Trash) requires the v3 backend. Run 'agent-notion auth import-desktop' to set up. To move a page to Trash, use 'page trash' instead.",
+    );
+  }
+
+  async unarchivePage(_id: string): Promise<PageArchiveResult> {
+    throw new CliError(
+      "Unarchive (real Archive, distinct from Trash) requires the v3 backend. Run 'agent-notion auth import-desktop' to set up. To restore a page from Trash, use 'page restore' instead.",
+    );
   }
 
   // --- Blocks ---

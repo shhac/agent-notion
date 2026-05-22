@@ -4,16 +4,16 @@ import { handleAction } from "../../lib/errors.ts";
 import { normalizeId } from "../../lib/ids.ts";
 import { printJson } from "../../lib/output.ts";
 
-export function registerArchive(page: Command): void {
+export function registerRestore(page: Command): void {
   page.addCommand(
     defineCommand({
-      use: "archive <page-id>",
-      short: "Archive a page (hides from search, keeps page alive — v3 only)",
+      use: "restore <page-id>",
+      short: "Restore a page from Trash (undo 'page trash')",
       args: ExactArgs(1),
       action: async ([rawPageId]) => {
         const pageId = normalizeId(rawPageId!);
         await handleAction(async () => {
-          const result = await withBackend((backend) => backend.archivePage(pageId));
+          const result = await withBackend((backend) => backend.restorePage(pageId));
           printJson(result);
         });
       },

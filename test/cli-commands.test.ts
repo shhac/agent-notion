@@ -43,7 +43,7 @@ describe("CLI structure", () => {
 
   test("page --help lists subcommands", () => {
     const output = getHelpOutput("page");
-    const expected = ["get", "create", "update", "archive", "usage"];
+    const expected = ["get", "create", "update", "trash", "restore", "archive", "unarchive", "usage"];
     for (const cmd of expected) {
       expect(output).toContain(cmd);
     }

@@ -33,7 +33,10 @@ Run `agent-notion <command> usage` for detailed per-command docs.
 - `agent-notion page get <page-id> [--content] [--raw-content]` — page properties, optionally with content as markdown (`--content`) or structured blocks (`--raw-content`)
 - `agent-notion page create --parent <id> --title <title> [--properties <json>] [--icon <emoji>]` — create page (auto-detects database vs page parent)
 - `agent-notion page update <page-id> [--title <title>] [--properties <json>] [--icon <emoji>]` — update page properties (at least one option required)
-- `agent-notion page archive <page-id>` — archive a page
+- `agent-notion page trash <page-id>` — move a page to Trash (recoverable; works on every backend)
+- `agent-notion page restore <page-id>` — restore a page from Trash (v3-only)
+- `agent-notion page archive <page-id>` — real Archive: hide from search, page stays alive (v3-only, distinct from Trash)
+- `agent-notion page unarchive <page-id>` — undo real Archive (v3-only)
 - `agent-notion page backlinks <page-id>` — find pages that link to a given page (v3, deduplicated by page)
 - `agent-notion page history <page-id> [--limit <n>]` — version history snapshots for a page (v3, default limit: 20)
 

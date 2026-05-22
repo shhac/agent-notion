@@ -292,6 +292,20 @@ export class V3HttpClient {
     });
   }
 
+  /** Restore a trashed record (page, block, …). Returns the updated recordMap. */
+  async restoreRecord(params: {
+    id: string;
+    table?: string;
+  }): Promise<{ recordMap: RecordMap }> {
+    return this.post("restoreRecord", {
+      pointer: {
+        table: params.table ?? "block",
+        id: params.id,
+        spaceId: this.spaceId,
+      },
+    });
+  }
+
   get userId_(): string {
     return this.userId;
   }

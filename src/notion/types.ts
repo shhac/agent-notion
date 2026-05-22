@@ -115,9 +115,14 @@ export type PageUpdateResult = {
   lastEditedAt?: string;
 };
 
+export type PageTrashResult = {
+  id: string;
+  trashed: boolean;
+};
+
 export type PageArchiveResult = {
   id: string;
-  archived: true;
+  archived: boolean;
 };
 
 // --- Block ---
