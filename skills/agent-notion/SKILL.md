@@ -1,21 +1,10 @@
 ---
 name: agent-notion
 description: |
-  Notion CLI for humans and LLMs. Use when:
-  - Searching Notion pages or databases by title
-  - Querying database rows with filters and sorts
-  - Reading page properties and content (as markdown or structured blocks)
-  - Creating, updating, or archiving pages
-  - Reading, appending, updating, deleting, or replacing block content
-  - Listing or adding comments on pages (page-level or inline on specific text)
-  - Exporting pages or entire workspaces as markdown/HTML
-  - Finding backlinks (pages that link to a given page)
-  - Viewing version history snapshots of a page
-  - Checking recent workspace or page activity
-  - Chatting with Notion AI (send messages, list threads, stream responses)
-  - Listing available Notion AI models
-  - Managing Notion OAuth, integration token, or desktop session auth
-  Triggers: "notion page", "notion database", "notion search", "query notion", "notion block", "notion comment", "notion auth", "notion content", "search notion", "create notion page", "notion workspace", "notion export", "notion backlinks", "notion history", "notion activity", "inline comment", "version history", "page activity", "notion ai", "ai chat", "notion chat", "ai model"
+  Notion CLI for humans and LLMs. Use when searching, reading, exporting, creating, updating, archiving, or commenting on Notion pages, databases, blocks, workspace content, backlinks, history, recent activity, auth, or Notion AI chats/models. Triggers: "notion", "notion page", "notion database", "notion search", "query notion", "notion block", "notion comment", "notion auth", "notion export", "notion backlinks", "notion history", "notion activity", "notion ai", "notion chat", "ai model".
+when_to_use: |
+  Use when the user asks to search Notion, query database rows, read page properties/content, mutate pages or blocks, add/list comments, export pages/workspaces, inspect backlinks/version history/activity, manage Notion auth, or chat with Notion AI.
+allowed-tools: Bash(agent-notion *) Read Grep Glob
 ---
 
 # Notion automation with `agent-notion`
