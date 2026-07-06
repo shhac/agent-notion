@@ -68,6 +68,7 @@ func newRootWithDeps(deps rootDeps) *cobra.Command {
 	_ = root.RegisterFlagCompletionFunc("backend", fixedCompletions(backendModes...))
 
 	registerAuth(root, g)
+	registerSearch(root, g)
 	registerConfig(root)
 	registerUsage(root)
 	attachDomainUsage(root)

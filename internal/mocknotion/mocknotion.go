@@ -131,7 +131,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]any{"errorId": "mock", "name": "UnauthorizedError"})
 		return
 	}
-	if !isV3 && expectBearer != "" && bearerToken(r) != expectBearer {
+	// Basic-authenticated requests (the OAuth token endpoint) are gated by
+	// their own credentials, not the workspace bearer token.
+	usesBasicAuth := strings.HasPrefix(r.Header.Get("Authorization"), "Basic ")
+	if !isV3 && !usesBasicAuth && expectBearer != "" && bearerToken(r) != expectBearer {
 		writeJSON(w, http.StatusUnauthorized, map[string]any{
 			"object": "error", "status": 401, "code": "unauthorized",
 			"message": "API token is invalid.",

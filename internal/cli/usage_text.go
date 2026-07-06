@@ -11,12 +11,18 @@ COMMANDS
   auth       status | setup-oauth | login | import | logout* |
              workspace list/switch/set-default/remove* |
              import-desktop | import-browser <name>
+  search     query <query> — search page/database titles
   config     get <key> | set <key> <value> | unset <key> | list
-  usage      this overview; 'auth usage'/'config usage' have per-domain detail
+  usage      this overview; '<group> usage' has per-domain detail
   * = destructive: requires --yes, otherwise returns what WOULD happen
 
-(mid-migration: page, block, database, search, comment, export, user,
-activity, and ai groups are being ported and land in upcoming releases)
+(mid-migration: page, block, database, comment, export, user, activity,
+and ai groups are being ported and land in upcoming releases)
+
+BACKENDS
+  Two API backends: the official REST API (integration tokens, OAuth) and
+  the v3 desktop-session API (auth import-desktop). --backend auto (default)
+  prefers the v3 session when one is stored; force with --backend official|v3.
 
 OUTPUT
   One JSON record per line on stdout (NDJSON). --format json|yaml for pretty.
@@ -27,7 +33,31 @@ OUTPUT
 var domainUsage = map[string]string{
 	"auth":   authUsageText,
 	"config": configUsageText,
+	"search": searchUsageText,
 }
+
+const searchUsageText = `agent-notion search — Search Notion by title (NOT full-text content search)
+
+USAGE
+  search query <query> [--filter page|database] [--limit <n>] [--cursor <cursor>]
+
+IMPORTANT: Search only matches page and database TITLES. It does NOT search
+page content.
+  To search within content: use "database query <id>" with property filters.
+  To find text in page bodies: use "block list <page-id>" and search the output.
+
+OUTPUT
+  One NDJSON record per hit: {id, type, title, url, parent?, last_edited_at?}
+  type: "page" or "database"; parent: {type: database|page|workspace, id?}
+  A trailing {"@pagination": {has_more, next_cursor}} line when more remain;
+  pass next_cursor back via --cursor. --format json|yaml wraps everything in
+  one {data: […]} envelope instead.
+
+EXAMPLES
+  search query "Project Roadmap"              Search all titles
+  search query "Task" --filter database       Only databases
+  search query "Meeting Notes" --filter page  Only pages
+  search query "Q1" --limit 5                 Limit results`
 
 const configUsageText = `agent-notion config — View and update persistent CLI settings
 

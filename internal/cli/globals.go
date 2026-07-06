@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/shhac/agent-notion/internal/auth"
+	"github.com/shhac/agent-notion/internal/config"
 	"github.com/shhac/agent-notion/internal/credential"
 	libcli "github.com/shhac/lib-agent-cli/cli"
 )
@@ -43,6 +44,20 @@ type rootDeps struct {
 	desktopExtract func() (*auth.Session, error)
 	browserImport  func(browser, profile string) (*auth.Session, error)
 	openBrowser    func(url string) error
+}
+
+// pageSize resolves a list command's page size: the --limit flag, else the
+// persisted page_size setting, else 50 — clamped to the API's 1..100.
+// (The TS hardcoded 50; wiring the setting in makes the config key real.)
+func (g *GlobalFlags) pageSize(flagValue int) int {
+	n := flagValue
+	if n == 0 {
+		n = config.ReadSettings().PageSize
+	}
+	if n == 0 {
+		n = 50
+	}
+	return min(max(n, 1), 100)
 }
 
 // httpClient returns a client honoring --timeout, or nil (callers treat nil
