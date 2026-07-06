@@ -23,14 +23,17 @@ type SessionInfo struct {
 	SpaceViewID string `json:"space_view_id,omitempty"`
 }
 
-// ValidateDesktopToken calls getSpaces with the token and derives session info.
-// An HTTP client may be supplied for tests; nil uses http.DefaultClient.
-func ValidateDesktopToken(ctx context.Context, client *http.Client, token string) (SessionInfo, error) {
+// ValidateDesktopToken calls getSpaces with the token and derives session
+// info. client and baseURL may be zero for the real API; tests inject both.
+func ValidateDesktopToken(ctx context.Context, client *http.Client, baseURL, token string) (SessionInfo, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
+	if baseURL == "" {
+		baseURL = "https://www.notion.so/api/v3"
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		"https://www.notion.so/api/v3/getSpaces", bytes.NewReader([]byte("{}")))
+		baseURL+"/getSpaces", bytes.NewReader([]byte("{}")))
 	if err != nil {
 		return SessionInfo{}, err
 	}

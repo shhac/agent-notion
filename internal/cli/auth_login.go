@@ -17,7 +17,7 @@ import (
 // loginTimeout bounds the wait for the user to authorize in the browser.
 const loginTimeout = 2 * time.Minute
 
-func authLoginCmd() *cobra.Command {
+func authLoginCmd(g *GlobalFlags) *cobra.Command {
 	var (
 		alias string
 		port  int
@@ -30,7 +30,7 @@ func authLoginCmd() *cobra.Command {
 			"For internal-integration tokens use 'auth import' instead.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runLogin(cmd, alias, port)
+			return runLogin(cmd, g, alias, port)
 		},
 	}
 	cmd.Flags().StringVar(&alias, "alias", "", "Workspace alias (default: derived from the workspace name)")
@@ -38,9 +38,9 @@ func authLoginCmd() *cobra.Command {
 	return cmd
 }
 
-func runLogin(cmd *cobra.Command, alias string, port int) error {
+func runLogin(cmd *cobra.Command, g *GlobalFlags, alias string, port int) error {
 	cfg := config.Read()
-	kc := credential.DefaultKeychainStore()
+	kc := g.keychain()
 
 	if cfg.OAuth == nil || cfg.OAuth.ClientID == "" {
 		return output.New("OAuth not configured", output.FixableByHuman).
@@ -64,11 +64,10 @@ func runLogin(cmd *cobra.Command, alias string, port int) error {
 	defer srv.Close()
 
 	authURL := oauth.AuthorizeURL(cfg.OAuth.ClientID, srv.RedirectURI(), state)
-	stderr := cmd.ErrOrStderr()
-	if err := oauth.OpenBrowser(authURL); err != nil {
-		_, _ = fmt.Fprintf(stderr, "could not open the browser; visit: %s\n", authURL)
+	if err := g.openBrowser(authURL); err != nil {
+		_, _ = fmt.Fprintf(g.stderr, "could not open the browser; visit: %s\n", authURL)
 	} else {
-		_, _ = fmt.Fprintf(stderr, "waiting for authorization in the browser (visit %s if it did not open)\n", authURL)
+		_, _ = fmt.Fprintf(g.stderr, "waiting for authorization in the browser (visit %s if it did not open)\n", authURL)
 	}
 
 	ctx := cmd.Context()
@@ -77,7 +76,8 @@ func runLogin(cmd *cobra.Command, alias string, port int) error {
 		return output.Wrap(err, output.FixableByHuman)
 	}
 
-	tok, err := oauth.TokenClient{}.Exchange(ctx, cfg.OAuth.ClientID, clientSecret, code, srv.RedirectURI())
+	tokenClient := oauth.TokenClient{HTTP: g.httpClient(), URL: g.oauthTokenURL()}
+	tok, err := tokenClient.Exchange(ctx, cfg.OAuth.ClientID, clientSecret, code, srv.RedirectURI())
 	if err != nil {
 		return output.Wrap(err, output.FixableByHuman)
 	}
@@ -101,7 +101,7 @@ func runLogin(cmd *cobra.Command, alias string, port int) error {
 		return output.Wrap(err, output.FixableByHuman)
 	}
 
-	return output.NewNDJSONWriter(cmd.OutOrStdout()).WriteItem(map[string]any{
+	return emitItem(g, map[string]any{
 		"ok":      true,
 		"storage": storage,
 		"workspace": map[string]any{

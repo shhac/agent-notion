@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func authLogoutCmd() *cobra.Command {
+func authLogoutCmd(g *GlobalFlags) *cobra.Command {
 	var (
 		all       bool
 		workspace string
@@ -27,12 +27,10 @@ func authLogoutCmd() *cobra.Command {
 					"this removes ALL workspaces, the OAuth client config, and every keychain entry"); err != nil {
 					return err
 				}
-				if err := credential.ClearAll(credential.DefaultKeychainStore()); err != nil {
+				if err := credential.ClearAll(g.keychain()); err != nil {
 					return output.Wrap(err, output.FixableByHuman)
 				}
-				return output.NewNDJSONWriter(cmd.OutOrStdout()).WriteItem(map[string]any{
-					"ok": true, "cleared": "all",
-				})
+				return emitItem(g, map[string]any{"ok": true, "cleared": "all"})
 			}
 
 			cfg := config.Read()
@@ -51,7 +49,7 @@ func authLogoutCmd() *cobra.Command {
 			}
 
 			wasDefault := target == cfg.DefaultWorkspace
-			if err := credential.RemoveWorkspace(target, credential.DefaultKeychainStore()); err != nil {
+			if err := credential.RemoveWorkspace(target, g.keychain()); err != nil {
 				return output.Wrap(err, output.FixableByAgent).
 					WithHint("run 'agent-notion auth workspace list' to see configured workspaces")
 			}
@@ -68,7 +66,7 @@ func authLogoutCmd() *cobra.Command {
 			if wasDefault {
 				item["warning"] = "removed the default workspace"
 			}
-			return output.NewNDJSONWriter(cmd.OutOrStdout()).WriteItem(item)
+			return emitItem(g, item)
 		},
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "Remove all workspaces, OAuth config, and keychain entries")

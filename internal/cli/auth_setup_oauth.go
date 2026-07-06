@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func setupOAuthCmd() *cobra.Command {
+func setupOAuthCmd(g *GlobalFlags) *cobra.Command {
 	var clientID, clientSecret string
 	cmd := &cobra.Command{
 		Use:   "setup-oauth",
@@ -27,7 +27,7 @@ func setupOAuthCmd() *cobra.Command {
 				return output.New("client secret cannot be empty", output.FixableByAgent)
 			}
 
-			storage, err := credential.StoreOAuthConfig(id, secret, credential.DefaultKeychainStore())
+			storage, err := credential.StoreOAuthConfig(id, secret, g.keychain())
 			if err != nil {
 				return output.Wrap(err, output.FixableByHuman)
 			}
@@ -41,7 +41,7 @@ func setupOAuthCmd() *cobra.Command {
 			if storage == "config" {
 				item["warning"] = "client secret stored in plaintext config (keychain unavailable on this platform)"
 			}
-			return output.NewNDJSONWriter(cmd.OutOrStdout()).WriteItem(item)
+			return emitItem(g, item)
 		},
 	}
 	cmd.Flags().StringVar(&clientID, "client-id", "", "OAuth app client ID")

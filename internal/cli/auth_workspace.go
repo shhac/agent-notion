@@ -8,45 +8,43 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func authWorkspaceCmd() *cobra.Command {
+func authWorkspaceCmd(g *GlobalFlags) *cobra.Command {
 	workspace := &cobra.Command{
 		Use:   "workspace",
 		Short: "Manage workspace profiles",
 	}
 	workspace.AddCommand(
-		workspaceListCmd(),
-		workspaceSwitchCmd("switch", "Switch the active (default) workspace"),
-		workspaceSwitchCmd("set-default", "Set the default workspace (alias for switch)"),
-		workspaceRemoveCmd(),
+		workspaceListCmd(g),
+		workspaceSwitchCmd(g, "switch", "Switch the active (default) workspace"),
+		workspaceSwitchCmd(g, "set-default", "Set the default workspace (alias for switch)"),
+		workspaceRemoveCmd(g),
 	)
 	return workspace
 }
 
-func workspaceListCmd() *cobra.Command {
+func workspaceListCmd(g *GlobalFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List configured workspaces",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := config.Read()
-			w := output.NewNDJSONWriter(cmd.OutOrStdout())
+			items := make([]any, 0, len(cfg.Workspaces))
 			for _, alias := range sortedAliases(cfg) {
 				ws := cfg.Workspaces[alias]
-				if err := w.WriteItem(map[string]any{
+				items = append(items, map[string]any{
 					"alias":     alias,
 					"name":      ws.WorkspaceName,
 					"auth_type": string(ws.AuthType),
 					"default":   alias == cfg.DefaultWorkspace,
-				}); err != nil {
-					return err
-				}
+				})
 			}
-			return nil
+			return printList(g, items, nil)
 		},
 	}
 }
 
-func workspaceSwitchCmd(use, short string) *cobra.Command {
+func workspaceSwitchCmd(g *GlobalFlags, use, short string) *cobra.Command {
 	return &cobra.Command{
 		Use:               use + " <alias>",
 		Short:             short,
@@ -57,14 +55,12 @@ func workspaceSwitchCmd(use, short string) *cobra.Command {
 				return output.Wrap(err, output.FixableByAgent).
 					WithHint("run 'agent-notion auth workspace list' to see configured workspaces")
 			}
-			return output.NewNDJSONWriter(cmd.OutOrStdout()).WriteItem(map[string]any{
-				"ok": true, "default_workspace": args[0],
-			})
+			return emitItem(g, map[string]any{"ok": true, "default_workspace": args[0]})
 		},
 	}
 }
 
-func workspaceRemoveCmd() *cobra.Command {
+func workspaceRemoveCmd(g *GlobalFlags) *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:               "remove <alias>",
@@ -79,7 +75,7 @@ func workspaceRemoveCmd() *cobra.Command {
 			}
 
 			wasDefault := alias == config.Read().DefaultWorkspace
-			if err := credential.RemoveWorkspace(alias, credential.DefaultKeychainStore()); err != nil {
+			if err := credential.RemoveWorkspace(alias, g.keychain()); err != nil {
 				return output.Wrap(err, output.FixableByAgent).
 					WithHint("run 'agent-notion auth workspace list' to see configured workspaces")
 			}
@@ -95,7 +91,7 @@ func workspaceRemoveCmd() *cobra.Command {
 			if wasDefault {
 				item["warning"] = "removed the default workspace"
 			}
-			return output.NewNDJSONWriter(cmd.OutOrStdout()).WriteItem(item)
+			return emitItem(g, item)
 		},
 	}
 	libcli.AddConfirmFlag(cmd, &yes)

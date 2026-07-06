@@ -1,9 +1,7 @@
 package cli
 
 import (
-	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -11,38 +9,36 @@ import (
 	"github.com/shhac/agent-notion/internal/config"
 	"github.com/shhac/agent-notion/internal/credential"
 	v3 "github.com/shhac/agent-notion/internal/notion/v3"
-	libcli "github.com/shhac/lib-agent-cli/cli"
 	output "github.com/shhac/lib-agent-output"
 	"github.com/spf13/cobra"
 )
 
-// registerAuth wires the `auth` command group. globals is threaded through for
-// consistency with the family pattern; later auth subcommands will use it.
-func registerAuth(root *cobra.Command, _ *libcli.Globals) {
+// registerAuth wires the `auth` command group.
+func registerAuth(root *cobra.Command, g *GlobalFlags) {
 	authCmd := &cobra.Command{
 		Use:   "auth",
 		Short: "Manage Notion authentication",
 	}
 	authCmd.AddCommand(
-		authStatusCmd(),
-		setupOAuthCmd(),
-		authLoginCmd(),
-		authImportCmd(),
-		authLogoutCmd(),
-		authWorkspaceCmd(),
-		importDesktopCmd(),
-		importBrowserCmd(),
+		authStatusCmd(g),
+		setupOAuthCmd(g),
+		authLoginCmd(g),
+		authImportCmd(g),
+		authLogoutCmd(g),
+		authWorkspaceCmd(g),
+		importDesktopCmd(g),
+		importBrowserCmd(g),
 	)
 	root.AddCommand(authCmd)
 }
 
-func authStatusCmd() *cobra.Command {
+func authStatusCmd(g *GlobalFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Show the resolved Notion credential (never prints the token)",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			res, ok := credential.Resolve(config.Read(), credential.DefaultKeychain())
+			res, ok := credential.Resolve(config.Read(), g.keychain())
 			if !ok {
 				return output.New("no Notion credential configured", output.FixableByHuman).
 					WithHint("run 'agent-notion auth login', import a desktop token, or set NOTION_TOKEN")
@@ -58,24 +54,24 @@ func authStatusCmd() *cobra.Command {
 			if res.AuthType != "" {
 				item["auth_type"] = string(res.AuthType)
 			}
-			return output.NewNDJSONWriter(os.Stdout).WriteItem(item)
+			return emitItem(g, item)
 		},
 	}
 }
 
-func importDesktopCmd() *cobra.Command {
+func importDesktopCmd(g *GlobalFlags) *cobra.Command {
 	var skipValidation bool
 	cmd := &cobra.Command{
 		Use:   "import-desktop",
 		Short: "Import the token_v2 session from the Notion Desktop app",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			sess, err := auth.ExtractDesktop()
+			sess, err := g.desktopExtract()
 			if err != nil {
 				return output.Wrap(err, output.FixableByHuman).
 					WithHint("open Notion Desktop and sign in, then retry")
 			}
-			return finishImport(cmd.Context(), sess, skipValidation)
+			return finishImport(cmd, g, sess, skipValidation)
 		},
 	}
 	cmd.Flags().BoolVar(&skipValidation, "skip-validation", false,
@@ -83,7 +79,7 @@ func importDesktopCmd() *cobra.Command {
 	return cmd
 }
 
-func importBrowserCmd() *cobra.Command {
+func importBrowserCmd(g *GlobalFlags) *cobra.Command {
 	var (
 		skipValidation bool
 		profile        string
@@ -101,12 +97,12 @@ func importBrowserCmd() *cobra.Command {
 			return names, cobra.ShellCompDirectiveNoFileComp
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sess, err := auth.ImportBrowser(args[0], profile)
+			sess, err := g.browserImport(args[0], profile)
 			if err != nil {
 				return output.Wrap(err, output.FixableByHuman).
 					WithHint("sign in to notion.so in that browser, then retry")
 			}
-			return finishImport(cmd.Context(), sess, skipValidation)
+			return finishImport(cmd, g, sess, skipValidation)
 		},
 	}
 	cmd.Flags().BoolVar(&skipValidation, "skip-validation", false,
@@ -118,16 +114,16 @@ func importBrowserCmd() *cobra.Command {
 
 // finishImport validates (unless skipped), stores, and reports an extracted
 // session. The token itself is never printed.
-func finishImport(ctx context.Context, sess *auth.Session, skipValidation bool) error {
+func finishImport(cmd *cobra.Command, g *GlobalFlags, sess *auth.Session, skipValidation bool) error {
 	extractedAt := time.Now().UTC().Format(time.RFC3339)
 
 	var info v3.SessionInfo
 	if skipValidation {
-		fmt.Fprintln(os.Stderr, "warning: --skip-validation stores the token without an identity lookup; "+
+		warnf(g, "--skip-validation stores the token without an identity lookup; "+
 			"user_id and space_id will be empty and some commands may fail")
 	} else {
 		var err error
-		info, err = v3.ValidateDesktopToken(ctx, nil, sess.TokenV2)
+		info, err = v3.ValidateDesktopToken(cmd.Context(), g.httpClient(), g.v3BaseURL(), sess.TokenV2)
 		if err != nil {
 			return output.Wrap(err, output.FixableByHuman).
 				WithHint("the token may be expired; sign in again and re-import, or pass --skip-validation")
@@ -143,7 +139,7 @@ func finishImport(ctx context.Context, sess *auth.Session, skipValidation bool) 
 		SpaceName:   info.SpaceName,
 		SpaceViewID: info.SpaceViewID,
 		ExtractedAt: extractedAt,
-	}, credential.DefaultKeychainWriter())
+	}, g.keychain())
 	if err != nil {
 		return output.Wrap(err, output.FixableByHuman)
 	}
@@ -168,7 +164,7 @@ func finishImport(ctx context.Context, sess *auth.Session, skipValidation bool) 
 	if len(sess.Source) > 0 {
 		item["source"] = sess.Source
 	}
-	return output.NewNDJSONWriter(os.Stdout).WriteItem(item)
+	return emitItem(g, item)
 }
 
 func browserLongHelp() string {

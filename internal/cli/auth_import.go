@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"io"
 	"strings"
 
@@ -12,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func authImportCmd() *cobra.Command {
+func authImportCmd(g *GlobalFlags) *cobra.Command {
 	var (
 		token string
 		alias string
@@ -25,7 +24,7 @@ func authImportCmd() *cobra.Command {
 			"Pass it with --token or pipe it on stdin.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runImportToken(cmd, token, alias)
+			return runImportToken(cmd, g, token, alias)
 		},
 	}
 	cmd.Flags().StringVar(&token, "token", "", "Integration token (default: read from stdin)")
@@ -33,7 +32,7 @@ func authImportCmd() *cobra.Command {
 	return cmd
 }
 
-func runImportToken(cmd *cobra.Command, token, alias string) error {
+func runImportToken(cmd *cobra.Command, g *GlobalFlags, token, alias string) error {
 	trimmed := strings.TrimSpace(token)
 	if trimmed == "" {
 		raw, err := io.ReadAll(cmd.InOrStdin())
@@ -48,11 +47,11 @@ func runImportToken(cmd *cobra.Command, token, alias string) error {
 	}
 
 	if !strings.HasPrefix(trimmed, "ntn_") && !strings.HasPrefix(trimmed, "secret_") {
-		_, _ = fmt.Fprintln(cmd.ErrOrStderr(),
-			"warning: token does not start with 'ntn_' or 'secret_'; proceeding anyway")
+		warnf(g, "token does not start with 'ntn_' or 'secret_'; proceeding anyway")
 	}
 
-	bot, err := official.Client{Token: trimmed}.Me(cmd.Context())
+	client := official.Client{HTTP: g.httpClient(), BaseURL: g.officialBaseURL(), Token: trimmed}
+	bot, err := client.Me(cmd.Context())
 	if err != nil {
 		return output.New("invalid token: the API rejected it", output.FixableByHuman).
 			WithHint("check the token is correct and the integration has access to a workspace")
@@ -77,12 +76,12 @@ func runImportToken(cmd *cobra.Command, token, alias string) error {
 		BotID:         bot.ID,
 		AuthType:      config.AuthInternalIntegration,
 		AccessToken:   trimmed,
-	}, credential.DefaultKeychainStore())
+	}, g.keychain())
 	if err != nil {
 		return output.Wrap(err, output.FixableByHuman)
 	}
 
-	return output.NewNDJSONWriter(cmd.OutOrStdout()).WriteItem(map[string]any{
+	return emitItem(g, map[string]any{
 		"ok":      true,
 		"storage": storage,
 		"workspace": map[string]any{
