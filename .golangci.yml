@@ -1,0 +1,17 @@
+version: "2"
+
+linters:
+  default: standard
+  settings:
+    staticcheck:
+      checks:
+        - all
+        # Error strings are user-facing LLM messages, often ported verbatim
+        # from the TS implementation — capitalization is part of the contract.
+        - -ST1005
+  exclusions:
+    rules:
+      # Test files do lots of _ = thing.Close() / _ = Write(...) on purpose.
+      - linters:
+          - errcheck
+        path: _test\.go

@@ -12,8 +12,9 @@ release
 *.bun-build
 
 # go
+# built binary at repo root (Makefile: -o agent-notion); the cmd/agent-notion
+# SOURCE dir must stay tracked, so anchor to the root only.
 /agent-notion
-/cmd/**/agent-notion
 *.test
 *.out
 go.work

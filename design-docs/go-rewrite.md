@@ -1,6 +1,9 @@
 # Go rewrite
 
-Status: **PLANNED**
+Status: **IN PROGRESS** — see [go-rewrite-tracker.md](./go-rewrite-tracker.md) for phase state.
+
+The TS/Bun implementation now lives under `bun/`; the repo root is being
+rebuilt as the Go CLI.
 
 Convert agent-notion from TypeScript/Bun to Go on the `lib-agent-*` family,
 following the play `agent-mongo` ran (see its `design-docs/go-rewrite.md`,
@@ -112,14 +115,20 @@ Bottom-up by layer (agent-slack's sequencing), not command-by-command:
   CLI"`) — replaces the manual `/release` skill; parity sign-off (integration
   suite + side-by-side golden runs against a test page); delete TS; tag.
 
-## Open questions
+## Resolved decisions
 
-1. **Output contract break**: current consumers of the TS CLI's output shape
-   (skills, any scripts) see NDJSON + structured errors instead. Planned as a
-   major-feel minor (family precedent), skill updated in the same phase — OK?
-2. **Versioning across the rewrite**: continue 0.x from 0.6.0, or reset?
-   (agent-mongo continued its line.)
-3. **Windows/Linux support for desktop-token extraction**: TS is macOS-only;
-   keep macOS-only or add DPAPI/Secret Service like agent-slack did?
-4. **`ai chat` streaming in MCP context**: subprocess model buffers output;
-   acceptable, or keep streaming CLI-only?
+1. **Output contract break — YES, break it.** Pre-1.0, so we converge on the
+   family conventions freely: NDJSON lists, `@pagination`/`@meta` lines,
+   `{error, fixable_by, hint}` on stderr, `--format json|yaml|jsonl`. Outputs
+   are essentially all handed to `lib-agent-output`. The skill + README are
+   rewritten in the same lockstep pass so the documented contract matches.
+   Concrete breaks catalogued in the tracker.
+2. **Version: minor bump.** 0.6.0 → **0.7.0** at cutover; the 0.x line
+   continues (agent-mongo precedent).
+3. **Desktop token: adopt agent-slack's pattern.** Pure-Go, build-tagged,
+   source-registry extraction; cross-platform (macOS `security` + Chromium
+   cookie decrypt, Windows DPAPI, Linux Secret Service) rather than the TS
+   macOS-only limitation. Reuse agent-slack's `decryptChromiumCookie`
+   (PBKDF2-HMAC-SHA1 + AES-128-CBC) and keychain-interface split.
+4. **`ai chat` streaming under MCP: buffered is acceptable.** Keep true
+   streaming on the CLI path; the MCP subprocess model buffers, which is fine.
