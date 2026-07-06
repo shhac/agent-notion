@@ -6,6 +6,7 @@ import (
 
 	"github.com/shhac/agent-notion/internal/config"
 	"github.com/shhac/agent-notion/internal/credential"
+	agenterrors "github.com/shhac/agent-notion/internal/errors"
 	"github.com/shhac/agent-notion/internal/notion"
 	"github.com/shhac/agent-notion/internal/notion/official"
 	v3 "github.com/shhac/agent-notion/internal/notion/v3"
@@ -91,6 +92,9 @@ func (g *GlobalFlags) officialClient(token string) official.Client {
 
 // withBackend runs fn against the resolved backend, retrying once through the
 // OAuth refresh path on an unauthorized failure — the TS withBackend port.
+// Errors come back classified ({error, fixable_by, hint}); command bodies
+// just `return err`. Classification runs strictly after the isUnauthorized
+// check, which needs the raw *APIError/*HTTPError.
 func withBackend[T any](ctx context.Context, g *GlobalFlags, fn func(b notion.Backend) (T, error)) (T, error) {
 	var zero T
 
@@ -101,7 +105,7 @@ func withBackend[T any](ctx context.Context, g *GlobalFlags, fn func(b notion.Ba
 
 	result, err := fn(handle.backend)
 	if err == nil || !isUnauthorized(err) {
-		return result, err
+		return result, agenterrors.Classify(err)
 	}
 
 	// Desktop tokens can't be refreshed programmatically.
@@ -126,7 +130,21 @@ func withBackend[T any](ctx context.Context, g *GlobalFlags, fn func(b notion.Ba
 			WithHint("run 'agent-notion auth login' to re-authenticate")
 	}
 
-	return fn(official.NewBackend(g.officialClient(newToken)))
+	result, err = fn(official.NewBackend(g.officialClient(newToken)))
+	return result, agenterrors.Classify(err)
+}
+
+// withV3Client resolves the stored desktop session and runs fn against the
+// v3 client — the seam for v3-only commands (backlinks, history, export,
+// activity, ai). Errors come back classified, like withBackend.
+func withV3Client[T any](g *GlobalFlags, fn func(c *v3.Client, sess *config.V3Session) (T, error)) (T, error) {
+	var zero T
+	client, sess, err := g.newV3Client()
+	if err != nil {
+		return zero, err
+	}
+	result, err := fn(client, sess)
+	return result, agenterrors.Classify(err)
 }
 
 // isUnauthorized reports whether err is an auth failure worth a refresh

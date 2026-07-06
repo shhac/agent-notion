@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/json"
 
-	"github.com/shhac/agent-notion/internal/errors"
 	"github.com/shhac/agent-notion/internal/ids"
 	"github.com/shhac/agent-notion/internal/notion"
 	"github.com/shhac/agent-notion/internal/notion/markdown"
@@ -55,7 +54,7 @@ func blockListCmd(g *GlobalFlags) *cobra.Command {
 					return b.ListBlocks(ctx, notion.ListBlocksParams{ID: pageID, Limit: blockRawLimit(limit), Cursor: cursor})
 				})
 				if err != nil {
-					return errors.Classify(err)
+					return err
 				}
 				flat := make([]map[string]any, len(page.Items))
 				for i, item := range page.Items {
@@ -92,7 +91,7 @@ func blockListCmd(g *GlobalFlags) *cobra.Command {
 				}, nil
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, out)
 		},
@@ -136,7 +135,7 @@ func blockAppendCmd(g *GlobalFlags) *cobra.Command {
 				return b.AppendBlocks(ctx, notion.AppendBlocksParams{ID: pageID, Blocks: children})
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, blockAppendResult{PageID: pageID, BlocksAdded: result.BlocksAdded})
 		},
@@ -164,7 +163,7 @@ func blockUpdateCmd(g *GlobalFlags) *cobra.Command {
 				return b.UpdateBlock(ctx, notion.UpdateBlockParams{ID: blockID, Content: &content})
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, result)
 		},
@@ -191,7 +190,7 @@ func blockDeleteCmd(g *GlobalFlags) *cobra.Command {
 				return b.DeleteBlock(ctx, blockID)
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, result)
 		},
@@ -222,7 +221,7 @@ func blockMoveCmd(g *GlobalFlags) *cobra.Command {
 				return b.MoveBlock(ctx, params)
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, result)
 		},
@@ -279,7 +278,7 @@ func blockReplaceCmd(g *GlobalFlags) *cobra.Command {
 				return blockReplaceResult{PageID: pageID, BlocksDeleted: len(existing.Blocks), BlocksAdded: added}, nil
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, out)
 		},

@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/json"
 
-	"github.com/shhac/agent-notion/internal/errors"
 	"github.com/shhac/agent-notion/internal/ids"
 	"github.com/shhac/agent-notion/internal/notion"
 	output "github.com/shhac/lib-agent-output"
@@ -42,7 +41,7 @@ func databaseListCmd(g *GlobalFlags) *cobra.Command {
 				return b.ListDatabases(ctx, notion.ListParams{Limit: g.pageSize(limit), Cursor: cursor})
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return printPaginated(g, result)
 		},
@@ -64,7 +63,7 @@ func databaseGetCmd(g *GlobalFlags) *cobra.Command {
 				return b.GetDatabase(ctx, id)
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, db)
 		},
@@ -113,7 +112,7 @@ func databaseQueryCmd(g *GlobalFlags) *cobra.Command {
 				})
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return printPaginated(g, result)
 		},
@@ -137,7 +136,7 @@ func databaseSchemaCmd(g *GlobalFlags) *cobra.Command {
 				return b.GetDatabaseSchema(ctx, id)
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, schema)
 		},

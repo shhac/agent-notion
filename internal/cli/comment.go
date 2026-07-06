@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"github.com/shhac/agent-notion/internal/errors"
 	"github.com/shhac/agent-notion/internal/ids"
 	"github.com/shhac/agent-notion/internal/notion"
 	output "github.com/shhac/lib-agent-output"
@@ -36,7 +35,7 @@ func commentListCmd(g *GlobalFlags) *cobra.Command {
 				return b.ListComments(ctx, notion.ListCommentsParams{PageID: pageID, Limit: g.pageSize(limit), Cursor: cursor})
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return printPaginated(g, result)
 		},
@@ -58,7 +57,7 @@ func commentPageCmd(g *GlobalFlags) *cobra.Command {
 				return b.AddComment(ctx, notion.AddCommentParams{PageID: pageID, Body: args[1]})
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, result)
 		},
@@ -96,7 +95,7 @@ func commentInlineCmd(g *GlobalFlags) *cobra.Command {
 				})
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, inlineCommentOutput{CommentCreateResult: result, AnchorText: text})
 		},

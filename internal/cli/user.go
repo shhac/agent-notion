@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"github.com/shhac/agent-notion/internal/errors"
 	"github.com/shhac/agent-notion/internal/notion"
 	"github.com/spf13/cobra"
 )
@@ -32,7 +31,7 @@ func userListCmd(g *GlobalFlags) *cobra.Command {
 				return b.ListUsers(ctx, notion.ListParams{Limit: g.pageSize(limit), Cursor: cursor})
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return printPaginated(g, result)
 		},
@@ -53,7 +52,7 @@ func userMeCmd(g *GlobalFlags) *cobra.Command {
 				return b.GetMe(ctx)
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, me)
 		},

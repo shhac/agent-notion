@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"github.com/shhac/agent-notion/internal/errors"
 	"github.com/shhac/agent-notion/internal/notion"
 	output "github.com/shhac/lib-agent-output"
 	"github.com/spf13/cobra"
@@ -44,7 +43,7 @@ func searchQueryCmd(g *GlobalFlags) *cobra.Command {
 				})
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return printPaginated(g, result)
 		},

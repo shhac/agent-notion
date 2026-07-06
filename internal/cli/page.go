@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/shhac/agent-notion/internal/errors"
+	"github.com/shhac/agent-notion/internal/config"
 	"github.com/shhac/agent-notion/internal/ids"
 	"github.com/shhac/agent-notion/internal/notion"
 	"github.com/shhac/agent-notion/internal/notion/markdown"
@@ -92,7 +92,7 @@ func pageGetCmd(g *GlobalFlags) *cobra.Command {
 				return m, nil
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, out)
 		},
@@ -125,7 +125,7 @@ func pageCreateCmd(g *GlobalFlags) *cobra.Command {
 				})
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, result)
 		},
@@ -166,7 +166,7 @@ func pageUpdateCmd(g *GlobalFlags) *cobra.Command {
 				})
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, result)
 		},
@@ -195,7 +195,7 @@ func pageTrashCmd(g *GlobalFlags) *cobra.Command {
 				return b.TrashPage(ctx, pageID)
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, result)
 		},
@@ -216,7 +216,7 @@ func pageRestoreCmd(g *GlobalFlags) *cobra.Command {
 				return b.RestorePage(ctx, pageID)
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, result)
 		},
@@ -242,7 +242,7 @@ func pageArchiveCmd(g *GlobalFlags) *cobra.Command {
 				return b.ArchivePage(ctx, pageID)
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, result)
 		},
@@ -263,7 +263,7 @@ func pageUnarchiveCmd(g *GlobalFlags) *cobra.Command {
 				return b.UnarchivePage(ctx, pageID)
 			})
 			if err != nil {
-				return errors.Classify(err)
+				return err
 			}
 			return emitItem(g, result)
 		},
@@ -289,13 +289,11 @@ func pageBacklinksCmd(g *GlobalFlags) *cobra.Command {
 			pageID := ids.Normalize(args[0])
 			ctx := cmd.Context()
 
-			client, _, err := g.newV3Client()
+			result, err := withV3Client(g, func(c *v3.Client, _ *config.V3Session) (v3.GetBacklinksResponse, error) {
+				return c.GetBacklinksForBlock(ctx, pageID)
+			})
 			if err != nil {
 				return err
-			}
-			result, err := client.GetBacklinksForBlock(ctx, pageID)
-			if err != nil {
-				return errors.Classify(err)
 			}
 
 			items := backlinkRecords(result)
@@ -374,13 +372,11 @@ func pageHistoryCmd(g *GlobalFlags) *cobra.Command {
 			pageID := ids.Normalize(args[0])
 			ctx := cmd.Context()
 
-			client, _, err := g.newV3Client()
+			result, err := withV3Client(g, func(c *v3.Client, _ *config.V3Session) (v3.GetSnapshotsResponse, error) {
+				return c.GetSnapshotsList(ctx, v3.GetSnapshotsListParams{BlockID: pageID, Size: limit})
+			})
 			if err != nil {
 				return err
-			}
-			result, err := client.GetSnapshotsList(ctx, v3.GetSnapshotsListParams{BlockID: pageID, Size: limit})
-			if err != nil {
-				return errors.Classify(err)
 			}
 
 			items := make([]any, len(result.Snapshots))
