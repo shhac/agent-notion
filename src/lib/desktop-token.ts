@@ -14,6 +14,7 @@ import { existsSync } from "node:fs";
 import { homedir, platform } from "node:os";
 import { join } from "node:path";
 import { Database } from "bun:sqlite";
+import { unwrapRecordValue } from "../notion/v3/client.ts";
 
 const COOKIES_DB_PATH = join(
   homedir(),
@@ -221,7 +222,7 @@ export async function validateDesktopToken(
     );
   }
 
-  const data = (await response.json()) as Record<string, Record<string, Record<string, { value?: Record<string, unknown> }>>>;
+  const data = (await response.json()) as Record<string, Record<string, Record<string, { value?: unknown }>>>;
 
   // Extract user and space info from the getSpaces response
   let userId = "";
@@ -237,8 +238,8 @@ export async function validateDesktopToken(
     const users = tables["notion_user"];
     if (users) {
       for (const record of Object.values(users)) {
-        const v = record.value;
-        if (v && typeof v === "object" && "email" in v) {
+        const v = unwrapRecordValue(record.value);
+        if (v && "email" in v) {
           userEmail = (v.email as string) ?? "";
           // The notion_user record uses "name" (not given_name/family_name)
           userName = (v.name as string) ?? "";
@@ -251,8 +252,8 @@ export async function validateDesktopToken(
     const spaces = tables["space"];
     if (spaces) {
       for (const record of Object.values(spaces)) {
-        const v = record.value;
-        if (v && typeof v === "object" && "name" in v) {
+        const v = unwrapRecordValue(record.value);
+        if (v && "name" in v) {
           const name = v.name as string;
           const plan = v.plan_type as string | undefined;
           // Take the first space, but prefer team/enterprise plans
@@ -277,11 +278,12 @@ export async function validateDesktopToken(
   // Find the space_view for the selected space
   let spaceViewId: string | undefined;
   for (const tables of Object.values(data)) {
-    const spaceViews = tables["space_view"] as Record<string, { value?: Record<string, unknown> }> | undefined;
+    const spaceViews = tables["space_view"] as Record<string, { value?: unknown }> | undefined;
     if (spaceViews) {
       for (const record of Object.values(spaceViews)) {
-        if (record.value?.space_id === spaceId) {
-          spaceViewId = record.value.id as string;
+        const v = unwrapRecordValue(record.value);
+        if (v?.space_id === spaceId) {
+          spaceViewId = v.id as string;
           break;
         }
       }

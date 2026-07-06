@@ -707,6 +707,35 @@ describe("V3Backend.getMe", () => {
     expect(result.workspaceName).toBe("My Workspace");
   });
 
+  test("returns current user with role-wrapped records", async () => {
+    const user: V3User = { id: "u1", version: 1, email: "a@b.com", given_name: "Alice", family_name: "B" };
+
+    const { client } = createMockClient({
+      loadUserContent: () => ({
+        recordMap: {
+          notion_user: {
+            "u1": { value: { value: user, role: "reader" } },
+          },
+          space: {
+            "s1": {
+              value: {
+                value: { id: "s1", name: "My Workspace" },
+                role: "reader",
+              },
+            },
+          },
+        },
+      }),
+    });
+
+    const backend = new V3Backend(client);
+    const result = await backend.getMe();
+
+    expect(result.id).toBe("u1");
+    expect(result.name).toBe("Alice B");
+    expect(result.workspaceName).toBe("My Workspace");
+  });
+
   test("throws when no user found", async () => {
     const { client } = createMockClient({
       loadUserContent: () => ({

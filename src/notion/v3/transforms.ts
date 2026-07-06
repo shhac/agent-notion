@@ -29,6 +29,7 @@ import type {
   V3Discussion,
   V3Comment,
 } from "./client.ts";
+import { unwrapRecordValue } from "./client.ts";
 
 // --- Rich text ---
 
@@ -649,29 +650,35 @@ export function buildV3PropertyValue(
 
 // --- RecordMap helpers ---
 
+function getRecordEntity<T extends Record<string, unknown>>(
+  entry: { value?: unknown } | undefined,
+): T | undefined {
+  return unwrapRecordValue(entry?.value) as T | undefined;
+}
+
 /** Extract a block from a RecordMap by ID. */
 export function getBlock(recordMap: RecordMap, id: string): V3Block | undefined {
-  return recordMap.block?.[id]?.value as V3Block | undefined;
+  return getRecordEntity<V3Block>(recordMap.block?.[id]);
 }
 
 /** Extract a collection from a RecordMap by ID. */
 export function getCollection(recordMap: RecordMap, id: string): V3Collection | undefined {
-  return recordMap.collection?.[id]?.value as V3Collection | undefined;
+  return getRecordEntity<V3Collection>(recordMap.collection?.[id]);
 }
 
 /** Get all blocks from a RecordMap. */
 export function getAllBlocks(recordMap: RecordMap): V3Block[] {
   if (!recordMap.block) return [];
   return Object.values(recordMap.block)
-    .map((entry) => entry.value as V3Block)
-    .filter((block) => block && block.alive !== false);
+    .map((entry) => getRecordEntity<V3Block>(entry))
+    .filter((block): block is V3Block => Boolean(block && block.alive !== false));
 }
 
 /** Get the first collection from a RecordMap. */
 export function getFirstCollection(recordMap: RecordMap): V3Collection | undefined {
   if (!recordMap.collection) return undefined;
   const entries = Object.values(recordMap.collection);
-  return entries[0]?.value as V3Collection | undefined;
+  return getRecordEntity<V3Collection>(entries[0]);
 }
 
 /** Get the first collection view ID from a RecordMap. */
@@ -684,30 +691,30 @@ export function getFirstCollectionViewId(recordMap: RecordMap): string | undefin
 export function getFirstUser(recordMap: RecordMap): V3User | undefined {
   if (!recordMap.notion_user) return undefined;
   const entries = Object.values(recordMap.notion_user);
-  return entries[0]?.value as V3User | undefined;
+  return getRecordEntity<V3User>(entries[0]);
 }
 
 /** Get all users from a RecordMap. */
 export function getAllUsers(recordMap: RecordMap): V3User[] {
   if (!recordMap.notion_user) return [];
   return Object.values(recordMap.notion_user)
-    .map((entry) => entry.value as V3User)
-    .filter(Boolean);
+    .map((entry) => getRecordEntity<V3User>(entry))
+    .filter((user): user is V3User => Boolean(user));
 }
 
 /** Extract a discussion from a RecordMap by ID. */
 export function getDiscussion(recordMap: RecordMap, id: string): V3Discussion | undefined {
-  return recordMap.discussion?.[id]?.value as V3Discussion | undefined;
+  return getRecordEntity<V3Discussion>(recordMap.discussion?.[id]);
 }
 
 /** Extract a comment from a RecordMap by ID. */
 export function getComment(recordMap: RecordMap, id: string): V3Comment | undefined {
-  return recordMap.comment?.[id]?.value as V3Comment | undefined;
+  return getRecordEntity<V3Comment>(recordMap.comment?.[id]);
 }
 
 /** Extract a user from a RecordMap by ID. */
 export function getUser(recordMap: RecordMap, id: string): V3User | undefined {
-  return recordMap.notion_user?.[id]?.value as V3User | undefined;
+  return getRecordEntity<V3User>(recordMap.notion_user?.[id]);
 }
 
 /** Transform a v3 comment record to a normalized CommentItem. */

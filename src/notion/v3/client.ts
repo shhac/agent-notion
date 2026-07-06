@@ -452,29 +452,48 @@ export function normalizeRecordMapResponse<T>(result: T): T {
 
     const tableRecords: Record<string, unknown> = {};
     for (const [id, entry] of Object.entries(records as Record<string, unknown>)) {
-      const e = entry as Record<string, unknown> | null;
       // Detect new format: entry.value has nested "value" containing the actual record.
       // Variant A: { spaceId, value: { value: V3Block, role } }
       // Variant B: { value: { value: V3Block, role } }  (no spaceId)
       // Old format: { value: V3Block, role }  (value.value would be a primitive like version number)
-      const inner = e?.value as Record<string, unknown> | undefined;
-      if (
-        inner &&
-        typeof inner === "object" &&
-        "value" in inner &&
-        inner.value &&
-        typeof inner.value === "object"
-      ) {
-        tableRecords[id] = inner;
-      } else {
-        tableRecords[id] = entry;
-      }
+      tableRecords[id] = unwrapRecordMapEntry(entry);
     }
     normalized[table] = tableRecords;
   }
 
   r.recordMap = normalized;
   return result;
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** Return the actual v3 entity from either an entity or a role-wrapped value. */
+export function unwrapRecordValue(value: unknown): Record<string, unknown> | undefined {
+  if (!isObjectRecord(value)) return undefined;
+
+  const nested = value.value;
+  if (isObjectRecord(nested)) {
+    return nested;
+  }
+
+  return value;
+}
+
+/** Return a v3 RecordMap entry in the old { value: entity, role } shape. */
+export function unwrapRecordMapEntry(entry: unknown): unknown {
+  if (!isObjectRecord(entry)) return entry;
+
+  const value = entry.value;
+  if (!isObjectRecord(value)) return entry;
+
+  const nested = value.value;
+  if (isObjectRecord(nested)) {
+    return value;
+  }
+
+  return entry;
 }
 
 // --- Export task type ---
