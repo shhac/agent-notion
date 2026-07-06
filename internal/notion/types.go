@@ -64,15 +64,15 @@ type PropertyDefinition struct {
 
 // DatabaseDetail is the full `database get` shape.
 type DatabaseDetail struct {
-	ID          string                        `json:"id"`
-	Title       string                        `json:"title"`
-	Description string                        `json:"description,omitempty"`
-	URL         string                        `json:"url"`
-	Parent      *ParentRef                    `json:"parent,omitempty"`
-	Properties  map[string]PropertyDefinition `json:"properties"`
-	IsInline    bool                          `json:"is_inline,omitempty"`
-	CreatedAt   string                        `json:"created_at,omitempty"`
-	LastEditedAt string                       `json:"last_edited_at,omitempty"`
+	ID           string                        `json:"id"`
+	Title        string                        `json:"title"`
+	Description  string                        `json:"description,omitempty"`
+	URL          string                        `json:"url"`
+	Parent       *ParentRef                    `json:"parent,omitempty"`
+	Properties   map[string]PropertyDefinition `json:"properties"`
+	IsInline     bool                          `json:"is_inline,omitempty"`
+	CreatedAt    string                        `json:"created_at,omitempty"`
+	LastEditedAt string                        `json:"last_edited_at,omitempty"`
 }
 
 // SchemaProperty is one property in the flat `database schema` listing.

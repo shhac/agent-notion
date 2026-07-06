@@ -16,9 +16,9 @@ import (
 
 // --- Timestamps ---
 
-// msToISO renders unix milliseconds as a JS Date.toISOString()-style string
+// MsToISO renders unix milliseconds as a JS Date.toISOString()-style string
 // (UTC, millisecond precision, literal Z). Zero is treated as absent.
-func msToISO(ms int64) string {
+func MsToISO(ms int64) string {
 	if ms == 0 {
 		return ""
 	}
@@ -277,7 +277,7 @@ func ToSearchResult(b *Block) notion.SearchResult {
 		Title:        b.Property("title").Plain(),
 		URL:          notionURL(b.ID),
 		Parent:       ParentFor(b.ParentTable, b.ParentID),
-		LastEditedAt: msToISO(b.LastEditedTime),
+		LastEditedAt: MsToISO(b.LastEditedTime),
 	}
 }
 
@@ -395,8 +395,8 @@ func ToQueryRow(b *Block, schema map[string]PropertySchema) notion.QueryRow {
 		ID:           b.ID,
 		URL:          notionURL(b.ID),
 		Properties:   FlattenProperties(b.Properties, schema),
-		CreatedAt:    msToISO(b.CreatedTime),
-		LastEditedAt: msToISO(b.LastEditedTime),
+		CreatedAt:    MsToISO(b.CreatedTime),
+		LastEditedAt: MsToISO(b.LastEditedTime),
 	}
 }
 
@@ -421,8 +421,8 @@ func ToPageDetail(b *Block, schema map[string]PropertySchema) notion.PageDetail 
 		Parent:       ParentFor(b.ParentTable, b.ParentID),
 		Properties:   props,
 		Icon:         icon,
-		CreatedAt:    msToISO(b.CreatedTime),
-		LastEditedAt: msToISO(b.LastEditedTime),
+		CreatedAt:    MsToISO(b.CreatedTime),
+		LastEditedAt: MsToISO(b.LastEditedTime),
 		Archived:     !b.IsAlive(),
 	}
 }
@@ -601,7 +601,7 @@ func ToCommentItem(c *Comment, u *User, anchorText string) notion.CommentItem {
 		ID:        c.ID,
 		Body:      c.Text.Plain(),
 		Author:    commentAuthor(c, u),
-		CreatedAt: msToISO(c.CreatedTime),
+		CreatedAt: MsToISO(c.CreatedTime),
 	}
 	if anchorText != "" {
 		item.AnchorText = anchorText

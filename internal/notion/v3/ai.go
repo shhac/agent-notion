@@ -340,7 +340,7 @@ func buildInferenceRequest(params RunInferenceParams, tz string, now time.Time, 
 		isNewThread = *params.IsNewThread
 	}
 
-	nowISO := msToISO(now.UnixMilli())
+	nowISO := MsToISO(now.UnixMilli())
 
 	req := RunInferenceTranscriptRequest{
 		TraceID:                       traceID,

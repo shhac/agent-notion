@@ -67,7 +67,7 @@ func runImportToken(cmd *cobra.Command, g *GlobalFlags, token, alias string) err
 	}
 	resolvedAlias := alias
 	if resolvedAlias == "" {
-		resolvedAlias = credential.DeriveAlias(name, workspaceAliases(cfg))
+		resolvedAlias = credential.DeriveAlias(name, credential.WorkspaceAliases(cfg.Workspaces))
 	}
 
 	storage, err := credential.StoreWorkspace(resolvedAlias, config.Workspace{

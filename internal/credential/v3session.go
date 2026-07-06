@@ -2,7 +2,6 @@ package credential
 
 import (
 	"github.com/shhac/agent-notion/internal/config"
-	"github.com/shhac/lib-agent-cli/creds"
 )
 
 const v3TokenAccount = "v3:token_v2"
@@ -12,9 +11,6 @@ type KeychainWriter interface {
 	Available() bool
 	Set(account, secret string) error
 }
-
-// DefaultKeychainWriter writes to the same keychain service the TS CLI used.
-func DefaultKeychainWriter() KeychainWriter { return creds.NewKeychain(config.KeychainService) }
 
 // StoreV3Session persists a desktop/browser token_v2 session: the token goes to
 // the keychain when available (config holds the placeholder), otherwise into

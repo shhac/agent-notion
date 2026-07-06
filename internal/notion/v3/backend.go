@@ -276,7 +276,7 @@ func (b *Backend) CreatePage(ctx context.Context, params notion.CreatePageParams
 		URL:       notionURL(newPageID),
 		Title:     params.Title,
 		Parent:    parent,
-		CreatedAt: msToISO(now.UnixMilli()),
+		CreatedAt: MsToISO(now.UnixMilli()),
 	}, nil
 }
 
@@ -327,7 +327,7 @@ func (b *Backend) UpdatePage(ctx context.Context, params notion.UpdatePageParams
 	if err := b.Client.SaveTransactions(ctx, ops); err != nil {
 		return empty, err
 	}
-	return notion.PageUpdateResult{ID: params.ID, URL: notionURL(params.ID), LastEditedAt: msToISO(now.UnixMilli())}, nil
+	return notion.PageUpdateResult{ID: params.ID, URL: notionURL(params.ID), LastEditedAt: MsToISO(now.UnixMilli())}, nil
 }
 
 // TrashPage moves a page to Trash.
@@ -577,7 +577,7 @@ func (b *Backend) UpdateBlock(ctx context.Context, params notion.UpdateBlockPara
 	if err := b.Client.SaveTransactions(ctx, ops); err != nil {
 		return empty, err
 	}
-	return notion.BlockUpdateResult{ID: params.ID, LastEditedAt: msToISO(now.UnixMilli())}, nil
+	return notion.BlockUpdateResult{ID: params.ID, LastEditedAt: MsToISO(now.UnixMilli())}, nil
 }
 
 // DeleteBlock moves a block to Trash.

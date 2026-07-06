@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/shhac/agent-notion/internal/config"
 	"github.com/shhac/agent-notion/internal/credential"
@@ -58,7 +57,7 @@ func authLogoutCmd(g *GlobalFlags) *cobra.Command {
 			item := map[string]any{
 				"ok":                   true,
 				"removed":              target,
-				"remaining_workspaces": sortedAliases(after),
+				"remaining_workspaces": credential.WorkspaceAliases(after.Workspaces),
 			}
 			if after.DefaultWorkspace != "" {
 				item["default_workspace"] = after.DefaultWorkspace
@@ -73,10 +72,4 @@ func authLogoutCmd(g *GlobalFlags) *cobra.Command {
 	cmd.Flags().StringVar(&workspace, "workspace", "", "Workspace alias to remove (default: the default workspace)")
 	libcli.AddConfirmFlag(cmd, &yes)
 	return cmd
-}
-
-func sortedAliases(cfg config.Config) []string {
-	aliases := workspaceAliases(cfg)
-	sort.Strings(aliases)
-	return aliases
 }

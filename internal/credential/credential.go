@@ -34,9 +34,6 @@ type Resolved struct {
 	AuthType  config.AuthType
 }
 
-// DefaultKeychain reads the OS keychain service the TS CLI wrote to.
-func DefaultKeychain() Keychain { return creds.NewKeychain(config.KeychainService) }
-
 // Resolve mirrors the TS resolveAccessToken order:
 //  1. NOTION_API_KEY / NOTION_TOKEN environment variables,
 //  2. the default workspace's token — from the keychain when config holds the
@@ -58,7 +55,7 @@ func Resolve(cfg config.Config, kc Keychain) (Resolved, bool) {
 	}
 
 	if ws.AccessToken == config.KeychainPlaceholder {
-		key, ok := kc.Get("access_token:" + alias)
+		key, ok := kc.Get(accessTokenAccount(alias))
 		if !ok || key == "" {
 			return Resolved{}, false
 		}

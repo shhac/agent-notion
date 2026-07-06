@@ -30,7 +30,7 @@ func workspaceListCmd(g *GlobalFlags) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := config.Read()
 			items := make([]any, 0, len(cfg.Workspaces))
-			for _, alias := range sortedAliases(cfg) {
+			for _, alias := range credential.WorkspaceAliases(cfg.Workspaces) {
 				ws := cfg.Workspaces[alias]
 				items = append(items, map[string]any{
 					"alias":     alias,
@@ -99,5 +99,5 @@ func workspaceRemoveCmd(g *GlobalFlags) *cobra.Command {
 }
 
 func completeWorkspaceAliases(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
-	return sortedAliases(config.Read()), cobra.ShellCompDirectiveNoFileComp
+	return credential.WorkspaceAliases(config.Read().Workspaces), cobra.ShellCompDirectiveNoFileComp
 }

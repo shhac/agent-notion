@@ -84,7 +84,7 @@ func runLogin(cmd *cobra.Command, g *GlobalFlags, alias string, port int) error 
 
 	resolvedAlias := alias
 	if resolvedAlias == "" {
-		resolvedAlias = credential.DeriveAlias(tok.WorkspaceName, workspaceAliases(cfg))
+		resolvedAlias = credential.DeriveAlias(tok.WorkspaceName, credential.WorkspaceAliases(cfg.Workspaces))
 	}
 
 	storage, err := credential.StoreWorkspace(resolvedAlias, config.Workspace{
@@ -124,14 +124,6 @@ func ownerFromToken(o *oauth.Owner) *config.Owner {
 	owner.User.Name = o.User.Name
 	owner.User.Email = o.User.Person.Email
 	return owner
-}
-
-func workspaceAliases(cfg config.Config) []string {
-	aliases := make([]string, 0, len(cfg.Workspaces))
-	for a := range cfg.Workspaces {
-		aliases = append(aliases, a)
-	}
-	return aliases
 }
 
 func randomState() (string, error) {

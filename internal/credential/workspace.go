@@ -32,19 +32,7 @@ func refreshTokenAccount(alias string) string { return "refresh_token:" + alias 
 // are removed and both fall back to plaintext config. The first stored
 // workspace becomes the default. Returns "keychain" or "config".
 func StoreWorkspace(alias string, ws config.Workspace, kc KeychainStore) (string, error) {
-	useKeychain := kc != nil && kc.Available() &&
-		kc.Set(accessTokenAccount(alias), ws.AccessToken) == nil &&
-		(ws.RefreshToken == "" || kc.Set(refreshTokenAccount(alias), ws.RefreshToken) == nil)
-
-	if useKeychain {
-		ws.AccessToken = config.KeychainPlaceholder
-		if ws.RefreshToken != "" {
-			ws.RefreshToken = config.KeychainPlaceholder
-		}
-	} else if kc != nil && kc.Available() {
-		_ = kc.Delete(accessTokenAccount(alias))
-		_ = kc.Delete(refreshTokenAccount(alias))
-	}
+	ws.AccessToken, ws.RefreshToken = placeTokens(alias, ws.AccessToken, ws.RefreshToken, kc)
 
 	cfg := config.Read()
 	if cfg.Workspaces == nil {
@@ -57,10 +45,41 @@ func StoreWorkspace(alias string, ws config.Workspace, kc KeychainStore) (string
 	if err := config.Write(cfg); err != nil {
 		return "", err
 	}
-	if useKeychain {
-		return "keychain", nil
+	return storageKind(ws.AccessToken), nil
+}
+
+// placeTokens writes both tokens to the keychain when it is available,
+// returning the placeholder-substituted values to persist in config. On any
+// keychain-write failure the partial entries are removed and both tokens fall
+// back to plaintext — the placement decision is all-or-nothing so config and
+// keychain can never disagree about where a token lives.
+func placeTokens(alias, accessToken, refreshToken string, kc KeychainStore) (access, refresh string) {
+	if kc == nil || !kc.Available() {
+		return accessToken, refreshToken
 	}
-	return "config", nil
+
+	stored := kc.Set(accessTokenAccount(alias), accessToken) == nil &&
+		(refreshToken == "" || kc.Set(refreshTokenAccount(alias), refreshToken) == nil)
+	if !stored {
+		_ = kc.Delete(accessTokenAccount(alias))
+		_ = kc.Delete(refreshTokenAccount(alias))
+		return accessToken, refreshToken
+	}
+
+	access = config.KeychainPlaceholder
+	refresh = refreshToken
+	if refreshToken != "" {
+		refresh = config.KeychainPlaceholder
+	}
+	return access, refresh
+}
+
+// storageKind reports where a placed access token lives.
+func storageKind(placedAccessToken string) string {
+	if placedAccessToken == config.KeychainPlaceholder {
+		return "keychain"
+	}
+	return "config"
 }
 
 // RemoveWorkspace deletes a workspace's keychain entries and config record,
@@ -105,7 +124,8 @@ func ClearAll(kc KeychainStore) error {
 
 // UpdateWorkspaceTokens atomically swaps a workspace's access (and optionally
 // refresh) token, keeping the keychain-vs-config placement consistent with
-// StoreWorkspace. A missing workspace is a silent no-op, matching the TS.
+// StoreWorkspace (including partial-failure cleanup, which this variant
+// previously lacked). A missing workspace is a silent no-op, matching the TS.
 func UpdateWorkspaceTokens(alias, accessToken, refreshToken string, kc KeychainStore) error {
 	cfg := config.Read()
 	ws, ok := cfg.Workspaces[alias]
@@ -113,20 +133,10 @@ func UpdateWorkspaceTokens(alias, accessToken, refreshToken string, kc KeychainS
 		return nil
 	}
 
-	useKeychain := kc != nil && kc.Available() &&
-		kc.Set(accessTokenAccount(alias), accessToken) == nil &&
-		(refreshToken == "" || kc.Set(refreshTokenAccount(alias), refreshToken) == nil)
-
-	if useKeychain {
-		ws.AccessToken = config.KeychainPlaceholder
-		if refreshToken != "" {
-			ws.RefreshToken = config.KeychainPlaceholder
-		}
-	} else {
-		ws.AccessToken = accessToken
-		if refreshToken != "" {
-			ws.RefreshToken = refreshToken
-		}
+	access, refresh := placeTokens(alias, accessToken, refreshToken, kc)
+	ws.AccessToken = access
+	if refreshToken != "" {
+		ws.RefreshToken = refresh
 	}
 	cfg.Workspaces[alias] = ws
 	return config.Write(cfg)
@@ -191,7 +201,7 @@ func unknownWorkspaceError(alias string, cfg config.Config) error {
 }
 
 func firstAlias(workspaces map[string]config.Workspace) string {
-	aliases := sortedAliases(workspaces)
+	aliases := WorkspaceAliases(workspaces)
 	if len(aliases) == 0 {
 		return ""
 	}
@@ -199,10 +209,11 @@ func firstAlias(workspaces map[string]config.Workspace) string {
 }
 
 func firstAliases(workspaces map[string]config.Workspace) string {
-	return strings.Join(sortedAliases(workspaces), ", ")
+	return strings.Join(WorkspaceAliases(workspaces), ", ")
 }
 
-func sortedAliases(workspaces map[string]config.Workspace) []string {
+// WorkspaceAliases returns the configured workspace aliases, sorted.
+func WorkspaceAliases(workspaces map[string]config.Workspace) []string {
 	aliases := make([]string, 0, len(workspaces))
 	for a := range workspaces {
 		aliases = append(aliases, a)

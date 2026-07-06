@@ -132,7 +132,7 @@ func addComment(ctx context.Context, c *Client, params notion.AddCommentParams) 
 		ID:           commentID,
 		DiscussionID: discussionID,
 		Body:         params.Body,
-		CreatedAt:    msToISO(now.UnixMilli()),
+		CreatedAt:    MsToISO(now.UnixMilli()),
 	}, nil
 }
 
@@ -195,6 +195,6 @@ func addInlineComment(ctx context.Context, c *Client, params notion.AddInlineCom
 		ID:           commentID,
 		DiscussionID: discussionID,
 		Body:         params.Body,
-		CreatedAt:    msToISO(now.UnixMilli()),
+		CreatedAt:    MsToISO(now.UnixMilli()),
 	}, nil
 }

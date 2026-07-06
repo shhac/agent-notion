@@ -2,7 +2,6 @@ package cli
 
 import (
 	"encoding/json"
-	"time"
 
 	"github.com/shhac/agent-notion/internal/config"
 	"github.com/shhac/agent-notion/internal/ids"
@@ -389,7 +388,7 @@ func pageHistoryCmd(g *GlobalFlags) *cobra.Command {
 					ID:          snap.ID,
 					Version:     snap.Version,
 					LastVersion: snap.LastVersion,
-					Timestamp:   isoFromMillis(snap.Timestamp),
+					Timestamp:   v3.MsToISO(snap.Timestamp),
 					Authors:     authors,
 				}
 			}
@@ -430,12 +429,6 @@ func parseProperties(s string) (map[string]any, error) {
 			output.FixableByAgent)
 	}
 	return m, nil
-}
-
-// isoFromMillis renders unix milliseconds as a JS Date.toISOString()-style
-// string (UTC, millisecond precision), matching the TS history output.
-func isoFromMillis(ms int64) string {
-	return time.UnixMilli(ms).UTC().Format("2006-01-02T15:04:05.000Z")
 }
 
 const pageUsageText = `agent-notion page — Page operations
