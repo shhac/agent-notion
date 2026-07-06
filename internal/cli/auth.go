@@ -25,6 +25,11 @@ func registerAuth(root *cobra.Command, _ *libcli.Globals) {
 	}
 	authCmd.AddCommand(
 		authStatusCmd(),
+		setupOAuthCmd(),
+		authLoginCmd(),
+		authImportCmd(),
+		authLogoutCmd(),
+		authWorkspaceCmd(),
 		importDesktopCmd(),
 		importBrowserCmd(),
 	)

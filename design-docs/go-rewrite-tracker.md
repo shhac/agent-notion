@@ -4,9 +4,11 @@ Companion to [go-rewrite.md](./go-rewrite.md) (rationale + target layout).
 This file is the live checklist. Tick items as they land; keep the "Now / Next"
 line current so anyone picking up mid-flight knows where things stand.
 
-**Now:** Phase 0 (scaffold) + Phase 1 (credential import) done; Phase 2 auth
-token extraction (import-desktop / import-browser) done.
-**Next:** Phase 2 remainder — OAuth login flow, `auth logout`, workspace aliases.
+**Now:** Phases 0–2 done — scaffold, config/credentials, and the full auth
+surface (status, setup-oauth, login, import, logout, workspace,
+import-desktop, import-browser, token refresh) plus the `usage` card scaffold.
+**Next:** Phase 3 — pure transforms (record-map, rich text, markdown, ids,
+truncation), the parity-critical layer.
 
 ## Resolved decisions
 
@@ -64,34 +66,34 @@ domain payload structure (the parity target).
 
 ## Phases
 
-### Phase 0 — scaffold  ⬅ in progress
+### Phase 0 — scaffold  ✅
 - [x] Move TS impl to `bun/`, keep it green (473 tests)
 - [x] `design-docs/go-rewrite.md` + this tracker
-- [ ] `go.mod` (module `github.com/shhac/agent-notion`, go 1.26) + deps
-- [ ] `cmd/agent-notion/main.go` (~6 lines; `version` ldflags; `cli.Run`)
-- [ ] `internal/cli/root.go` via `libcli.NewRoot` (default NDJSON, unknown hint)
-- [ ] `internal/output/` shim over lib-agent-output
-- [ ] `internal/errors/` `{error, fixable_by, hint}` classification skeleton
-- [ ] `Makefile` (build w/ ldflags version from `git describe`, test, lint, dev, tidy)
-- [ ] `.golangci.yml` (v2; disable ST1005 — error strings are LLM contract)
-- [ ] `.github/workflows/ci.yml` (build, vet, test, golangci)
-- [ ] `AGENTS.md` + `CLAUDE.md` symlink; doc-lockstep rule
-- [ ] `go build ./...` + `go test ./...` green (even if trivial)
+- [x] `go.mod` (module `github.com/shhac/agent-notion`, go 1.26) + deps
+- [x] `cmd/agent-notion/main.go` (~6 lines; `version` ldflags; `cli.Run`)
+- [x] `internal/cli/root.go` via `libcli.NewRoot` (default NDJSON, unknown hint)
+- [x] ~~`internal/output/` shim~~ dropped — commands use lib-agent-output directly
+- [x] ~~`internal/errors/` skeleton~~ dropped — `output.New/Wrap` + `FixableBy*` suffice
+- [x] `Makefile` (build w/ ldflags version from `git describe`, test, lint, dev, tidy)
+- [x] `.golangci.yml` (v2; disable ST1005 — error strings are LLM contract)
+- [x] `.github/workflows/ci.yml` (build, vet, test, golangci)
+- [ ] `AGENTS.md` + `CLAUDE.md` symlink; doc-lockstep rule (CLAUDE.md exists; AGENTS.md pending)
+- [x] `go build ./...` + `go test ./...` green (even if trivial)
 
-### Phase 1 — config + credentials  ⬅ in progress
-- [ ] `internal/config/` — read/write `config.json`, settings registry w/ defaults
-- [ ] `internal/credential/` — `creds.NewKeychain("app.paulie.agent-notion")`,
+### Phase 1 — config + credentials  ✅ (two items deferred)
+- [x] `internal/config/` — read/write `config.json`, settings registry w/ defaults
+- [x] `internal/credential/` — `creds.NewKeychain("app.paulie.agent-notion")`,
       `__KEYCHAIN__` sentinel, config fallback, resolution order
       (flag > env `NOTION_TOKEN`/`AGENT_NOTION_*` > config)
-- [ ] Read existing TS-written keychain entries (`access_token:<alias>` etc.)
-- [ ] `--form` secret entry via `libcli/dialog`
-- [ ] atomic writes + advisory lock (MCP runs parallel subprocesses)
-- [ ] `agent-notion config get/set/unset/list` via `cli.ConfigCommand`
-- [ ] `agent-notion auth status` (reads creds, prints source, no secret)
-- [ ] tests: keychain interface fake, `XDG_CONFIG_HOME=t.TempDir()`,
+- [x] Read existing TS-written keychain entries (`access_token:<alias>` etc.)
+- [ ] `--form` secret entry via `libcli/dialog` (deferred — add with Phase 5 polish)
+- [ ] atomic writes + advisory lock (MCP runs parallel subprocesses) (deferred to Phase 6)
+- [ ] `agent-notion config get/set/unset/list` via `cli.ConfigCommand` (lands in Phase 5)
+- [x] `agent-notion auth status` (reads creds, prints source, no secret)
+- [x] tests: keychain interface fake, `XDG_CONFIG_HOME=t.TempDir()`,
       `AGENT_NOTION_NO_KEYCHAIN=1`; verify it reads a fixture config.json
 
-### Phase 2 — auth flows
+### Phase 2 — auth flows  ✅
 - [x] Desktop/browser cookie extraction, agent-slack pattern (`internal/auth`):
       source registry (chrome/brave/edge/arc/chromium/firefox/zen/safari),
       Chromium cookie SQLite read via modernc.org/sqlite, `decryptChromiumCBC`
@@ -101,8 +103,20 @@ domain payload structure (the parity target).
       storage (`credential.StoreV3Session`, keychain + config)
 - [x] `auth import-desktop`, `auth import-browser <browser>` (+ `--profile`,
       `--skip-validation`, completion)
-- [ ] OAuth callback server + `auth login` (port TS `oauth-server.ts`)
-- [ ] `auth logout`, workspace aliases, `auth import` (paste token)
+- [x] OAuth callback server + `auth login` (`internal/oauth`: ListenCallback
+      binds before building the authorize URL so the redirect URI always
+      matches; Exchange/Refresh against the token endpoint, injectable for tests)
+- [x] `auth logout` (--all / --workspace, `--yes` gate), `auth workspace`
+      list/switch/set-default/remove (`internal/credential/workspace.go` —
+      keychain-or-config token placement, alias derivation, default reassignment)
+- [x] `auth import` (paste token via --token or stdin; validated with a
+      minimal `internal/notion/official` users/me probe)
+- [x] `auth setup-oauth` (client id/secret; secret to keychain when available)
+- [x] token refresh: `credential.RefreshAccessToken`/`RefreshOrRecover`
+      (atomic keychain+config swap; parallel-process recovery; clears tokens
+      on total failure) — wire into the 401 retry path when clients land (Phase 4)
+- [x] `usage` + `auth usage` LLM cards (agent-slack pattern:
+      `usage.go`/`usage_text.go`; doc-lockstep applies to `usage_text.go`)
 
 ### Phase 3 — pure transforms (parity)
 - [ ] `internal/notion/v3/record-map`: types, normalize, unwrap invariant

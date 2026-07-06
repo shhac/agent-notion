@@ -20,6 +20,8 @@ func newRoot(version string) *cobra.Command {
 	})
 
 	registerAuth(root, g)
+	registerUsage(root)
+	attachDomainUsage(root)
 
 	return root
 }

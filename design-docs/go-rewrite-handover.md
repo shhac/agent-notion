@@ -17,8 +17,9 @@ the **repo root** (`cmd/`, `internal/`); the original TS implementation was
 moved wholesale into **`bun/`** and stays runnable as the golden reference until
 parity is signed off, then it gets deleted. Work happens on branch
 **`migrate-to-go`** (not pushed). All four up-front decisions are settled (see
-§5). Roughly **Phase 0–1 and the auth-extraction slice of Phase 2 are done**;
-Phases 2(rest)–7 remain.
+§5). **Phases 0–2 are done** (scaffold, config/credentials, the full auth
+surface incl. OAuth login and token refresh); Phases 3–7 remain. The tracker
+is the live status — trust it over the snapshots in this doc.
 
 ## 2. What exists right now
 
@@ -40,9 +41,13 @@ issues):
 | `internal/credential` | access-token resolution + v3 session store/resolve | done (no refresh) |
 | `internal/auth` | Notion Desktop + browser cookie extraction (token_v2) | done |
 | `internal/notion/v3` | **only** `getSpaces` validation + `ParseGetSpacesSession` | stub — one file |
+| `internal/oauth` | callback server, authorize URL, code exchange + refresh | done |
+| `internal/notion/official` | **only** the users/me token probe | stub — one file |
 
-Commands wired: `auth status`, `auth import-desktop`, `auth import-browser
-<browser>`. **That's it** — every other command below is still TODO.
+Commands wired: the full `auth` group (`status`, `setup-oauth`, `login`,
+`import`, `logout`, `workspace list/switch/set-default/remove`,
+`import-desktop`, `import-browser <browser>`) plus `usage` / `auth usage`.
+Every other group below is still TODO.
 
 ## 3. Build / test / run
 
@@ -69,16 +74,15 @@ no `go.work`) — resolvable via the normal proxy. Plus `spf13/cobra`,
 Ordered by the phases in the tracker. The command counts are the real TS
 surface (`bun/src/cli/<group>/`).
 
-### Phase 2 remainder — auth
-- `auth login` — OAuth flow. Port `bun/src/lib/oauth-server.ts` (local callback
-  server on `http://localhost:9876/callback`) + `bun/src/cli/auth/login.ts`.
-- `auth setup-oauth` — store OAuth client id/secret (`storeOAuthConfig`).
-- `auth logout` — clear a workspace (`removeWorkspace`) with the `--yes` gate.
-- `auth workspace` — list / set-default / remove workspaces (aliases).
-- `auth import` — paste a raw token (internal-integration).
-- **Token refresh** — port `refreshAccessToken`/`refreshOrRecover`
-  (`bun/src/lib/credentials.ts`): OAuth refresh against
-  `https://api.notion.com/v1/oauth/token`, atomic keychain+config swap.
+### Phase 2 remainder — auth ✅ DONE
+All landed: `auth login` (OAuth via `internal/oauth`), `auth setup-oauth`,
+`auth logout`, `auth workspace list/switch/set-default/remove`, `auth import`
+(token via --token or stdin, validated with `internal/notion/official`
+users/me), and token refresh (`credential.RefreshAccessToken`/
+`RefreshOrRecover` — remember to wire into the 401 retry path in Phase 4).
+Workspace CRUD lives in `internal/credential/workspace.go`; the `usage` +
+`auth usage` LLM cards follow the agent-slack `usage.go`/`usage_text.go`
+pattern.
 
 ### Phase 3 — pure transforms (parity target; port from `bun/src/notion/`)
 - `internal/notion/v3/recordmap` — port `record-map.ts` (types, `normalize…`,
