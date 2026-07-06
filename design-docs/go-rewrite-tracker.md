@@ -4,11 +4,11 @@ Companion to [go-rewrite.md](./go-rewrite.md) (rationale + target layout).
 This file is the live checklist. Tick items as they land; keep the "Now / Next"
 line current so anyone picking up mid-flight knows where things stand.
 
-**Now:** Phases 0–2 done — scaffold, config/credentials, and the full auth
-surface (status, setup-oauth, login, import, logout, workspace,
-import-desktop, import-browser, token refresh) plus the `usage` card scaffold.
-**Next:** Phase 3 — pure transforms (record-map, rich text, markdown, ids,
-truncation), the parity-critical layer.
+**Now:** Phases 0–3 done — scaffold, config/credentials, full auth surface,
+and the pure-transform layer (record map + rich text, transforms, operations,
+comments, markdown, ids, truncation). The only Phase 3 leftover is the
+differential golden-run check, which needs the Phase 4 client.
+**Next:** Phase 4 — HTTP clients (v3 + official) and `internal/mocknotion`.
 
 ## Resolved decisions
 
@@ -119,11 +119,27 @@ domain payload structure (the parity target).
       `usage.go`/`usage_text.go`; doc-lockstep applies to `usage_text.go`)
 
 ### Phase 3 — pure transforms (parity)
-- [ ] `internal/notion/v3/record-map`: types, normalize, unwrap invariant
-- [ ] rich text → plain/markdown; block-type map; property flattening; ID normalize
-- [ ] port TS fixtures verbatim; differential-check gnarly paths vs `bun/` binary
-      (rich-text decorations, anchor text)
-- [ ] truncation w/ `{field}Length` companions
+- [x] `internal/notion/v3` record map: entity types, the unwrap invariant
+      (normalization moved from a TS tree-walk to `Entry.UnmarshalJSON` — both
+      wire formats decode to the normalized shape), typed lookup helpers
+      (sorted-ID iteration replaces JS insertion order), `RichText`/`Segment`/
+      `Decoration` with tuple-form JSON round-tripping
+- [x] `internal/notion` (types.go): normalized types, **snake_case domain
+      fields** (resolves broken-contracts #6 — family convention + Notion's
+      own API casing; TS camelCase was a local invention)
+- [x] `internal/notion/v3/operations.go`: saveTransactions op builders
+      (explicit `now time.Time` instead of Date.now(); sorted property/format
+      key order); pure comment logic in comments.go (CollectDiscussionIDs,
+      BuildAnchorTextMap, FindOccurrence)
+- [x] `internal/notion/markdown`: blocks → markdown + markdown → official
+      block objects
+- [x] `internal/ids` (Normalize), `internal/truncation` (Truncator with
+      `{field}Length` companions; rune-based lengths, not UTF-16 units)
+- [x] `internal/notion/v3/transforms.go`: property flattening, block
+      normalization, decoration-range injection, reverse (write-direction)
+      property builders, comment/anchor-text transforms
+- [ ] differential-check gnarly paths vs `bun/` binary (rich-text decorations,
+      anchor text) — after the v3 client exists (Phase 4)
 
 ### Phase 4 — HTTP clients + mocknotion
 - [ ] v3 client (normalize-at-boundary, headers, timeout, DI `Doer`)
