@@ -11,6 +11,14 @@ dist
 release
 *.bun-build
 
+# go
+/agent-notion
+/cmd/**/agent-notion
+*.test
+*.out
+go.work
+go.work.sum
+
 # local
 .cache
 .tmp

@@ -4,7 +4,9 @@ const MAX_DESCRIPTION_LENGTH = 1024;
 
 describe("skill metadata", () => {
   test("keeps frontmatter description within harness limits", async () => {
-    const text = await Bun.file("skills/agent-notion/SKILL.md").text();
+    const text = await Bun.file(
+      new URL("../../skills/agent-notion/SKILL.md", import.meta.url),
+    ).text();
     const match = text.match(/^---\n([\s\S]*?)\n---\n/);
 
     expect(match).not.toBeNull();
