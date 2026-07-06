@@ -1,4 +1,4 @@
-import { describe, test, expect } from "bun:test";
+import { afterEach, describe, test, expect } from "bun:test";
 import { platform } from "node:os";
 import {
   DesktopTokenError,
@@ -8,6 +8,22 @@ import {
 
 const IS_MACOS = platform() === "darwin";
 const LIVE_TESTS = process.env["LIVE_TESTS"] === "1";
+const originalFetch = globalThis.fetch;
+
+function mockGetSpaces(responseBody: unknown, status = 200) {
+  globalThis.fetch = Object.assign(
+    async () =>
+      new Response(JSON.stringify(responseBody), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      }),
+    { preconnect: originalFetch.preconnect },
+  );
+}
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
 
 describe("DesktopTokenError", () => {
   test("has correct name and code", () => {
@@ -73,6 +89,91 @@ describe("extractDesktopToken", () => {
 });
 
 describe("validateDesktopToken", () => {
+  test("extracts session info from role-wrapped getSpaces records", async () => {
+    mockGetSpaces({
+      "user-map-id": {
+        notion_user: {
+          "user-1": {
+            value: {
+              value: {
+                id: "user-1",
+                email: "alice@example.com",
+                name: "Alice Example",
+              },
+              role: "reader",
+            },
+          },
+        },
+        space: {
+          "space-1": {
+            value: {
+              value: {
+                id: "space-1",
+                name: "Example Workspace",
+                plan_type: "team",
+              },
+              role: "editor",
+            },
+          },
+        },
+        space_view: {
+          "view-1": {
+            value: {
+              value: {
+                id: "view-1",
+                space_id: "space-1",
+              },
+              role: "reader",
+            },
+          },
+        },
+      },
+    });
+
+    const session = await validateDesktopToken("fake-token");
+
+    expect(session).toEqual({
+      user_id: "user-map-id",
+      user_email: "alice@example.com",
+      user_name: "Alice Example",
+      space_id: "space-1",
+      space_name: "Example Workspace",
+      space_view_id: "view-1",
+    });
+  });
+
+  test("still extracts session info from shallow getSpaces records", async () => {
+    mockGetSpaces({
+      "user-map-id": {
+        notion_user: {
+          "user-1": {
+            value: {
+              id: "user-1",
+              email: "alice@example.com",
+              name: "Alice Example",
+            },
+          },
+        },
+        space: {
+          "space-1": {
+            value: {
+              id: "space-1",
+              name: "Example Workspace",
+            },
+          },
+        },
+      },
+    });
+
+    const session = await validateDesktopToken("fake-token");
+
+    expect(session.user_id).toBe("user-map-id");
+    expect(session.user_email).toBe("alice@example.com");
+    expect(session.user_name).toBe("Alice Example");
+    expect(session.space_id).toBe("space-1");
+    expect(session.space_name).toBe("Example Workspace");
+  });
+
   if (!IS_MACOS || !LIVE_TESTS) {
     test("skipped: live token validation requires macOS + LIVE_TESTS=1", () => {
       expect(true).toBe(true);

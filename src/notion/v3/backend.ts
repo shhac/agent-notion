@@ -26,7 +26,7 @@ import type {
   UserItem,
   UserMe,
 } from "../types.ts";
-import { V3HttpClient } from "./client.ts";
+import { V3HttpClient, unwrapRecordValue } from "./client.ts";
 import type { V3Block, RecordMap } from "./client.ts";
 import {
   transformV3SearchResult,
@@ -930,7 +930,7 @@ export class V3Backend implements NotionBackend {
     let spaceName: string | undefined;
     if (recordMap.space) {
       const firstSpace = Object.values(recordMap.space)[0];
-      spaceName = (firstSpace?.value as { name?: string })?.name;
+      spaceName = unwrapRecordValue(firstSpace?.value)?.name as string | undefined;
     }
 
     return transformV3UserMe(user, spaceName);
