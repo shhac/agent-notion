@@ -18,6 +18,11 @@ func registerUsage(root *cobra.Command) {
 	})
 }
 
+// addDomainUsage registers a group's LLM usage card. Group files call it
+// from their registerX function (before attachDomainUsage runs), keeping
+// each group self-contained instead of editing a central map.
+func addDomainUsage(name, text string) { domainUsage[name] = text }
+
 // attachDomainUsage adds a `usage` subcommand to each command group that has
 // a detail card in domainUsage. Call after all groups are registered.
 func attachDomainUsage(root *cobra.Command) {

@@ -12,17 +12,24 @@ COMMANDS
              workspace list/switch/set-default/remove* |
              import-desktop | import-browser <name>
   search     query <query> — search page/database titles
+  page       get | create | update | trash* | restore | archive* | unarchive |
+             backlinks | history
+  block      list | append | update | replace | move | delete*
+  database   list | get | schema | query
+  comment    list | add
+  user       list | me
+  export     page | workspace | poll
+  activity   log
+  ai         chat-send | chat-list | chat-get | chat-mark-read | model-list
   config     get <key> | set <key> <value> | unset <key> | list
   usage      this overview; '<group> usage' has per-domain detail
   * = destructive: requires --yes, otherwise returns what WOULD happen
-
-(mid-migration: page, block, database, comment, export, user, activity,
-and ai groups are being ported and land in upcoming releases)
 
 BACKENDS
   Two API backends: the official REST API (integration tokens, OAuth) and
   the v3 desktop-session API (auth import-desktop). --backend auto (default)
   prefers the v3 session when one is stored; force with --backend official|v3.
+  export/activity/backlinks/history/ai and real Archive need the v3 session.
 
 OUTPUT
   One JSON record per line on stdout (NDJSON). --format json|yaml for pretty.
