@@ -230,10 +230,14 @@ export function isTitle(e: NdjsonEvent): e is TitleEvent {
 
 // --- syncRecordValues intermediate types ---
 
-/** Shape returned by syncRecordValues for record entries (double .value.value nesting) */
+/**
+ * Shape of a syncRecordValues record entry after post() has run
+ * normalizeRecordMapResponse (see the RecordMap invariant in client.ts).
+ */
 export type SyncRecordEntry<T> = {
   spaceId?: string;
-  value?: { value?: T; role?: string };
+  value?: T;
+  role?: string;
 };
 
 export type ThreadRecord = {

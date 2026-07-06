@@ -184,14 +184,13 @@ export async function getThreadContent(
   raw?: Record<string, unknown>;
 }> {
   // Fetch thread record
-  // syncRecordValues nests records as: recordMap.thread[id].value.value = { ...actual data }
   let threadRecord: ThreadRecord | undefined;
   try {
     const result = await client.syncRecordValuesForPointers([
       { id: threadId, table: "thread", spaceId },
     ]);
     const entry = result.recordMap.thread?.[threadId] as SyncRecordEntry<ThreadRecord> | undefined;
-    threadRecord = entry?.value?.value;
+    threadRecord = entry?.value;
   } catch {
     // thread table failed
   }
@@ -214,7 +213,6 @@ export async function getThreadContent(
   }
 
   // Fetch all thread_message records
-  // Same nesting: recordMap.thread_message[id].value.value = { ...actual data }
   let rawMsgTable: Record<string, SyncRecordEntry<Record<string, unknown>>> | undefined;
   try {
     const msgResult = await client.syncRecordValuesForPointers(
@@ -232,7 +230,7 @@ export async function getThreadContent(
 
   const messages: ThreadMessage[] = [];
   for (const id of messageIds) {
-    const rec = rawMsgTable[id]?.value?.value;
+    const rec = rawMsgTable[id]?.value;
     if (!rec) continue;
 
     const step = rec.step as Record<string, unknown> | undefined;
