@@ -16,7 +16,7 @@ COMMANDS
              backlinks | history
   block      list | append | update | replace | move | delete*
   database   list | get | schema | query
-  comment    list | add
+  comment    list | page | inline
   user       list | me
   export     page | workspace | poll
   activity   log
