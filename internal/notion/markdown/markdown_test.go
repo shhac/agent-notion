@@ -161,12 +161,12 @@ func TestFlattenBlock(t *testing.T) {
 		{
 			"with content",
 			notion.NormalizedBlock{ID: "b1", Type: "paragraph", RichText: "hello", HasChildren: true},
-			map[string]any{"id": "b1", "type": "paragraph", "hasChildren": true, "content": "hello"},
+			map[string]any{"id": "b1", "type": "paragraph", "has_children": true, "content": "hello"},
 		},
 		{
 			"empty content omits key",
 			notion.NormalizedBlock{ID: "b2", Type: "divider", RichText: "", HasChildren: false},
-			map[string]any{"id": "b2", "type": "divider", "hasChildren": false},
+			map[string]any{"id": "b2", "type": "divider", "has_children": false},
 		},
 	}
 

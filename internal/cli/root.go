@@ -69,6 +69,7 @@ func newRootWithDeps(deps rootDeps) *cobra.Command {
 
 	registerAuth(root, g)
 	registerSearch(root, g)
+	registerPage(root, g)
 	registerConfig(root)
 	registerUsage(root)
 	attachDomainUsage(root)

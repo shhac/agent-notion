@@ -135,13 +135,13 @@ func fromBlocks(blocks []notion.NormalizedBlock, childBlocksMap map[string][]not
 
 // FlattenBlock reduces a normalized block to a simplified object for --raw
 // output. The "content" key is omitted when the block has no rich text (the TS
-// set it to undefined, which JSON drops). Keys stay camelCase to match the TS
-// reference shape.
+// set it to undefined, which JSON drops). Keys are snake_case per the domain
+// contract (an intended break from the TS camelCase).
 func FlattenBlock(block notion.NormalizedBlock) map[string]any {
 	flat := map[string]any{
-		"id":          block.ID,
-		"type":        block.Type,
-		"hasChildren": block.HasChildren,
+		"id":           block.ID,
+		"type":         block.Type,
+		"has_children": block.HasChildren,
 	}
 	if block.RichText != "" {
 		flat["content"] = block.RichText
