@@ -90,7 +90,10 @@ domain payload structure (the parity target).
 - [x] Read existing TS-written keychain entries (`access_token:<alias>` etc.)
 - [ ] `--form` secret entry via `libcli/dialog` (deferred — add with Phase 5 polish)
 - [ ] atomic writes + advisory lock (MCP runs parallel subprocesses) (deferred to Phase 6)
-- [ ] `agent-notion config get/set/unset/list` via `cli.ConfigCommand` (lands in Phase 5)
+- [x] `agent-notion config get/set/unset/list` via `cli.ConfigCommand`
+      (keys: page_size, max_depth, truncation.max_length, ai.default_model;
+      family surface replaces TS reset/list-keys; zero values are rejected —
+      they can't round-trip omitempty fields — with unset as the reset path)
 - [x] `agent-notion auth status` (reads creds, prints source, no secret)
 - [x] tests: keychain interface fake, `XDG_CONFIG_HOME=t.TempDir()`,
       `AGENT_NOTION_NO_KEYCHAIN=1`; verify it reads a fixture config.json

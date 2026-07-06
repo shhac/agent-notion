@@ -11,7 +11,8 @@ COMMANDS
   auth       status | setup-oauth | login | import | logout* |
              workspace list/switch/set-default/remove* |
              import-desktop | import-browser <name>
-  usage      this overview; 'auth usage' has per-domain detail
+  config     get <key> | set <key> <value> | unset <key> | list
+  usage      this overview; 'auth usage'/'config usage' have per-domain detail
   * = destructive: requires --yes, otherwise returns what WOULD happen
 
 (mid-migration: page, block, database, search, comment, export, user,
@@ -24,8 +25,42 @@ OUTPUT
 
 // domainUsage maps a command-group name to its detail card.
 var domainUsage = map[string]string{
-	"auth": authUsageText,
+	"auth":   authUsageText,
+	"config": configUsageText,
 }
+
+const configUsageText = `agent-notion config — View and update persistent CLI settings
+
+SUBCOMMANDS
+  config get <key>            Show one setting: {key, value, set}
+  config set <key> <value>    Update a setting: {set, value}
+  config unset <key>          Reset a setting to its default: {unset}
+  config list                 List every key: {key, value, set, description}
+
+SETTING KEYS
+  page_size               Default results per list command. Integer 1-100 (Notion API max). Default 50.
+  max_depth               Max nesting depth when recursively fetching blocks. Positive integer; unset = no limit.
+  truncation.max_length   Max characters before truncating description/body/content. Positive integer; unset = default 200.
+  ai.default_model        Default AI model codename (e.g. oatmeal-cookie). Use 'ai model list' for options.
+
+EXAMPLES
+  config set page_size 20                 Fetch fewer results per page
+  config set truncation.max_length 500    Show more content before truncating
+  config get truncation.max_length        Check the current value
+  config unset truncation.max_length      Reset truncation to its default
+  config list                             See all keys with descriptions
+
+STORAGE
+  Persisted in ~/.config/agent-notion/config.json alongside auth. Once every
+  setting is cleared, the 'settings' object is dropped from the file entirely.
+
+OUTPUT
+  NDJSON on stdout. Unknown keys return {error, fixable_by:agent, hint} listing
+  the valid keys.
+
+NOTE
+  This adopts the family-standard get/set/unset/list surface, replacing the TS
+  'config reset'/'config list-keys'.`
 
 const authUsageText = `agent-notion auth — Manage Notion authentication and workspaces
 
