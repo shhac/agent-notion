@@ -170,7 +170,12 @@ domain payload structure (the parity target).
 - [ ] export task binary download (with the `export` command group, Phase 5)
 
 ### Phase 5 — backend + command surface
-- [ ] `NotionBackend` interface + both implementations
+- [x] `notion.Backend` interface (26 methods incl. the four v3-only ops:
+      ArchivePage/UnarchivePage/MoveBlock/AddInlineComment) + the **v3
+      implementation** (`internal/notion/v3/backend.go` + comment
+      orchestration), tested HTTP-level against mocknotion
+- [ ] official backend implementation (thin: the official client methods +
+      guidance errors for the four v3-only ops) + backend factory/dispatch
 - [ ] 12 groups (activity, ai, auth, block, comment, config, database, export,
       page, search, usage, user), big families split across files
 - [ ] usage cards ported ~verbatim; `--yes` gates on destructive ops

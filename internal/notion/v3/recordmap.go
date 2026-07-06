@@ -78,6 +78,9 @@ type Block struct {
 	Discussions    []string            `json:"discussions"`
 	Format         map[string]any      `json:"format"`
 	SpaceID        string              `json:"space_id"`
+	// CollectionID and ViewIDs are set on collection_view/_page blocks.
+	CollectionID string   `json:"collection_id"`
+	ViewIDs      []string `json:"view_ids"`
 }
 
 // IsAlive treats a missing alive field as alive (matching the TS
