@@ -4,13 +4,16 @@ Companion to [go-rewrite.md](./go-rewrite.md) (rationale + target layout).
 This file is the live checklist. Tick items as they land; keep the "Now / Next"
 line current so anyone picking up mid-flight knows where things stand.
 
-**Now:** Phases 0–4 done — scaffold, config/credentials, auth surface,
-pure transforms, and the HTTP layer (v3 client, official REST client,
-NDJSON reader, mocknotion). The `NotionBackend` interface + v3 backend
-(first Phase 5 slice) is in flight.
-**Next:** Phase 5 — backend implementations, then the 9 command groups.
-Leftovers pulled forward: differential golden runs (needs real creds),
-export binary download (with the export group).
+**Now:** Phases 0–4 done, plus the family-alignment pass (GlobalFlags/
+rootDeps DI, output funnel honoring --format, YAML encoder, hidden
+--base-url driving mocknotion end-to-end, --backend auto|official|v3,
+internal/errors classification) and the Phase 5 core: both backends, the
+factory with OAuth 401-refresh-retry, config group, and `search` as the
+command-group exemplar. Remaining groups are being ported in parallel.
+**Next:** page/block/database/user/comment/export/activity/ai groups →
+structure pass → MCP (Phase 6) → docs/release/cutover (Phase 7).
+Leftovers: differential golden runs (needs real creds), export binary
+download (with the export group).
 
 ## Resolved decisions
 
@@ -174,8 +177,15 @@ domain payload structure (the parity target).
       ArchivePage/UnarchivePage/MoveBlock/AddInlineComment) + the **v3
       implementation** (`internal/notion/v3/backend.go` + comment
       orchestration), tested HTTP-level against mocknotion
-- [ ] official backend implementation (thin: the official client methods +
-      guidance errors for the four v3-only ops) + backend factory/dispatch
+- [x] official backend implementation (guidance errors for the four v3-only
+      ops) + backend factory (`internal/cli/backend.go`: TS dispatch order,
+      --backend override, withBackend OAuth 401-refresh-retry)
+- [x] family-alignment pass (from the audit): GlobalFlags/rootDeps DI,
+      emitItem/printList funnel over libcli.EmitItem/output.WriteList,
+      lib-agent-cli/yaml registration, hidden --base-url, --timeout wiring,
+      internal/errors classification seam, self-registering usage cards
+- [x] `search query` — the command-group exemplar (withBackend + Classify,
+      printPaginated @pagination trailer, page_size setting actually wired)
 - [ ] 12 groups (activity, ai, auth, block, comment, config, database, export,
       page, search, usage, user), big families split across files
 - [ ] usage cards ported ~verbatim; `--yes` gates on destructive ops
