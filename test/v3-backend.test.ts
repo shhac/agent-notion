@@ -1,86 +1,10 @@
 import { describe, test, expect } from "bun:test";
-import type { V3Block, V3Collection, V3User, V3Comment, V3Discussion } from "../src/notion/v3/client.ts";
-import { normalizeRecordMapResponse } from "../src/notion/v3/client.ts";
+import type { V3Collection, V3User, V3Comment, V3Discussion } from "../src/notion/v3/record-map.ts";
+import { normalizeRecordMapResponse } from "../src/notion/v3/record-map.ts";
 import { V3Backend } from "../src/notion/v3/backend.ts";
 import type { V3Operation } from "../src/notion/v3/operations.ts";
-
-// --- Mock HTTP Client ---
-
-type MockResponses = {
-  search?: () => any;
-  loadPageChunk?: (params: any) => any;
-  syncRecordValues?: (requests: any) => any;
-  queryCollection?: (params: any) => any;
-  saveTransactions?: (ops: V3Operation[]) => void;
-  restoreRecord?: (params: any) => any;
-  loadUserContent?: () => any;
-  enqueueTask?: (task: any) => any;
-  getTasks?: (taskIds: string[]) => any;
-};
-
-function createMockClient(responses: MockResponses = {}) {
-  const calls: Record<string, any[]> = {};
-
-  function track(method: string, args: any) {
-    if (!calls[method]) calls[method] = [];
-    calls[method].push(args);
-  }
-
-  const client = {
-    get spaceId_() { return "space-1"; },
-    get userId_() { return "user-1"; },
-    search: async (params: any) => {
-      track("search", params);
-      return responses.search?.() ?? { results: [], total: 0, recordMap: {} };
-    },
-    loadPageChunk: async (params: any) => {
-      track("loadPageChunk", params);
-      return responses.loadPageChunk?.(params) ?? { recordMap: {}, cursor: { stack: [] } };
-    },
-    syncRecordValues: async (requests: any) => {
-      track("syncRecordValues", requests);
-      return responses.syncRecordValues?.(requests) ?? { recordMap: {} };
-    },
-    queryCollection: async (params: any) => {
-      track("queryCollection", params);
-      return responses.queryCollection?.(params) ?? { result: { blockIds: [], total: 0 }, recordMap: {} };
-    },
-    saveTransactions: async (ops: V3Operation[]) => {
-      track("saveTransactions", ops);
-      responses.saveTransactions?.(ops);
-    },
-    restoreRecord: async (params: any) => {
-      track("restoreRecord", params);
-      return responses.restoreRecord?.(params) ?? { recordMap: {} };
-    },
-    loadUserContent: async () => {
-      track("loadUserContent", {});
-      return responses.loadUserContent?.() ?? { recordMap: {} };
-    },
-  };
-
-  return { client: client as any, calls };
-}
-
-// --- Helpers ---
-
-function makeBlock(overrides: Partial<V3Block> & { id: string }): V3Block {
-  return {
-    type: "page",
-    version: 1,
-    created_time: 1700000000000,
-    last_edited_time: 1700001000000,
-    parent_id: "parent-1",
-    parent_table: "block",
-    alive: true,
-    space_id: "space-1",
-    ...overrides,
-  };
-}
-
-function wrapBlock(block: V3Block): { value: V3Block; role: string } {
-  return { value: block, role: "reader" };
-}
+import { createMockClient } from "./helpers/mock-v3-client.ts";
+import { makeBlock, wrapBlock } from "./helpers/fixtures.ts";
 
 // =============================================================================
 // search
@@ -710,8 +634,10 @@ describe("V3Backend.getMe", () => {
   test("returns current user with role-wrapped records", async () => {
     const user: V3User = { id: "u1", version: 1, email: "a@b.com", given_name: "Alice", family_name: "B" };
 
+    // Role-wrapped wire format is normalized by post() before consumers see it;
+    // route the fixture through the same normalizer to exercise the real seam.
     const { client } = createMockClient({
-      loadUserContent: () => ({
+      loadUserContent: () => normalizeRecordMapResponse({
         recordMap: {
           notion_user: {
             "u1": { value: { value: user, role: "reader" } },
@@ -1602,137 +1528,5 @@ describe("V3Backend.getChildBlocks", () => {
     }
     // getAllBlocks calls loadPageChunk for each block ID
     expect(calls.loadPageChunk!.length).toBe(7);
-  });
-});
-
-// =============================================================================
-// normalizeRecordMapResponse
-// =============================================================================
-
-describe("normalizeRecordMapResponse", () => {
-  test("unwraps new spaceId-wrapped recordMap entries", () => {
-    const block: V3Block = makeBlock({ id: "page-1" });
-    const input = {
-      recordMap: {
-        block: {
-          "page-1": {
-            spaceId: "space-1",
-            value: { value: block, role: "reader" },
-          },
-        },
-      },
-      cursor: { stack: [] },
-    };
-
-    const result = normalizeRecordMapResponse(input);
-
-    // Should unwrap to old format: { value: V3Block, role: string }
-    const entry = result.recordMap.block["page-1"] as any;
-    expect(entry.value).toEqual(block);
-    expect(entry.role).toBe("reader");
-    expect(entry.spaceId).toBeUndefined();
-  });
-
-  test("passes through old-format recordMap entries unchanged", () => {
-    const block: V3Block = makeBlock({ id: "page-1" });
-    const input = {
-      recordMap: {
-        block: {
-          "page-1": { value: block, role: "reader" },
-        },
-      },
-      cursor: { stack: [] },
-    };
-
-    const result = normalizeRecordMapResponse(input);
-
-    const entry = result.recordMap.block["page-1"] as any;
-    expect(entry.value).toEqual(block);
-    expect(entry.role).toBe("reader");
-  });
-
-  test("normalizes all tables in the recordMap", () => {
-    const block: V3Block = makeBlock({ id: "page-1" });
-    const collection: V3Collection = {
-      id: "col-1",
-      version: 1,
-      name: [["Test"]],
-      schema: {},
-      parent_id: "p1",
-      parent_table: "block",
-    };
-    const input = {
-      recordMap: {
-        block: {
-          "page-1": {
-            spaceId: "space-1",
-            value: { value: block, role: "reader" },
-          },
-        },
-        collection: {
-          "col-1": {
-            spaceId: "space-1",
-            value: { value: collection, role: "reader" },
-          },
-        },
-      },
-    };
-
-    const result = normalizeRecordMapResponse(input);
-
-    expect((result.recordMap.block["page-1"] as any).value.id).toBe("page-1");
-    expect((result.recordMap.collection["col-1"] as any).value.id).toBe("col-1");
-  });
-
-  test("unwraps nested entries without spaceId", () => {
-    const block: V3Block = makeBlock({ id: "child-1", type: "paragraph" });
-    const input = {
-      recordMap: {
-        block: {
-          "child-1": {
-            value: { value: block, role: "reader" },
-          },
-        },
-      },
-      cursor: { stack: [] },
-    };
-
-    const result = normalizeRecordMapResponse(input);
-
-    const entry = result.recordMap.block["child-1"] as any;
-    expect(entry.value).toEqual(block);
-    expect(entry.role).toBe("reader");
-  });
-
-  test("handles mixed spaceId and non-spaceId entries", () => {
-    const parent: V3Block = makeBlock({ id: "page-1", type: "page", content: ["child-1"] });
-    const child: V3Block = makeBlock({ id: "child-1", type: "paragraph", parent_id: "page-1" });
-    const input = {
-      recordMap: {
-        block: {
-          "page-1": {
-            spaceId: "space-1",
-            value: { value: parent, role: "reader" },
-          },
-          "child-1": {
-            value: { value: child, role: "reader" },
-          },
-        },
-      },
-      cursor: { stack: [] },
-    };
-
-    const result = normalizeRecordMapResponse(input);
-
-    expect((result.recordMap.block["page-1"] as any).value.id).toBe("page-1");
-    expect((result.recordMap.block["page-1"] as any).value.type).toBe("page");
-    expect((result.recordMap.block["child-1"] as any).value.id).toBe("child-1");
-    expect((result.recordMap.block["child-1"] as any).value.type).toBe("paragraph");
-  });
-
-  test("returns non-recordMap responses unchanged", () => {
-    const input = { taskId: "abc-123" };
-    const result = normalizeRecordMapResponse(input);
-    expect(result).toEqual(input);
   });
 });

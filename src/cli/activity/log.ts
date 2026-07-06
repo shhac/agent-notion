@@ -3,7 +3,8 @@ import { createV3Client } from "../../notion/client.ts";
 import { handleAction } from "../../lib/errors.ts";
 import { normalizeId } from "../../lib/ids.ts";
 import { printJson } from "../../lib/output.ts";
-import { getBlock, getUser, v3RichTextToPlain } from "../../notion/v3/transforms.ts";
+import { getBlock, getUser } from "../../notion/v3/record-map.ts";
+import { v3RichTextToPlain } from "../../notion/v3/transforms.ts";
 
 export function registerLog(activity: Command): void {
   activity.addCommand(

@@ -8,6 +8,8 @@ import type {
   GetInferenceTranscriptsResponse,
   MarkTranscriptSeenResponse,
 } from "./ai-types.ts";
+import { normalizeRecordMapResponse } from "./record-map.ts";
+import type { RecordMap, V3Snapshot, V3Activity } from "./record-map.ts";
 
 const BASE_URL = "https://www.notion.so/api/v3";
 const DEFAULT_TIMEOUT = 30_000;
@@ -37,6 +39,27 @@ export class V3HttpClient {
     this.spaceId = params.spaceId;
   }
 
+  private buildHeaders(extra?: Record<string, string>): Record<string, string> {
+    return {
+      "Content-Type": "application/json",
+      Cookie: `token_v2=${this.tokenV2}`,
+      "x-notion-active-user-header": this.userId,
+      "notion-client-version": NOTION_CLIENT_VERSION,
+      "notion-audit-log-platform": "web",
+      ...extra,
+    };
+  }
+
+  private static async throwIfNotOk(response: Response, endpoint: string): Promise<void> {
+    if (response.ok) return;
+    const text = await response.text().catch(() => "");
+    throw new V3HttpError(
+      `v3 API error: ${response.status} ${response.statusText}${text ? ` — ${text.slice(0, 200)}` : ""}`,
+      response.status,
+      endpoint,
+    );
+  }
+
   private async post<T>(
     endpoint: string,
     body: unknown,
@@ -47,30 +70,14 @@ export class V3HttpClient {
     const timer = setTimeout(() => controller.abort(), timeout);
 
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        Cookie: `token_v2=${this.tokenV2}`,
-        "x-notion-active-user-header": this.userId,
-        "notion-client-version": NOTION_CLIENT_VERSION,
-        "notion-audit-log-platform": "web",
-        ...options?.extraHeaders,
-      };
-
       const response = await fetch(`${BASE_URL}/${endpoint}`, {
         method: "POST",
-        headers,
+        headers: this.buildHeaders(options?.extraHeaders),
         body: JSON.stringify(body),
         signal: controller.signal,
       });
 
-      if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new V3HttpError(
-          `v3 API error: ${response.status} ${response.statusText}${text ? ` — ${text.slice(0, 200)}` : ""}`,
-          response.status,
-          endpoint,
-        );
-      }
+      await V3HttpClient.throwIfNotOk(response, endpoint);
 
       const result = (await response.json()) as T;
       return normalizeRecordMapResponse(result) as T;
@@ -94,32 +101,18 @@ export class V3HttpClient {
     const timer = setTimeout(() => controller.abort(), timeout);
 
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        Accept: "application/x-ndjson",
-        Cookie: `token_v2=${this.tokenV2}`,
-        "x-notion-active-user-header": this.userId,
-        "x-notion-space-id": this.spaceId,
-        "notion-client-version": NOTION_CLIENT_VERSION,
-        "notion-audit-log-platform": "web",
-        ...options?.extraHeaders,
-      };
-
       const response = await fetch(`${BASE_URL}/${endpoint}`, {
         method: "POST",
-        headers,
+        headers: this.buildHeaders({
+          Accept: "application/x-ndjson",
+          "x-notion-space-id": this.spaceId,
+          ...options?.extraHeaders,
+        }),
         body: JSON.stringify(body),
         signal: controller.signal,
       });
 
-      if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new V3HttpError(
-          `v3 API error: ${response.status} ${response.statusText}${text ? ` — ${text.slice(0, 200)}` : ""}`,
-          response.status,
-          endpoint,
-        );
-      }
+      await V3HttpClient.throwIfNotOk(response, endpoint);
 
       // Don't clear timer here — the caller controls when streaming ends.
       // Instead, clear it when the body is fully consumed or on abort.
@@ -133,10 +126,6 @@ export class V3HttpClient {
   }
 
   // --- Read endpoints ---
-
-  async getSpaces(): Promise<Record<string, unknown>> {
-    return this.post("getSpaces", {});
-  }
 
   async loadUserContent(): Promise<{ recordMap: RecordMap }> {
     return this.post("loadUserContent", {});
@@ -259,24 +248,6 @@ export class V3HttpClient {
         ...params.filters,
       },
     });
-  }
-
-  async getSignedFileUrls(
-    urls: Array<{ url: string; permissionRecord: { table: string; id: string } }>,
-  ): Promise<{ signedUrls: string[] }> {
-    return this.post("getSignedFileUrls", { urls });
-  }
-
-  async submitTransaction(
-    operations: Array<{
-      id: string;
-      table: string;
-      path: string[];
-      command: string;
-      args: unknown;
-    }>,
-  ): Promise<void> {
-    await this.post("submitTransaction", { operations });
   }
 
   async saveTransactions(operations: V3Operation[]): Promise<void> {
@@ -423,79 +394,6 @@ export class V3HttpClient {
   }
 }
 
-// --- RecordMap normalization ---
-
-/**
- * Notion's v3 API changed the recordMap entry format from:
- *   { value: V3Block, role?: string }
- * to:
- *   { spaceId: string, value: { value: V3Block, role?: string } }
- *
- * This function unwraps the extra nesting so all consumers work unchanged.
- * Applied automatically in the post() method to all API responses.
- */
-export function normalizeRecordMapResponse<T>(result: T): T {
-  if (!result || typeof result !== "object" || !("recordMap" in result)) {
-    return result;
-  }
-
-  const r = result as Record<string, unknown>;
-  const rm = r.recordMap;
-  if (!rm || typeof rm !== "object") return result;
-
-  const normalized: Record<string, unknown> = {};
-  for (const [table, records] of Object.entries(rm as Record<string, unknown>)) {
-    if (!records || typeof records !== "object") {
-      normalized[table] = records;
-      continue;
-    }
-
-    const tableRecords: Record<string, unknown> = {};
-    for (const [id, entry] of Object.entries(records as Record<string, unknown>)) {
-      // Detect new format: entry.value has nested "value" containing the actual record.
-      // Variant A: { spaceId, value: { value: V3Block, role } }
-      // Variant B: { value: { value: V3Block, role } }  (no spaceId)
-      // Old format: { value: V3Block, role }  (value.value would be a primitive like version number)
-      tableRecords[id] = unwrapRecordMapEntry(entry);
-    }
-    normalized[table] = tableRecords;
-  }
-
-  r.recordMap = normalized;
-  return result;
-}
-
-function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-/** Return the actual v3 entity from either an entity or a role-wrapped value. */
-export function unwrapRecordValue(value: unknown): Record<string, unknown> | undefined {
-  if (!isObjectRecord(value)) return undefined;
-
-  const nested = value.value;
-  if (isObjectRecord(nested)) {
-    return nested;
-  }
-
-  return value;
-}
-
-/** Return a v3 RecordMap entry in the old { value: entity, role } shape. */
-export function unwrapRecordMapEntry(entry: unknown): unknown {
-  if (!isObjectRecord(entry)) return entry;
-
-  const value = entry.value;
-  if (!isObjectRecord(value)) return entry;
-
-  const nested = value.value;
-  if (isObjectRecord(nested)) {
-    return value;
-  }
-
-  return entry;
-}
-
 // --- Export task type ---
 
 export type V3ExportTask = {
@@ -508,151 +406,4 @@ export type V3ExportTask = {
     exportURL?: string;
   };
   error?: string;
-};
-
-// --- RecordMap type ---
-
-export type RecordMap = {
-  block?: Record<string, { value: V3Block; role?: string }>;
-  collection?: Record<string, { value: V3Collection; role?: string }>;
-  collection_view?: Record<string, { value: V3CollectionView; role?: string }>;
-  notion_user?: Record<string, { value: V3User; role?: string }>;
-  space?: Record<string, { value: V3Space; role?: string }>;
-  [table: string]: Record<string, { value: Record<string, unknown>; role?: string }> | undefined;
-};
-
-export type V3Block = {
-  id: string;
-  type: string;
-  version: number;
-  created_time: number;
-  last_edited_time: number;
-  parent_id: string;
-  parent_table: string;
-  alive: boolean;
-  properties?: Record<string, V3RichText>;
-  content?: string[];
-  format?: Record<string, unknown>;
-  space_id: string;
-  [key: string]: unknown;
-};
-
-/** V3 rich text: array of [text, decorations?] tuples */
-export type V3RichText = Array<[string] | [string, V3Decoration[]]>;
-
-/** V3 decoration: [type, ...args] */
-export type V3Decoration = [string, ...unknown[]];
-
-export type V3Collection = {
-  id: string;
-  version: number;
-  name: V3RichText;
-  description?: V3RichText;
-  schema: Record<string, V3PropertySchema>;
-  parent_id: string;
-  parent_table: string;
-  icon?: string;
-  cover?: string;
-  format?: Record<string, unknown>;
-  [key: string]: unknown;
-};
-
-export type V3PropertySchema = {
-  name: string;
-  type: string;
-  options?: Array<{ id: string; value: string; color?: string }>;
-  groups?: Array<{ id: string; name: string; optionIds?: string[]; color?: string }>;
-  number_format?: string;
-  collection_id?: string;
-  [key: string]: unknown;
-};
-
-export type V3CollectionView = {
-  id: string;
-  version: number;
-  type: string;
-  name?: string;
-  parent_id: string;
-  parent_table: string;
-  alive: boolean;
-  format?: Record<string, unknown>;
-  query2?: {
-    filter?: unknown;
-    sort?: unknown;
-    aggregations?: unknown;
-  };
-  [key: string]: unknown;
-};
-
-export type V3User = {
-  id: string;
-  version: number;
-  email: string;
-  given_name: string;
-  family_name: string;
-  profile_photo?: string;
-  [key: string]: unknown;
-};
-
-export type V3Space = {
-  id: string;
-  version: number;
-  name: string;
-  icon?: string;
-  domain?: string;
-  plan_type?: string;
-  [key: string]: unknown;
-};
-
-export type V3Discussion = {
-  id: string;
-  version: number;
-  parent_id: string;
-  parent_table: string;
-  resolved: boolean;
-  comments: string[];
-  [key: string]: unknown;
-};
-
-export type V3Comment = {
-  id: string;
-  version: number;
-  alive: boolean;
-  parent_id: string;
-  parent_table: string;
-  text: V3RichText;
-  created_by_id: string;
-  created_by_table: string;
-  created_time: number;
-  last_edited_time: number;
-  [key: string]: unknown;
-};
-
-export type V3Snapshot = {
-  id: string;
-  version: number;
-  last_version: number;
-  timestamp: number;
-  authors: Array<{ id: string; table: string }>;
-};
-
-export type V3Activity = {
-  id: string;
-  version: number;
-  type: string;
-  parent_id: string;
-  parent_table: string;
-  navigable_block_id?: string;
-  collection_id?: string;
-  space_id: string;
-  edits?: Array<{
-    type: string;
-    block_id?: string;
-    timestamp: number;
-    authors?: Array<{ id: string; table: string }>;
-    [key: string]: unknown;
-  }>;
-  start_time?: number;
-  end_time?: number;
-  [key: string]: unknown;
 };

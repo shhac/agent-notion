@@ -1,6 +1,7 @@
 import { describe, test, expect } from "bun:test";
-import type { RecordMap, V3Snapshot, V3Activity } from "../src/notion/v3/client.ts";
-import { getBlock, getUser, v3RichTextToPlain } from "../src/notion/v3/transforms.ts";
+import type { RecordMap, V3Snapshot, V3Activity } from "../src/notion/v3/record-map.ts";
+import { getBlock, getUser } from "../src/notion/v3/record-map.ts";
+import { v3RichTextToPlain } from "../src/notion/v3/transforms.ts";
 
 describe("backlinks response processing", () => {
   const recordMap: RecordMap = {

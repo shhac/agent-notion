@@ -1,12 +1,11 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { V3HttpError } from "../src/notion/v3/client.ts";
 
+import { mockFetch, restoreFetch } from "./helpers/fetch-mock.ts";
+
 // Mock Bun.write to avoid filesystem writes
 const originalBunWrite = Bun.write;
 let writeCalls: Array<{ path: string; data: any }> = [];
-
-// Mock fetch to avoid real HTTP
-const originalFetch = globalThis.fetch;
 
 // --- Helpers ---
 
@@ -49,7 +48,7 @@ describe("exportAndDownload", () => {
 
   afterEach(() => {
     process.stderr.write = originalStderrWrite;
-    globalThis.fetch = originalFetch;
+    restoreFetch();
     // @ts-ignore
     Bun.write = originalBunWrite;
   });
@@ -82,12 +81,7 @@ describe("exportAndDownload", () => {
     });
 
     // Mock fetch for download
-    globalThis.fetch = (async (_url: any) => ({
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      arrayBuffer: async () => new ArrayBuffer(8),
-    })) as any;
+    mockFetch(() => new Response(new ArrayBuffer(8)));
 
     // Mock Bun.write
     // @ts-ignore
@@ -168,11 +162,7 @@ describe("exportAndDownload", () => {
       }),
     });
 
-    globalThis.fetch = (async () => ({
-      ok: false,
-      status: 403,
-      statusText: "Forbidden",
-    })) as any;
+    mockFetch(() => new Response(null, { status: 403, statusText: "Forbidden" }));
 
     await expect(
       exportAndDownload(
@@ -243,11 +233,7 @@ describe("exportAndDownload", () => {
       },
     });
 
-    globalThis.fetch = (async () => ({
-      ok: true,
-      status: 200,
-      arrayBuffer: async () => new ArrayBuffer(4),
-    })) as any;
+    mockFetch(() => new Response(new ArrayBuffer(4)));
 
     // @ts-ignore
     Bun.write = async () => {};

@@ -4,26 +4,18 @@ import {
   DesktopTokenError,
   extractDesktopToken,
   validateDesktopToken,
+  parseGetSpacesSession,
 } from "../src/lib/desktop-token.ts";
+import { mockFetch, restoreFetch } from "./helpers/fetch-mock.ts";
 
 const IS_MACOS = platform() === "darwin";
 const LIVE_TESTS = process.env["LIVE_TESTS"] === "1";
-const originalFetch = globalThis.fetch;
 
 function mockGetSpaces(responseBody: unknown, status = 200) {
-  globalThis.fetch = Object.assign(
-    async () =>
-      new Response(JSON.stringify(responseBody), {
-        status,
-        headers: { "Content-Type": "application/json" },
-      }),
-    { preconnect: originalFetch.preconnect },
-  );
+  mockFetch(responseBody, status);
 }
 
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
+afterEach(restoreFetch);
 
 describe("DesktopTokenError", () => {
   test("has correct name and code", () => {
@@ -89,6 +81,26 @@ describe("extractDesktopToken", () => {
 });
 
 describe("validateDesktopToken", () => {
+  test("throws validation_failed on a non-OK response", async () => {
+    mockGetSpaces({}, 401);
+
+    const err = await validateDesktopToken("expired-token").catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(DesktopTokenError);
+    expect((err as DesktopTokenError).code).toBe("validation_failed");
+    expect((err as DesktopTokenError).message).toContain("HTTP 401");
+  });
+
+  test("throws validation_failed when the response has no user entry", async () => {
+    mockGetSpaces({});
+
+    const err = await validateDesktopToken("expired-token").catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(DesktopTokenError);
+    expect((err as DesktopTokenError).code).toBe("validation_failed");
+    expect((err as DesktopTokenError).message).toContain("Could not extract user info");
+  });
+
   test("extracts session info from role-wrapped getSpaces records", async () => {
     mockGetSpaces({
       "user-map-id": {
@@ -210,4 +222,59 @@ describe("validateDesktopToken", () => {
       }
     });
   }
+});
+
+describe("parseGetSpacesSession", () => {
+  const shallowRecord = (entity: Record<string, unknown>) => ({ value: entity });
+
+  test("prefers a team space over an earlier free space", () => {
+    const session = parseGetSpacesSession({
+      "user-map-id": {
+        notion_user: {
+          "user-1": shallowRecord({ id: "user-1", email: "alice@example.com", name: "Alice Example" }),
+        },
+        space: {
+          "space-free": shallowRecord({ id: "space-free", name: "Personal", plan_type: "personal" }),
+          "space-team": shallowRecord({ id: "space-team", name: "Team Workspace", plan_type: "team" }),
+        },
+      },
+    });
+
+    expect(session.space_id).toBe("space-team");
+    expect(session.space_name).toBe("Team Workspace");
+  });
+
+  test("falls back to the first space when no team/enterprise plan exists", () => {
+    const session = parseGetSpacesSession({
+      "user-map-id": {
+        space: {
+          "space-a": shallowRecord({ id: "space-a", name: "First" }),
+          "space-b": shallowRecord({ id: "space-b", name: "Second" }),
+        },
+      },
+    });
+
+    expect(session.space_id).toBe("space-a");
+    expect(session.user_email).toBe("");
+  });
+
+  test("leaves space_view_id undefined when no space_view matches", () => {
+    const session = parseGetSpacesSession({
+      "user-map-id": {
+        space: {
+          "space-1": shallowRecord({ id: "space-1", name: "Example Workspace" }),
+        },
+        space_view: {
+          "view-other": shallowRecord({ id: "view-other", space_id: "some-other-space" }),
+        },
+      },
+    });
+
+    expect(session.space_id).toBe("space-1");
+    expect(session.space_view_id).toBeUndefined();
+  });
+
+  test("throws when the response is empty", () => {
+    expect(() => parseGetSpacesSession({})).toThrow(DesktopTokenError);
+  });
 });

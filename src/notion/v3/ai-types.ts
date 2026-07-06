@@ -216,10 +216,6 @@ export function isAgentInference(e: NdjsonEvent): e is AgentInferenceEvent {
   return e.type === "agent-inference";
 }
 
-export function isAgentToolResult(e: NdjsonEvent): e is AgentToolResultEvent {
-  return e.type === "agent-tool-result";
-}
-
 export function isPatchStart(e: NdjsonEvent): e is PatchStartEvent {
   return e.type === "patch-start";
 }

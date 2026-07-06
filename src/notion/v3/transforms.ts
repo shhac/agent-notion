@@ -19,17 +19,14 @@ import type {
   UserMe,
 } from "../types.ts";
 import type {
-  RecordMap,
   V3Block,
   V3RichText,
   V3Decoration,
   V3Collection,
   V3PropertySchema,
   V3User,
-  V3Discussion,
   V3Comment,
-} from "./client.ts";
-import { unwrapRecordValue } from "./client.ts";
+} from "./record-map.ts";
 
 // --- Rich text ---
 
@@ -553,46 +550,11 @@ export function addDecorationToRange(
   return result;
 }
 
-/**
- * Convenience wrapper: inject an ["m", discussionId] decoration on the first
- * occurrence of `targetText` within a V3RichText array.
- * Throws if targetText is empty or not found.
- */
-export function injectCommentDecoration(
-  richText: V3RichText,
-  targetText: string,
-  discussionId: string,
-): V3RichText {
-  if (!targetText) throw new Error("Target text for inline comment cannot be empty");
-
-  const fullText = richText.map((seg) => seg[0]).join("");
-  const start = fullText.indexOf(targetText);
-  if (start === -1) {
-    throw new Error(`Target text "${targetText}" not found in block text "${fullText}"`);
-  }
-
-  return addDecorationToRange(richText, start, start + targetText.length, ["m", discussionId]);
-}
-
 // --- Reverse transforms (write direction) ---
 
 /** Convert a plain text string to v3 rich text format. */
 export function toV3RichText(text: string): V3RichText {
   return [[text]];
-}
-
-/** Reverse of V3_BLOCK_TYPE_MAP: official API block type → v3 block type. */
-const OFFICIAL_TO_V3_BLOCK_TYPE: Record<string, string> = {};
-for (const [v3Type, officialType] of Object.entries(V3_BLOCK_TYPE_MAP)) {
-  // First entry wins (avoids collection_view overwriting collection_view_page for child_database)
-  if (!(officialType in OFFICIAL_TO_V3_BLOCK_TYPE)) {
-    OFFICIAL_TO_V3_BLOCK_TYPE[officialType] = v3Type;
-  }
-}
-
-/** Convert an official API block type to its v3 equivalent. */
-export function officialBlockTypeToV3(type: string): string {
-  return OFFICIAL_TO_V3_BLOCK_TYPE[type] ?? type;
 }
 
 /**
@@ -648,74 +610,26 @@ export function buildV3PropertyValue(
   }
 }
 
-// --- RecordMap helpers ---
-
-function getRecordEntity<T extends Record<string, unknown>>(
-  entry: { value?: unknown } | undefined,
-): T | undefined {
-  return unwrapRecordValue(entry?.value) as T | undefined;
+/**
+ * Map human-readable property names to schema-ID-keyed v3 property values.
+ * Skips the title property and silently drops names with no matching schema entry.
+ */
+export function mapPropertiesToSchema(
+  properties: Record<string, unknown>,
+  schema: Record<string, V3PropertySchema>,
+): Record<string, unknown> {
+  const mapped: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(properties)) {
+    if (name === "Name" || name === "title") continue;
+    const schemaEntry = Object.entries(schema).find(([, s]) => s.name === name);
+    if (schemaEntry) {
+      mapped[schemaEntry[0]] = buildV3PropertyValue(value, schemaEntry[1].type);
+    }
+  }
+  return mapped;
 }
 
-/** Extract a block from a RecordMap by ID. */
-export function getBlock(recordMap: RecordMap, id: string): V3Block | undefined {
-  return getRecordEntity<V3Block>(recordMap.block?.[id]);
-}
-
-/** Extract a collection from a RecordMap by ID. */
-export function getCollection(recordMap: RecordMap, id: string): V3Collection | undefined {
-  return getRecordEntity<V3Collection>(recordMap.collection?.[id]);
-}
-
-/** Get all blocks from a RecordMap. */
-export function getAllBlocks(recordMap: RecordMap): V3Block[] {
-  if (!recordMap.block) return [];
-  return Object.values(recordMap.block)
-    .map((entry) => getRecordEntity<V3Block>(entry))
-    .filter((block): block is V3Block => Boolean(block && block.alive !== false));
-}
-
-/** Get the first collection from a RecordMap. */
-export function getFirstCollection(recordMap: RecordMap): V3Collection | undefined {
-  if (!recordMap.collection) return undefined;
-  const entries = Object.values(recordMap.collection);
-  return getRecordEntity<V3Collection>(entries[0]);
-}
-
-/** Get the first collection view ID from a RecordMap. */
-export function getFirstCollectionViewId(recordMap: RecordMap): string | undefined {
-  if (!recordMap.collection_view) return undefined;
-  return Object.keys(recordMap.collection_view)[0];
-}
-
-/** Get the first user from a RecordMap. */
-export function getFirstUser(recordMap: RecordMap): V3User | undefined {
-  if (!recordMap.notion_user) return undefined;
-  const entries = Object.values(recordMap.notion_user);
-  return getRecordEntity<V3User>(entries[0]);
-}
-
-/** Get all users from a RecordMap. */
-export function getAllUsers(recordMap: RecordMap): V3User[] {
-  if (!recordMap.notion_user) return [];
-  return Object.values(recordMap.notion_user)
-    .map((entry) => getRecordEntity<V3User>(entry))
-    .filter((user): user is V3User => Boolean(user));
-}
-
-/** Extract a discussion from a RecordMap by ID. */
-export function getDiscussion(recordMap: RecordMap, id: string): V3Discussion | undefined {
-  return getRecordEntity<V3Discussion>(recordMap.discussion?.[id]);
-}
-
-/** Extract a comment from a RecordMap by ID. */
-export function getComment(recordMap: RecordMap, id: string): V3Comment | undefined {
-  return getRecordEntity<V3Comment>(recordMap.comment?.[id]);
-}
-
-/** Extract a user from a RecordMap by ID. */
-export function getUser(recordMap: RecordMap, id: string): V3User | undefined {
-  return getRecordEntity<V3User>(recordMap.notion_user?.[id]);
-}
+// --- Comment transforms ---
 
 /** Transform a v3 comment record to a normalized CommentItem. */
 export function transformV3Comment(comment: V3Comment, user?: V3User, anchorText?: string): CommentItem {

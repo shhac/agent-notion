@@ -8,7 +8,6 @@ import {
 } from "../src/notion/v3/operations.ts";
 import {
   toV3RichText,
-  officialBlockTypeToV3,
   buildV3PropertyValue,
   addDecorationToRange,
 } from "../src/notion/v3/transforms.ts";
@@ -16,7 +15,7 @@ import {
   createInlineCommentOps,
   createCommentOps,
 } from "../src/notion/v3/operations.ts";
-import type { V3RichText } from "../src/notion/v3/client.ts";
+import type { V3RichText } from "../src/notion/v3/record-map.ts";
 
 describe("createBlockOps", () => {
   test("creates set + listAfter + editMeta operations", () => {
@@ -445,43 +444,7 @@ describe("toV3RichText", () => {
   });
 });
 
-describe("officialBlockTypeToV3", () => {
-  test("maps paragraph to text", () => {
-    expect(officialBlockTypeToV3("paragraph")).toBe("text");
-  });
 
-  test("maps heading_1 to header", () => {
-    expect(officialBlockTypeToV3("heading_1")).toBe("header");
-  });
-
-  test("maps heading_2 to sub_header", () => {
-    expect(officialBlockTypeToV3("heading_2")).toBe("sub_header");
-  });
-
-  test("maps heading_3 to sub_sub_header", () => {
-    expect(officialBlockTypeToV3("heading_3")).toBe("sub_sub_header");
-  });
-
-  test("maps bulleted_list_item to bulleted_list", () => {
-    expect(officialBlockTypeToV3("bulleted_list_item")).toBe("bulleted_list");
-  });
-
-  test("maps numbered_list_item to numbered_list", () => {
-    expect(officialBlockTypeToV3("numbered_list_item")).toBe("numbered_list");
-  });
-
-  test("maps child_page to page", () => {
-    expect(officialBlockTypeToV3("child_page")).toBe("page");
-  });
-
-  test("maps child_database to collection_view_page", () => {
-    expect(officialBlockTypeToV3("child_database")).toBe("collection_view_page");
-  });
-
-  test("passes through unknown types", () => {
-    expect(officialBlockTypeToV3("my_custom_type")).toBe("my_custom_type");
-  });
-});
 
 describe("buildV3PropertyValue", () => {
   test("converts string for title type", () => {

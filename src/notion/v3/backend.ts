@@ -1,7 +1,7 @@
 /**
  * V3 backend — implements NotionBackend using the v3 internal API.
  * Reads and writes are fully supported via saveTransactions.
- * Comments use discussion/comment records via loadPageChunk + syncRecordValues + submitTransaction.
+ * Comments are delegated to comments.ts (discussion/comment records).
  */
 import type { NotionBackend } from "../interface.ts";
 import type {
@@ -26,8 +26,18 @@ import type {
   UserItem,
   UserMe,
 } from "../types.ts";
-import { V3HttpClient, unwrapRecordValue } from "./client.ts";
-import type { V3Block, RecordMap } from "./client.ts";
+import { V3HttpClient } from "./client.ts";
+import type { V3Block, V3Collection, V3PropertySchema, RecordMap } from "./record-map.ts";
+import {
+  getBlock,
+  getCollection,
+  getAllBlocks,
+  getFirstCollection,
+  getFirstCollectionViewId,
+  getFirstUser,
+  getFirstSpace,
+  getAllUsers,
+} from "./record-map.ts";
 import {
   transformV3SearchResult,
   transformV3DatabaseListItem,
@@ -35,34 +45,19 @@ import {
   transformV3DatabaseSchema,
   transformV3QueryRow,
   transformV3PageDetail,
-  transformV3Comment,
   transformV3User,
   transformV3UserMe,
   normalizeV3Block,
-  getBlock,
-  getCollection,
-  getDiscussion,
-  getComment,
-  getUser,
-  getAllBlocks,
-  getFirstCollection,
-  getFirstCollectionViewId,
-  getFirstUser,
-  getAllUsers,
   toV3RichText,
-  buildV3PropertyValue,
-  addDecorationToRange,
-  v3RichTextToPlain,
-  extractAnchorText,
+  mapPropertiesToSchema,
 } from "./transforms.ts";
+import { listComments, addComment, addInlineComment } from "./comments.ts";
 import {
   createBlockOps,
   trashBlockOps,
   archivedPageOps,
   moveBlockOps,
   updatePropertyOps,
-  createCommentOps,
-  createInlineCommentOps,
   officialBlockToV3Args,
 } from "./operations.ts";
 import type { V3Operation } from "./operations.ts";
@@ -226,7 +221,7 @@ export class V3Backend implements NotionBackend {
     }
 
     // If the page is a database row, resolve its collection schema for property names
-    let schema: Record<string, import("./client.ts").V3PropertySchema> | undefined;
+    let schema: Record<string, V3PropertySchema> | undefined;
     if (block.parent_table === "collection") {
       const collection = getCollection(recordMap, block.parent_id);
       schema = collection?.schema;
@@ -265,14 +260,7 @@ export class V3Backend implements NotionBackend {
 
       // Map human-readable property names to schema IDs
       if (params.properties) {
-        const schema = collection.schema ?? {};
-        for (const [name, value] of Object.entries(params.properties)) {
-          if (name === "Name" || name === "title") continue;
-          const schemaEntry = Object.entries(schema).find(([, s]) => s.name === name);
-          if (schemaEntry) {
-            v3Props[schemaEntry[0]] = buildV3PropertyValue(value, schemaEntry[1].type);
-          }
-        }
+        Object.assign(v3Props, mapPropertiesToSchema(params.properties, collection.schema ?? {}));
       }
     } else {
       parentTable = "block";
@@ -346,15 +334,7 @@ export class V3Backend implements NotionBackend {
 
       if (block?.parent_table === "collection") {
         const collection = getCollection(recordMap, block.parent_id);
-        const schema = collection?.schema ?? {};
-
-        for (const [name, value] of Object.entries(params.properties)) {
-          if (name === "Name" || name === "title") continue;
-          const schemaEntry = Object.entries(schema).find(([, s]) => s.name === name);
-          if (schemaEntry) {
-            v3Props[schemaEntry[0]] = buildV3PropertyValue(value, schemaEntry[1].type);
-          }
-        }
+        Object.assign(v3Props, mapPropertiesToSchema(params.properties, collection?.schema ?? {}));
       }
     }
 
@@ -695,139 +675,14 @@ export class V3Backend implements NotionBackend {
     limit?: number;
     cursor?: string;
   }): Promise<Paginated<CommentItem>> {
-    const limit = params.limit ?? 50;
-
-    // Load the page — discussions and comments may be included in the recordMap
-    const { recordMap } = await this.http.loadPageChunk({ pageId: params.pageId, limit: 100 });
-
-    // Collect discussion IDs from the page block and its descendant blocks
-    const pageBlock = getBlock(recordMap, params.pageId);
-
-    // Build a set of all discussion IDs across page + descendant blocks
-    const discussionIds: string[] = [];
-    const seenDiscussions = new Set<string>();
-
-    // Walk the content tree from the page block to collect only true descendants
-    const relevantBlocks: (typeof pageBlock)[] = [];
-    const queue: string[] = [params.pageId];
-    const visited = new Set<string>();
-    while (queue.length > 0) {
-      const blockId = queue.pop()!;
-      if (visited.has(blockId)) continue;
-      visited.add(blockId);
-      const block = getBlock(recordMap, blockId);
-      if (!block) continue;
-      relevantBlocks.push(block);
-      if (block.content) {
-        for (const childId of block.content) {
-          queue.push(childId);
-        }
-      }
-    }
-    for (const block of relevantBlocks) {
-      const blockDiscussions = ((block as V3Block & { discussions?: string[] })?.discussions) ?? [];
-      for (const discId of blockDiscussions) {
-        if (!seenDiscussions.has(discId)) {
-          seenDiscussions.add(discId);
-          discussionIds.push(discId);
-        }
-      }
-    }
-
-    if (discussionIds.length === 0) {
-      return { items: [], hasMore: false, nextCursor: undefined };
-    }
-
-    // Fetch any discussions not already in the recordMap
-    const missingDiscussionIds = discussionIds.filter((id) => !getDiscussion(recordMap, id));
-    if (missingDiscussionIds.length > 0) {
-      const { recordMap: extraMap } = await this.http.syncRecordValues(
-        missingDiscussionIds.map((id) => ({ pointer: { id, table: "discussion" }, version: -1 })),
-      );
-      this.mergeRecordMap(recordMap, extraMap);
-    }
-
-    // Collect all comment IDs from all discussions
-    const allCommentIds: string[] = [];
-    for (const discId of discussionIds) {
-      const disc = getDiscussion(recordMap, discId);
-      if (disc?.comments) {
-        allCommentIds.push(...disc.comments);
-      }
-    }
-
-    // Fetch any comments not already in the recordMap
-    const missingCommentIds = allCommentIds.filter((id) => !getComment(recordMap, id));
-    if (missingCommentIds.length > 0) {
-      const { recordMap: extraMap } = await this.http.syncRecordValues(
-        missingCommentIds.map((id) => ({ pointer: { id, table: "comment" }, version: -1 })),
-      );
-      this.mergeRecordMap(recordMap, extraMap);
-    }
-
-    // Build a map of discussionId → anchorText by examining parent blocks
-    const anchorTextMap = new Map<string, string>();
-    for (const discId of discussionIds) {
-      const disc = getDiscussion(recordMap, discId);
-      if (!disc) continue;
-      // Extract anchor text for discussions parented to a block
-      if (disc.parent_table === "block") {
-        const parentBlock = getBlock(recordMap, disc.parent_id);
-        if (parentBlock?.properties?.title) {
-          const anchor = extractAnchorText(parentBlock.properties.title, discId);
-          if (anchor) {
-            anchorTextMap.set(discId, anchor);
-          }
-        }
-      }
-    }
-
-    // Transform comments, resolving user names and anchor text from the recordMap
-    const items: CommentItem[] = [];
-    for (const commentId of allCommentIds) {
-      if (items.length >= limit) break;
-      const comment = getComment(recordMap, commentId);
-      if (!comment || !comment.alive) continue;
-      const user = comment.created_by_id ? getUser(recordMap, comment.created_by_id) : undefined;
-      // Find which discussion this comment belongs to
-      const discussionId = comment.parent_id;
-      const anchorText = anchorTextMap.get(discussionId);
-      items.push(transformV3Comment(comment, user, anchorText));
-    }
-
-    return {
-      items,
-      hasMore: items.length < allCommentIds.length,
-      nextCursor: undefined,
-    };
+    return listComments(this.http, params);
   }
 
   async addComment(params: {
     pageId: string;
     body: string;
   }): Promise<CommentCreateResult> {
-    const discussionId = crypto.randomUUID();
-    const commentId = crypto.randomUUID();
-    const userId = this.http.userId_;
-    const spaceId = this.http.spaceId_;
-
-    const ops = createCommentOps({
-      discussionId,
-      commentId,
-      pageId: params.pageId,
-      spaceId,
-      userId,
-      text: params.body,
-    });
-
-    await this.http.saveTransactions(ops);
-
-    return {
-      id: commentId,
-      discussionId,
-      body: params.body,
-      createdAt: new Date().toISOString(),
-    };
+    return addComment(this.http, params);
   }
 
   async addInlineComment(params: {
@@ -836,70 +691,7 @@ export class V3Backend implements NotionBackend {
     text: string;
     occurrence?: number;
   }): Promise<CommentCreateResult> {
-    const discussionId = crypto.randomUUID();
-    const commentId = crypto.randomUUID();
-    const userId = this.http.userId_;
-    const spaceId = this.http.spaceId_;
-
-    // Fetch the block record directly via syncRecordValues (works for any block, not just pages)
-    const { recordMap } = await this.http.syncRecordValues([
-      { pointer: { id: params.blockId, table: "block" }, version: -1 },
-    ]);
-    const block = getBlock(recordMap, params.blockId);
-    if (!block) throw new Error(`Block not found: ${params.blockId}`);
-
-    const currentTitle = block.properties?.title;
-    if (!currentTitle || currentTitle.length === 0) {
-      throw new Error(`Block ${params.blockId} has no text content to annotate.`);
-    }
-
-    // Find the target text occurrence in the plain text
-    const plainText = v3RichTextToPlain(currentTitle);
-    const occurrence = params.occurrence ?? 1;
-    let startOffset = -1;
-    let found = 0;
-    let searchFrom = 0;
-    while (found < occurrence) {
-      const idx = plainText.indexOf(params.text, searchFrom);
-      if (idx === -1) break;
-      found++;
-      if (found === occurrence) {
-        startOffset = idx;
-      }
-      searchFrom = idx + 1;
-    }
-
-    if (startOffset === -1) {
-      if (found === 0) {
-        throw new Error(`Text '${params.text}' not found in block ${params.blockId}.`);
-      }
-      throw new Error(`Text '${params.text}' has only ${found} occurrence${found === 1 ? "" : "s"} in this block.`);
-    }
-
-    const endOffset = startOffset + params.text.length;
-
-    // Add ["m", discussionId] decoration to the target range
-    const decoration: import("./client.ts").V3Decoration = ["m", discussionId];
-    const updatedTitle = addDecorationToRange(currentTitle, startOffset, endOffset, decoration);
-
-    const ops = createInlineCommentOps({
-      discussionId,
-      commentId,
-      blockId: params.blockId,
-      spaceId,
-      userId,
-      text: params.body,
-      updatedTitle,
-    });
-
-    await this.http.saveTransactions(ops);
-
-    return {
-      id: commentId,
-      discussionId,
-      body: params.body,
-      createdAt: new Date().toISOString(),
-    };
+    return addInlineComment(this.http, params);
   }
 
   // --- Users ---
@@ -926,14 +718,7 @@ export class V3Backend implements NotionBackend {
       throw new Error("Could not retrieve user information");
     }
 
-    // Get space name
-    let spaceName: string | undefined;
-    if (recordMap.space) {
-      const firstSpace = Object.values(recordMap.space)[0];
-      spaceName = unwrapRecordValue(firstSpace?.value)?.name as string | undefined;
-    }
-
-    return transformV3UserMe(user, spaceName);
+    return transformV3UserMe(user, getFirstSpace(recordMap)?.name);
   }
 
   // --- Utility ---
@@ -957,7 +742,7 @@ export class V3Backend implements NotionBackend {
   private async resolveCollection(
     pageId: string,
     recordMap: RecordMap,
-  ): Promise<import("./client.ts").V3Collection | undefined> {
+  ): Promise<V3Collection | undefined> {
     // Check if the page block has a collection_id
     const block = getBlock(recordMap, pageId);
     if (!block) return undefined;
@@ -978,17 +763,5 @@ export class V3Backend implements NotionBackend {
 
     // Fallback: use the first collection in the recordMap
     return getFirstCollection(recordMap);
-  }
-
-  /** Merge records from a secondary RecordMap into a primary one. */
-  private mergeRecordMap(target: RecordMap, source: RecordMap): void {
-    for (const table of Object.keys(source)) {
-      const sourceTable = source[table];
-      if (!sourceTable) continue;
-      if (!target[table]) {
-        (target as Record<string, unknown>)[table] = {};
-      }
-      Object.assign(target[table]!, sourceTable);
-    }
   }
 }

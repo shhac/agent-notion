@@ -1,25 +1,15 @@
-import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, afterEach } from "bun:test";
 import { V3HttpClient } from "../src/notion/v3/client.ts";
+import { mockFetch, restoreFetch, type FetchCall } from "./helpers/fetch-mock.ts";
 
 // Capture fetch calls to verify request bodies without hitting the network
-let fetchCalls: Array<{ url: string; body: unknown }> = [];
-const originalFetch = globalThis.fetch;
+let fetchCalls: FetchCall[] = [];
 
 function installMockFetch(responseBody: unknown, status = 200) {
-  fetchCalls = [];
-  globalThis.fetch = (async (url: string | URL, opts?: RequestInit) => {
-    const body = opts?.body ? JSON.parse(opts.body as string) : undefined;
-    fetchCalls.push({ url: String(url), body });
-    return new Response(JSON.stringify(responseBody), {
-      status,
-      headers: { "Content-Type": "application/json" },
-    });
-  }) as typeof fetch;
+  fetchCalls = mockFetch(responseBody, status);
 }
 
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
+afterEach(restoreFetch);
 
 function createClient() {
   return new V3HttpClient({

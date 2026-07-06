@@ -4,10 +4,7 @@
  * needed by the Notion v3 internal API.
  */
 
-// --- V3 rich text types (re-declared locally to avoid circular deps) ---
-
-type V3Decoration = [string, ...unknown[]];
-type V3RichText = Array<[string] | [string, V3Decoration[]]>;
+import type { V3Decoration, V3RichText } from "./record-map.ts";
 
 // --- Types ---
 

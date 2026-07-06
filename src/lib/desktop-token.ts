@@ -14,7 +14,7 @@ import { existsSync } from "node:fs";
 import { homedir, platform } from "node:os";
 import { join } from "node:path";
 import { Database } from "bun:sqlite";
-import { unwrapRecordValue } from "../notion/v3/client.ts";
+import { unwrapRecordValue } from "../notion/v3/record-map.ts";
 
 const COOKIES_DB_PATH = join(
   homedir(),
@@ -222,74 +222,76 @@ export async function validateDesktopToken(
     );
   }
 
-  const data = (await response.json()) as Record<string, Record<string, Record<string, { value?: unknown }>>>;
+  const data = (await response.json()) as GetSpacesResponse;
+  return parseGetSpacesSession(data);
+}
 
-  // Extract user and space info from the getSpaces response
-  let userId = "";
-  let userEmail = "";
-  let userName = "";
-  let spaceId = "";
-  let spaceName = "";
+/** getSpaces responds with userId → table name → record ID → record. */
+type GetSpacesTables = Record<string, Record<string, { value?: unknown }>>;
+export type GetSpacesResponse = Record<string, GetSpacesTables>;
 
-  for (const [uid, tables] of Object.entries(data)) {
-    userId = uid;
-
-    // Find user info from notion_user table
-    const users = tables["notion_user"];
-    if (users) {
-      for (const record of Object.values(users)) {
-        const v = unwrapRecordValue(record.value);
-        if (v && "email" in v) {
-          userEmail = (v.email as string) ?? "";
-          // The notion_user record uses "name" (not given_name/family_name)
-          userName = (v.name as string) ?? "";
-          break;
-        }
-      }
-    }
-
-    // Find primary space (prefer team plan, fall back to first)
-    const spaces = tables["space"];
-    if (spaces) {
-      for (const record of Object.values(spaces)) {
-        const v = unwrapRecordValue(record.value);
-        if (v && "name" in v) {
-          const name = v.name as string;
-          const plan = v.plan_type as string | undefined;
-          // Take the first space, but prefer team/enterprise plans
-          if (!spaceId || plan === "team" || plan === "enterprise") {
-            spaceId = (v.id as string) ?? "";
-            spaceName = name;
-          }
-        }
-      }
-    }
-
-    break; // Only process the first (and usually only) user
-  }
-
-  if (!userId) {
+/**
+ * Extract session info from a getSpaces response.
+ * Only the first (and usually only) user entry is considered.
+ * Note: getSpaces bypasses the v3 client, so records may still be
+ * role-wrapped — every access goes through unwrapRecordValue.
+ */
+export function parseGetSpacesSession(data: GetSpacesResponse): DesktopSessionInfo {
+  const [firstEntry] = Object.entries(data);
+  if (!firstEntry) {
     throw new DesktopTokenError(
       "Could not extract user info from token. The token may be expired.",
       "validation_failed",
     );
   }
 
-  // Find the space_view for the selected space
-  let spaceViewId: string | undefined;
-  for (const tables of Object.values(data)) {
-    const spaceViews = tables["space_view"] as Record<string, { value?: unknown }> | undefined;
-    if (spaceViews) {
-      for (const record of Object.values(spaceViews)) {
-        const v = unwrapRecordValue(record.value);
-        if (v?.space_id === spaceId) {
-          spaceViewId = v.id as string;
-          break;
-        }
-      }
-    }
-    break;
-  }
+  const [userId, tables] = firstEntry;
+  const user = findUserInfo(tables);
+  const space = pickPreferredSpace(tables);
 
-  return { user_id: userId, user_email: userEmail, user_name: userName, space_id: spaceId, space_name: spaceName, space_view_id: spaceViewId };
+  return {
+    user_id: userId,
+    user_email: user.email,
+    user_name: user.name,
+    space_id: space.id,
+    space_name: space.name,
+    space_view_id: findSpaceViewId(tables, space.id),
+  };
+}
+
+function tableEntities(
+  tables: GetSpacesTables,
+  table: string,
+): Record<string, unknown>[] {
+  return Object.values(tables[table] ?? {})
+    .map((record) => unwrapRecordValue(record.value))
+    .filter((v): v is Record<string, unknown> => v !== undefined);
+}
+
+function findUserInfo(tables: GetSpacesTables): { email: string; name: string } {
+  const user = tableEntities(tables, "notion_user").find((v) => "email" in v);
+  if (!user) return { email: "", name: "" };
+  // The notion_user record uses "name" (not given_name/family_name)
+  return {
+    email: (user.email as string) ?? "",
+    name: (user.name as string) ?? "",
+  };
+}
+
+function pickPreferredSpace(tables: GetSpacesTables): { id: string; name: string } {
+  const spaces = tableEntities(tables, "space").filter((v) => "name" in v);
+  // Take the first space, but prefer team/enterprise plans
+  const preferred =
+    spaces.filter((v) => v.plan_type === "team" || v.plan_type === "enterprise").at(-1) ??
+    spaces[0];
+  if (!preferred) return { id: "", name: "" };
+  return {
+    id: (preferred.id as string) ?? "",
+    name: preferred.name as string,
+  };
+}
+
+function findSpaceViewId(tables: GetSpacesTables, spaceId: string): string | undefined {
+  const view = tableEntities(tables, "space_view").find((v) => v.space_id === spaceId);
+  return view ? (view.id as string) : undefined;
 }
