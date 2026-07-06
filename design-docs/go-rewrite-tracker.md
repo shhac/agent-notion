@@ -4,11 +4,13 @@ Companion to [go-rewrite.md](./go-rewrite.md) (rationale + target layout).
 This file is the live checklist. Tick items as they land; keep the "Now / Next"
 line current so anyone picking up mid-flight knows where things stand.
 
-**Now:** Phases 0–3 done — scaffold, config/credentials, full auth surface,
-and the pure-transform layer (record map + rich text, transforms, operations,
-comments, markdown, ids, truncation). The only Phase 3 leftover is the
-differential golden-run check, which needs the Phase 4 client.
-**Next:** Phase 4 — HTTP clients (v3 + official) and `internal/mocknotion`.
+**Now:** Phases 0–4 done — scaffold, config/credentials, auth surface,
+pure transforms, and the HTTP layer (v3 client, official REST client,
+NDJSON reader, mocknotion). The `NotionBackend` interface + v3 backend
+(first Phase 5 slice) is in flight.
+**Next:** Phase 5 — backend implementations, then the 9 command groups.
+Leftovers pulled forward: differential golden runs (needs real creds),
+export binary download (with the export group).
 
 ## Resolved decisions
 
@@ -142,11 +144,27 @@ domain payload structure (the parity target).
       anchor text) — after the v3 client exists (Phase 4)
 
 ### Phase 4 — HTTP clients + mocknotion
-- [ ] v3 client (normalize-at-boundary, headers, timeout, DI `Doer`)
-- [ ] official API client (hand-rolled REST or SDK — decide)
-- [ ] NDJSON stream reader for `ai chat` (postStream)
-- [ ] `internal/mocknotion` fixture server + canonical body builders
-- [ ] export task enqueue/poll + binary download
+- [x] v3 client (`internal/notion/v3/client.go`): all non-AI endpoints;
+      normalize-at-boundary via the RecordMap decode path; injectable
+      HTTP/BaseURL; 30s/60s default timeouts only when ctx has no deadline;
+      `HTTPError` wire-text contract; `newUUID` stubbable. AI endpoints
+      (getAvailableModels/getInferenceTranscriptsForUser/
+      markInferenceTranscriptSeen) deferred to the Phase 5 ai group.
+- [x] official API client (`internal/notion/official/`): **decided:
+      hand-rolled REST, no SDK** (family ships zero-dep static binaries).
+      Notion-Version pinned "2022-06-28" (= @notionhq/client 2.3.0's default,
+      the shape the transforms target). Full endpoint + transform coverage;
+      the TS's four "requires v3 backend" dispatch stubs intentionally live in
+      the backend layer, not the REST client.
+- [x] NDJSON stream reader (`internal/notion/v3/ndjson.go`): PostStream
+      returns the body; ParseNDJSON callback iterator (10 MiB line cap; no
+      stream timeout — caller ctx governs)
+- [x] `internal/mocknotion`: fixture server (mockslack pattern) serving both
+      surfaces — v3 keyed by endpoint name, official by "METHOD path";
+      sticky queues, body-conditional handlers, ExpectTokenV2/ExpectBearer
+      auth gates, RawBody for NDJSON; canonical body builders (Entry,
+      RecordMapBody, PageChunkBody, BlockEntity)
+- [ ] export task binary download (with the `export` command group, Phase 5)
 
 ### Phase 5 — backend + command surface
 - [ ] `NotionBackend` interface + both implementations
