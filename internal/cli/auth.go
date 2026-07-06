@@ -1,10 +1,16 @@
 package cli
 
 import (
+	"context"
+	"fmt"
 	"os"
+	"strings"
+	"time"
 
+	"github.com/shhac/agent-notion/internal/auth"
 	"github.com/shhac/agent-notion/internal/config"
 	"github.com/shhac/agent-notion/internal/credential"
+	v3 "github.com/shhac/agent-notion/internal/notion/v3"
 	libcli "github.com/shhac/lib-agent-cli/cli"
 	output "github.com/shhac/lib-agent-output"
 	"github.com/spf13/cobra"
@@ -17,7 +23,11 @@ func registerAuth(root *cobra.Command, _ *libcli.Globals) {
 		Use:   "auth",
 		Short: "Manage Notion authentication",
 	}
-	authCmd.AddCommand(authStatusCmd())
+	authCmd.AddCommand(
+		authStatusCmd(),
+		importDesktopCmd(),
+		importBrowserCmd(),
+	)
 	root.AddCommand(authCmd)
 }
 
@@ -46,4 +56,122 @@ func authStatusCmd() *cobra.Command {
 			return output.NewNDJSONWriter(os.Stdout).WriteItem(item)
 		},
 	}
+}
+
+func importDesktopCmd() *cobra.Command {
+	var skipValidation bool
+	cmd := &cobra.Command{
+		Use:   "import-desktop",
+		Short: "Import the token_v2 session from the Notion Desktop app",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			sess, err := auth.ExtractDesktop()
+			if err != nil {
+				return output.Wrap(err, output.FixableByHuman).
+					WithHint("open Notion Desktop and sign in, then retry")
+			}
+			return finishImport(cmd.Context(), sess, skipValidation)
+		},
+	}
+	cmd.Flags().BoolVar(&skipValidation, "skip-validation", false,
+		"Store the token without validating it against Notion (leaves identity empty)")
+	return cmd
+}
+
+func importBrowserCmd() *cobra.Command {
+	var (
+		skipValidation bool
+		profile        string
+	)
+	cmd := &cobra.Command{
+		Use:   "import-browser <browser>",
+		Short: "Import the token_v2 session from a browser cookie store",
+		Long:  browserLongHelp(),
+		Args:  cobra.ExactArgs(1),
+		ValidArgsFunction: func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+			names := make([]string, 0)
+			for _, b := range auth.SupportedBrowsers() {
+				names = append(names, b.Name)
+			}
+			return names, cobra.ShellCompDirectiveNoFileComp
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			sess, err := auth.ImportBrowser(args[0], profile)
+			if err != nil {
+				return output.Wrap(err, output.FixableByHuman).
+					WithHint("sign in to notion.so in that browser, then retry")
+			}
+			return finishImport(cmd.Context(), sess, skipValidation)
+		},
+	}
+	cmd.Flags().BoolVar(&skipValidation, "skip-validation", false,
+		"Store the token without validating it against Notion (leaves identity empty)")
+	cmd.Flags().StringVar(&profile, "profile", "",
+		"Firefox-family profile directory name (default: auto-detect)")
+	return cmd
+}
+
+// finishImport validates (unless skipped), stores, and reports an extracted
+// session. The token itself is never printed.
+func finishImport(ctx context.Context, sess *auth.Session, skipValidation bool) error {
+	extractedAt := time.Now().UTC().Format(time.RFC3339)
+
+	var info v3.SessionInfo
+	if skipValidation {
+		fmt.Fprintln(os.Stderr, "warning: --skip-validation stores the token without an identity lookup; "+
+			"user_id and space_id will be empty and some commands may fail")
+	} else {
+		var err error
+		info, err = v3.ValidateDesktopToken(ctx, nil, sess.TokenV2)
+		if err != nil {
+			return output.Wrap(err, output.FixableByHuman).
+				WithHint("the token may be expired; sign in again and re-import, or pass --skip-validation")
+		}
+	}
+
+	storage, err := credential.StoreV3Session(config.V3Session{
+		TokenV2:     sess.TokenV2,
+		UserID:      info.UserID,
+		UserEmail:   info.UserEmail,
+		UserName:    info.UserName,
+		SpaceID:     info.SpaceID,
+		SpaceName:   info.SpaceName,
+		SpaceViewID: info.SpaceViewID,
+		ExtractedAt: extractedAt,
+	}, credential.DefaultKeychainWriter())
+	if err != nil {
+		return output.Wrap(err, output.FixableByHuman)
+	}
+
+	item := map[string]any{
+		"ok":           true,
+		"storage":      storage,
+		"extracted_at": extractedAt,
+	}
+	if info.UserName != "" {
+		item["user"] = info.UserName
+	}
+	if info.UserEmail != "" {
+		item["email"] = info.UserEmail
+	}
+	if info.SpaceName != "" {
+		item["space"] = info.SpaceName
+	}
+	if info.SpaceID != "" {
+		item["space_id"] = info.SpaceID
+	}
+	if len(sess.Source) > 0 {
+		item["source"] = sess.Source
+	}
+	return output.NewNDJSONWriter(os.Stdout).WriteItem(item)
+}
+
+func browserLongHelp() string {
+	var b strings.Builder
+	b.WriteString("Import the token_v2 session cookie from a browser's on-disk cookie store.\n\n")
+	b.WriteString("Supported browsers:\n")
+	for _, info := range auth.SupportedBrowsers() {
+		fmt.Fprintf(&b, "  %-9s %s\n", info.Name, info.Summary)
+	}
+	return strings.TrimRight(b.String(), "\n")
 }

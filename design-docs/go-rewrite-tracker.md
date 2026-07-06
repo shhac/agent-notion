@@ -4,8 +4,9 @@ Companion to [go-rewrite.md](./go-rewrite.md) (rationale + target layout).
 This file is the live checklist. Tick items as they land; keep the "Now / Next"
 line current so anyone picking up mid-flight knows where things stand.
 
-**Now:** Phase 0 (scaffold) + Phase 1 (credential import) in progress.
-**Next:** Phase 2 (auth flows).
+**Now:** Phase 0 (scaffold) + Phase 1 (credential import) done; Phase 2 auth
+token extraction (import-desktop / import-browser) done.
+**Next:** Phase 2 remainder — OAuth login flow, `auth logout`, workspace aliases.
 
 ## Resolved decisions
 
@@ -91,13 +92,17 @@ domain payload structure (the parity target).
       `AGENT_NOTION_NO_KEYCHAIN=1`; verify it reads a fixture config.json
 
 ### Phase 2 — auth flows
-- [ ] OAuth callback server (port TS `oauth-server.ts`)
-- [ ] Desktop-token extraction, agent-slack pattern: source registry,
-      Chromium cookie SQLite read, `decryptChromiumCookie` (PBKDF2 + AES-128-CBC),
-      macOS keychain passphrase, cross-platform build tags
-- [ ] token_v2 validation (`getSpaces` raw fetch → `parseGetSpacesSession`)
-- [ ] workspace aliases
-- [ ] `auth import-desktop`, `auth import`, `auth login` (OAuth), `auth logout`
+- [x] Desktop/browser cookie extraction, agent-slack pattern (`internal/auth`):
+      source registry (chrome/brave/edge/arc/chromium/firefox/zen/safari),
+      Chromium cookie SQLite read via modernc.org/sqlite, `decryptChromiumCBC`
+      (PBKDF2 + AES-128-CBC), macOS keychain / Linux secret-tool / Windows
+      DPAPI+GCM, Safari binarycookies, Firefox moz_cookies, meta-v24 prefix strip
+- [x] token_v2 validation (`getSpaces` → `ParseGetSpacesSession`), v3 session
+      storage (`credential.StoreV3Session`, keychain + config)
+- [x] `auth import-desktop`, `auth import-browser <browser>` (+ `--profile`,
+      `--skip-validation`, completion)
+- [ ] OAuth callback server + `auth login` (port TS `oauth-server.ts`)
+- [ ] `auth logout`, workspace aliases, `auth import` (paste token)
 
 ### Phase 3 — pure transforms (parity)
 - [ ] `internal/notion/v3/record-map`: types, normalize, unwrap invariant
