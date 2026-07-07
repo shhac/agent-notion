@@ -401,8 +401,8 @@ func TestBackendGetMe(t *testing.T) {
 	t.Run("role-wrapped records", func(t *testing.T) {
 		s := mocknotion.New()
 		s.HandleBody("loadUserContent", map[string]any{"recordMap": map[string]any{
-			"notion_user": map[string]any{"u1": mocknotion.RoleWrappedEntry(userEntity("u1", "Alice", "B"), "space-1")},
-			"space":       map[string]any{"s1": mocknotion.RoleWrappedEntry(map[string]any{"id": "s1", "name": "My Workspace"}, "space-1")},
+			"notion_user": map[string]any{"u1": mocknotion.Entry(userEntity("u1", "Alice", "B"))},
+			"space":       map[string]any{"s1": mocknotion.Entry(map[string]any{"id": "s1", "name": "My Workspace"})},
 		}})
 		b := newBackend(t, s)
 		res, err := b.GetMe(ctx())

@@ -11,21 +11,10 @@ const wireVersion = 3
 // Entry wraps an entity in the current (spaceId + role-wrapped) v3 wire
 // shape, so fixtures exercise the client's normalize-at-boundary path.
 func Entry(entity any) map[string]any {
-	return RoleWrappedEntry(entity, "space-1")
-}
-
-// RoleWrappedEntry is Entry with an explicit spaceId.
-func RoleWrappedEntry(entity any, spaceID string) map[string]any {
 	return map[string]any{
-		"spaceId": spaceID,
+		"spaceId": "space-1",
 		"value":   map[string]any{"value": entity, "role": "reader"},
 	}
-}
-
-// LegacyEntry wraps an entity in the pre-2025 flat {value, role} wire shape,
-// for old-format regression fixtures.
-func LegacyEntry(entity any) map[string]any {
-	return map[string]any{"value": entity, "role": "reader"}
 }
 
 // Table builds one recordMap table from id → entity, Entry-wrapping each and
@@ -39,27 +28,29 @@ func Table(entities map[string]any) map[string]any {
 	return table
 }
 
+// versionedTables builds table-name → Table with the __version__ metadata
+// the live API sends alongside the tables.
+func versionedTables(tables map[string]map[string]any) map[string]any {
+	out := make(map[string]any, len(tables)+1)
+	out["__version__"] = wireVersion
+	for name, entities := range tables {
+		out[name] = Table(entities)
+	}
+	return out
+}
+
 // RecordMapBody builds a {"recordMap": {...}} response body from
 // table → (id → entity), Entry-wrapping every entity and including the
 // __version__ metadata the live API sends.
 func RecordMapBody(tables map[string]map[string]any) map[string]any {
-	rm := make(map[string]any, len(tables)+1)
-	rm["__version__"] = wireVersion
-	for name, entities := range tables {
-		rm[name] = Table(entities)
-	}
-	return map[string]any{"recordMap": rm}
+	return map[string]any{"recordMap": versionedTables(tables)}
 }
 
 // GetSpacesBody builds a getSpaces response for one user in the current wire
 // shape (role-wrapped records + __version__ metadata at every level), from
 // table → (id → entity).
 func GetSpacesBody(userID string, tables map[string]map[string]any) map[string]any {
-	user := map[string]any{"__version__": wireVersion}
-	for name, entities := range tables {
-		user[name] = Table(entities)
-	}
-	return map[string]any{"__version__": wireVersion, userID: user}
+	return map[string]any{"__version__": wireVersion, userID: versionedTables(tables)}
 }
 
 // PageChunkBody is RecordMapBody plus the loadPageChunk cursor envelope.

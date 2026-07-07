@@ -190,20 +190,12 @@ func TestBodyBuilders(t *testing.T) {
 		t.Error("cursor missing")
 	}
 
-	wrapped := RoleWrappedEntry(map[string]any{"id": "x"}, "space-9")
-	if wrapped["spaceId"] != "space-9" {
+	wrapped := Entry(map[string]any{"id": "x"})
+	if wrapped["spaceId"] != "space-1" {
 		t.Errorf("wrapped = %v", wrapped)
 	}
 	if entity := entityIn(t, wrapped); entity["id"] != "x" {
 		t.Errorf("wrapped entity = %v", entity)
-	}
-
-	legacy := LegacyEntry(map[string]any{"id": "y"})
-	if _, hasSpace := legacy["spaceId"]; hasSpace {
-		t.Errorf("legacy entry should be flat: %v", legacy)
-	}
-	if inner, ok := legacy["value"].(map[string]any); !ok || inner["id"] != "y" {
-		t.Errorf("legacy entry = %v", legacy)
 	}
 }
 
