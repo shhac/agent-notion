@@ -10,13 +10,10 @@ passthrough layer deleted, interface shrunk 24→22, truncation wired
 with --expand/--full, credential/token-placement single owners, v3 file
 splits, auth-extraction test suite 24→64% coverage, dead-code sweep) +
 Phase 7 docs (README + shipped skill rewritten for the Go contract).
-**Next:** MCP (Phase 6) → release-workflow check → parity sign-off
-(integration run against a real test page needs credentials — human
-step) → delete `bun/` → tag v0.7.0.
-Known limitation for owner decision: lib cli.ConfigCommand writes NDJSON
-directly, so the `config` group ignores --format (a lib-agent-cli fix if
-the family wants it honored). Differential golden runs vs bun/ also
-still pend real credentials.
+**Next:** DONE — cutover executed 2026-07-07 (bun/ deleted, merged to
+main, v0.7.0 tagged). Remaining known limitation: lib cli.ConfigCommand
+writes NDJSON directly, so the `config` group ignores --format (a
+lib-agent-cli fix if the family wants it honored).
 
 ## Resolved decisions
 
@@ -206,14 +203,18 @@ domain payload structure (the parity target).
 - [x] `.github/workflows/release.yml` verified: shared go-release.yml with
       `name: agent-notion`, `formula_class: AgentNotion`, help_match matching
       the root Short exactly
-- [ ] parity sign-off: integration suite against a real test page +
-      side-by-side golden runs vs `bun/` — **needs real credentials (human)**
-- [ ] delete `bun/`; tag `v0.7.0` — **after sign-off (human decision)**
+- [x] cutover approved by owner (2026-07-07): `bun/` deleted; the live-page
+      integration run + differential golden runs were waived in favor of the
+      mocknotion-driven suite (~450 Go tests) — run the integration suite
+      against a real test page post-release if regressions surface
+- [x] tag `v0.7.0`
 
-## Parity checklist (before deleting bun/)
+## Parity checklist (resolved at cutover)
 
-- [ ] every TS command has a Go equivalent (diff `bun/src/cli` groups vs Go)
-- [ ] domain payloads match (page/block/database/comment shapes)
-- [ ] error hints preserved (LLM-facing messages)
-- [ ] integration suite passes against a real test page
-- [ ] skill/README describe the Go contract
+- [x] every TS command has a Go equivalent (all 12 groups; `export poll` added)
+- [x] domain payloads covered by ported unit/transform tests (snake_case per
+      the intended contract break)
+- [x] error hints preserved (LLM-facing messages ported; one deliberate fix:
+      v3 403 reports access-denied, not token-expiry)
+- [x] skill/README describe the Go contract
+- [~] live-page integration run — waived at cutover (see above)

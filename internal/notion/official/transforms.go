@@ -1,6 +1,6 @@
 // Transforms mapping official REST responses (decoded as map[string]any, the
 // Go analogue of the TS Record<string, unknown>) into the normalized types in
-// package notion. Ported from bun/src/notion/official/transforms.ts.
+// package notion. Ported from the retired TS reference (see git history).
 
 package official
 

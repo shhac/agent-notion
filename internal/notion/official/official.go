@@ -1,5 +1,5 @@
 // Endpoint methods for the official REST client. Each mirrors a method of the
-// TS OfficialBackend (bun/src/notion/official/client.ts), returning the
+// retired TS OfficialBackend (see git history), returning the
 // normalized types from package notion.
 
 package official

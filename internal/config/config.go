@@ -1,7 +1,7 @@
 // Package config reads and writes agent-notion's config.json.
 //
-// The on-disk shape is byte-compatible with the TypeScript implementation
-// (still runnable under bun/): same path, same JSON keys, same 0600 mode and
+// The on-disk shape is byte-compatible with the retired TypeScript
+// implementation (see git history): same path, same JSON keys, same 0600 mode and
 // trailing newline. The two binaries can therefore share one config file
 // during the migration.
 package config

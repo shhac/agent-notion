@@ -1,5 +1,10 @@
 # Go rewrite — handover
 
+> **STATUS: COMPLETE.** The migration finished and cut over at v0.7.0
+> (2026-07-07); `bun/` is deleted. This document is retained as history —
+> the tracker holds the final phase record, and root `CLAUDE.md` describes
+> the finished architecture.
+
 For an agent (or human) picking up the TypeScript→Go migration of agent-notion
 with no prior context from the sessions that started it. Read this first, then
 [go-rewrite.md](./go-rewrite.md) (rationale + target layout) and

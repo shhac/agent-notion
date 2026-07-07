@@ -1,9 +1,8 @@
 # Go rewrite
 
-Status: **IN PROGRESS** — see [go-rewrite-tracker.md](./go-rewrite-tracker.md) for phase state.
-
-The TS/Bun implementation now lives under `bun/`; the repo root is being
-rebuilt as the Go CLI.
+Status: **COMPLETE** — cut over at v0.7.0. The TS/Bun implementation was
+retired (see git history for `bun/`); see
+[go-rewrite-tracker.md](./go-rewrite-tracker.md) for the phase record.
 
 Convert agent-notion from TypeScript/Bun to Go on the `lib-agent-*` family,
 following the play `agent-mongo` ran (see its `design-docs/go-rewrite.md`,

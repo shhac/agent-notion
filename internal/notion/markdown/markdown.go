@@ -1,7 +1,7 @@
 // Package markdown converts between normalized Notion blocks and markdown.
 // Backend-agnostic: it works with notion.NormalizedBlock, so both the official
 // REST and v3 internal backends share the same rendering. Ported from the
-// TypeScript reference (bun/src/notion/markdown.ts) to stay byte-for-byte
+// retired TypeScript reference (see git history) to stay byte-for-byte
 // compatible for differential parity.
 package markdown
 
