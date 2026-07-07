@@ -171,37 +171,77 @@ func TestBodyBuilders(t *testing.T) {
 		"block": {"b1": BlockEntity("b1", "page", map[string]any{"content": []string{"b2"}})},
 	})
 
-	raw, err := json.Marshal(body)
-	if err != nil {
-		t.Fatal(err)
+	rm, ok := body["recordMap"].(map[string]any)
+	if !ok {
+		t.Fatalf("recordMap missing: %v", body)
 	}
-	var decoded struct {
-		RecordMap map[string]map[string]struct {
-			Value map[string]any `json:"value"`
-			Role  string         `json:"role"`
-		} `json:"recordMap"`
-		Cursor map[string]any `json:"cursor"`
+	if rm["__version__"] != wireVersion {
+		t.Errorf("recordMap __version__ = %v", rm["__version__"])
 	}
-	if err := json.Unmarshal(raw, &decoded); err != nil {
-		t.Fatal(err)
+	table, ok := rm["block"].(map[string]any)
+	if !ok || table["__version__"] != wireVersion {
+		t.Errorf("block table = %v", rm["block"])
 	}
-	entry := decoded.RecordMap["block"]["b1"]
-	if entry.Role != "reader" || entry.Value["id"] != "b1" || entry.Value["type"] != "page" {
-		t.Errorf("entry = %+v", entry)
+	entity := entityIn(t, table["b1"])
+	if entity["id"] != "b1" || entity["type"] != "page" {
+		t.Errorf("entity = %v", entity)
 	}
-	if decoded.Cursor == nil {
+	if body["cursor"] == nil {
 		t.Error("cursor missing")
 	}
 
-	wrapped := RoleWrappedEntry(map[string]any{"id": "x"}, "space-1")
-	if wrapped["spaceId"] != "space-1" {
+	wrapped := RoleWrappedEntry(map[string]any{"id": "x"}, "space-9")
+	if wrapped["spaceId"] != "space-9" {
 		t.Errorf("wrapped = %v", wrapped)
 	}
-	inner, ok := wrapped["value"].(map[string]any)
-	if !ok || inner["role"] != "reader" {
-		t.Errorf("inner = %v", inner)
+	if entity := entityIn(t, wrapped); entity["id"] != "x" {
+		t.Errorf("wrapped entity = %v", entity)
 	}
 
+	legacy := LegacyEntry(map[string]any{"id": "y"})
+	if _, hasSpace := legacy["spaceId"]; hasSpace {
+		t.Errorf("legacy entry should be flat: %v", legacy)
+	}
+	if inner, ok := legacy["value"].(map[string]any); !ok || inner["id"] != "y" {
+		t.Errorf("legacy entry = %v", legacy)
+	}
+}
+
+func TestGetSpacesBody(t *testing.T) {
+	body := GetSpacesBody("user-1", map[string]map[string]any{
+		"notion_user": {"user-1": map[string]any{"id": "user-1", "email": "t@example.com"}},
+	})
+
+	user, ok := body["user-1"].(map[string]any)
+	if !ok || user["__version__"] != wireVersion {
+		t.Fatalf("user entry = %v", body["user-1"])
+	}
+	table, ok := user["notion_user"].(map[string]any)
+	if !ok || table["__version__"] != wireVersion {
+		t.Fatalf("notion_user table = %v", user["notion_user"])
+	}
+	if entity := entityIn(t, table["user-1"]); entity["email"] != "t@example.com" {
+		t.Errorf("entity = %v", entity)
+	}
+}
+
+// entityIn unwraps the current wire shape {spaceId, value: {value: entity,
+// role}} down to the entity.
+func entityIn(t *testing.T, wrapped any) map[string]any {
+	t.Helper()
+	outer, ok := wrapped.(map[string]any)
+	if !ok {
+		t.Fatalf("entry not an object: %v", wrapped)
+	}
+	roleWrap, ok := outer["value"].(map[string]any)
+	if !ok || roleWrap["role"] != "reader" {
+		t.Fatalf("entry not role-wrapped: %v", outer)
+	}
+	entity, ok := roleWrap["value"].(map[string]any)
+	if !ok {
+		t.Fatalf("entity missing: %v", roleWrap)
+	}
+	return entity
 }
 
 func TestReset(t *testing.T) {

@@ -94,21 +94,15 @@ func TestAuthImportAgainstMockNotion(t *testing.T) {
 func TestImportDesktopViaSeamAndMockValidation(t *testing.T) {
 	isolateState(t)
 	s, url := newMockServer(t)
-	s.HandleBody("getSpaces", map[string]any{
-		"user-1": map[string]any{
-			"notion_user": map[string]any{
-				"user-1": map[string]any{"value": map[string]any{
-					"id": "user-1", "email": "test@example.com", "name": "Test User",
-				}},
-			},
-			"space": map[string]any{
-				"space-1": map[string]any{"value": map[string]any{
-					"id": "space-1", "name": "Test Space", "plan_type": "team",
-				}},
-			},
-			"space_view": map[string]any{},
+	s.HandleBody("getSpaces", mocknotion.GetSpacesBody("user-1", map[string]map[string]any{
+		"notion_user": {
+			"user-1": map[string]any{"id": "user-1", "email": "test@example.com", "name": "Test User"},
 		},
-	})
+		"space": {
+			"space-1": map[string]any{"id": "space-1", "name": "Test Space", "plan_type": "team"},
+		},
+		"space_view": {},
+	}))
 
 	deps := rootDeps{desktopExtract: func() (*auth.Session, error) {
 		return &auth.Session{TokenV2: "v2-test-token", Source: map[string]string{"path": "fake"}}, nil
