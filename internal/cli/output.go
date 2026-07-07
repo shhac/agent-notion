@@ -84,20 +84,38 @@ func printPaginated[T any](g *GlobalFlags, page notion.Paginated[T]) error {
 	return printList(g, items, meta)
 }
 
-// renderMarkdown renders blocks to markdown, fetching one level of children
-// for nested display — the shared body of `page get --content` and
-// `block list`.
-func renderMarkdown(ctx context.Context, b notion.Backend, blocks []notion.NormalizedBlock) (string, error) {
+// renderMarkdown renders blocks to markdown, recursively fetching descendant
+// blocks so nested content (e.g. a list item inside a callout) is not dropped —
+// the shared body of `page get --content` and `block list`. maxDepth bounds how
+// many levels of children are fetched below the top level; 0 means unbounded.
+func renderMarkdown(ctx context.Context, b notion.Backend, blocks []notion.NormalizedBlock, maxDepth int) (string, error) {
 	childMap := map[string][]notion.NormalizedBlock{}
-	for _, blk := range blocks {
-		if !blk.HasChildren {
-			continue
+
+	var descend func(bs []notion.NormalizedBlock, level int) error
+	descend = func(bs []notion.NormalizedBlock, level int) error {
+		for _, blk := range bs {
+			if !blk.HasChildren {
+				continue
+			}
+			if _, done := childMap[blk.ID]; done {
+				continue
+			}
+			children, err := b.GetAllBlocks(ctx, blk.ID)
+			if err != nil {
+				return err
+			}
+			childMap[blk.ID] = children.Blocks
+			if maxDepth == 0 || level+1 < maxDepth {
+				if err := descend(children.Blocks, level+1); err != nil {
+					return err
+				}
+			}
 		}
-		children, err := b.GetAllBlocks(ctx, blk.ID)
-		if err != nil {
-			return "", err
-		}
-		childMap[blk.ID] = children.Blocks
+		return nil
+	}
+
+	if err := descend(blocks, 0); err != nil {
+		return "", err
 	}
 	return markdown.FromBlocks(blocks, childMap), nil
 }

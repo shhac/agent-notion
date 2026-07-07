@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 
+	"github.com/shhac/agent-notion/internal/config"
 	"github.com/shhac/agent-notion/internal/ids"
 	"github.com/shhac/agent-notion/internal/notion"
 	"github.com/shhac/agent-notion/internal/notion/markdown"
@@ -70,7 +71,7 @@ func blockListCmd(g *GlobalFlags) *cobra.Command {
 				if err != nil {
 					return blockListResult{}, err
 				}
-				content, err := renderMarkdown(ctx, b, all.Blocks)
+				content, err := renderMarkdown(ctx, b, all.Blocks, config.ReadSettings().MaxDepth)
 				if err != nil {
 					return blockListResult{}, err
 				}

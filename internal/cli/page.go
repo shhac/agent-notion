@@ -74,7 +74,7 @@ func pageGetCmd(g *GlobalFlags) *cobra.Command {
 					return m, nil
 				}
 
-				content, err := renderMarkdown(ctx, b, all.Blocks)
+				content, err := renderMarkdown(ctx, b, all.Blocks, config.ReadSettings().MaxDepth)
 				if err != nil {
 					return nil, err
 				}
