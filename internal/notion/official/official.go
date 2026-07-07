@@ -203,13 +203,6 @@ func (c Client) RestorePage(ctx context.Context, id string) (notion.PageTrashRes
 	return notion.PageTrashResult{ID: id, Trashed: false}, nil
 }
 
-// IsDatabase reports whether the ID refers to a database. Any lookup error is
-// treated as "not a database", matching the TS behavior; the error return is
-// always nil (it exists to satisfy notion.Backend).
-func (c Client) IsDatabase(ctx context.Context, id string) (bool, error) {
-	return c.isDatabase(ctx, id), nil
-}
-
 // isDatabase reports whether id resolves to a database. Any error (including a
 // 404 for a page id) is treated as "not a database", matching the TS try/catch.
 func (c Client) isDatabase(ctx context.Context, id string) bool {
@@ -261,21 +254,6 @@ func (c Client) GetAllBlocks(ctx context.Context, id string) (notion.BlockListRe
 	}
 
 	return notion.BlockListResult{Blocks: blocks, HasMore: hasMore}, nil
-}
-
-// GetChildBlocks fetches every descendant list for the given block IDs, keyed
-// by block ID. (The TS batched these five-at-a-time concurrently; here it is
-// sequential — same result, deterministic, no rate-limit spikes.)
-func (c Client) GetChildBlocks(ctx context.Context, blockIDs []string) (map[string][]notion.NormalizedBlock, error) {
-	out := make(map[string][]notion.NormalizedBlock, len(blockIDs))
-	for _, id := range blockIDs {
-		res, err := c.GetAllBlocks(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-		out[id] = res.Blocks
-	}
-	return out, nil
 }
 
 // AppendBlocks appends children to a block and reports how many were added

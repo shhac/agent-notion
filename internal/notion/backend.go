@@ -38,8 +38,6 @@ type Backend interface {
 	ListBlocks(ctx context.Context, params ListBlocksParams) (Paginated[NormalizedBlock], error)
 	// GetAllBlocks fetches up to 1000 blocks (for markdown/content mode).
 	GetAllBlocks(ctx context.Context, id string) (BlockListResult, error)
-	// GetChildBlocks fetches the children of each given block.
-	GetChildBlocks(ctx context.Context, blockIDs []string) (map[string][]NormalizedBlock, error)
 	AppendBlocks(ctx context.Context, params AppendBlocksParams) (AppendBlocksResult, error)
 	UpdateBlock(ctx context.Context, params UpdateBlockParams) (BlockUpdateResult, error)
 	DeleteBlock(ctx context.Context, id string) (BlockDeleteResult, error)
@@ -53,11 +51,6 @@ type Backend interface {
 	// --- Users ---
 	ListUsers(ctx context.Context, params ListParams) (Paginated[UserItem], error)
 	GetMe(ctx context.Context) (UserMe, error)
-
-	// --- Utility ---
-	// IsDatabase reports whether the ID refers to a database (used by page
-	// create to detect parent type).
-	IsDatabase(ctx context.Context, id string) (bool, error)
 }
 
 // ListParams is the common limit/cursor pagination input.

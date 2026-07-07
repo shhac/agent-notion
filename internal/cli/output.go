@@ -1,11 +1,13 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
 	"github.com/shhac/agent-notion/internal/config"
 	"github.com/shhac/agent-notion/internal/notion"
+	"github.com/shhac/agent-notion/internal/notion/markdown"
 	"github.com/shhac/agent-notion/internal/truncation"
 	libcli "github.com/shhac/lib-agent-cli/cli"
 	output "github.com/shhac/lib-agent-output"
@@ -80,6 +82,24 @@ func printPaginated[T any](g *GlobalFlags, page notion.Paginated[T]) error {
 		}}
 	}
 	return printList(g, items, meta)
+}
+
+// renderMarkdown renders blocks to markdown, fetching one level of children
+// for nested display — the shared body of `page get --content` and
+// `block list`.
+func renderMarkdown(ctx context.Context, b notion.Backend, blocks []notion.NormalizedBlock) (string, error) {
+	childMap := map[string][]notion.NormalizedBlock{}
+	for _, blk := range blocks {
+		if !blk.HasChildren {
+			continue
+		}
+		children, err := b.GetAllBlocks(ctx, blk.ID)
+		if err != nil {
+			return "", err
+		}
+		childMap[blk.ID] = children.Blocks
+	}
+	return markdown.FromBlocks(blocks, childMap), nil
 }
 
 // warnf writes a plain warning line to stderr (structured errors stay on the

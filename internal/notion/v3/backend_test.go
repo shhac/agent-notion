@@ -633,46 +633,6 @@ func TestBackendGetMe(t *testing.T) {
 // isDatabase
 // =============================================================================
 
-func TestBackendIsDatabase(t *testing.T) {
-	cases := []struct {
-		name string
-		typ  string
-		want bool
-	}{
-		{"collection_view_page", "collection_view_page", true},
-		{"collection_view", "collection_view", true},
-		{"page", "page", false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			s := mocknotion.New()
-			s.HandleBody("loadPageChunk", mocknotion.PageChunkBody(map[string]map[string]any{
-				"block": {"db-1": mocknotion.BlockEntity("db-1", tc.typ, nil)},
-			}))
-			b := newBackend(t, s)
-			got, err := b.IsDatabase(ctx(), "db-1")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got != tc.want {
-				t.Errorf("got %v, want %v", got, tc.want)
-			}
-		})
-	}
-
-	t.Run("false on error", func(t *testing.T) {
-		s := mocknotion.New()
-		s.Handle("loadPageChunk", mocknotion.Response{Status: 500, Body: map[string]any{"name": "Boom"}})
-		b := newBackend(t, s)
-		got, err := b.IsDatabase(ctx(), "missing")
-		if err != nil {
-			t.Fatalf("err = %v, want nil", err)
-		}
-		if got {
-			t.Error("want false on error")
-		}
-	})
-}
 
 // =============================================================================
 // getDatabase / getDatabaseSchema / listDatabases
@@ -875,27 +835,6 @@ func TestBackendGetAllBlocks(t *testing.T) {
 	})
 }
 
-func TestBackendGetChildBlocks(t *testing.T) {
-	s := mocknotion.New()
-	s.HandleBody("loadPageChunk", mocknotion.PageChunkBody(map[string]map[string]any{}))
-	b := newBackend(t, s)
-	ids := []string{"b1", "b2", "b3", "b4", "b5", "b6", "b7"}
-	res, err := b.GetChildBlocks(ctx(), ids)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(res) != 7 {
-		t.Fatalf("map size = %d, want 7", len(res))
-	}
-	for _, id := range ids {
-		if _, ok := res[id]; !ok {
-			t.Errorf("missing entry for %s", id)
-		}
-	}
-	if n := len(s.CallsFor("loadPageChunk")); n != 7 {
-		t.Errorf("loadPageChunk calls = %d, want 7", n)
-	}
-}
 
 // =============================================================================
 // createPage

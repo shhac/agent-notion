@@ -74,20 +74,11 @@ func pageGetCmd(g *GlobalFlags) *cobra.Command {
 					return m, nil
 				}
 
-				var withChildren []string
-				for _, blk := range all.Blocks {
-					if blk.HasChildren {
-						withChildren = append(withChildren, blk.ID)
-					}
+				content, err := renderMarkdown(ctx, b, all.Blocks)
+				if err != nil {
+					return nil, err
 				}
-				childMap := map[string][]notion.NormalizedBlock{}
-				if len(withChildren) > 0 {
-					childMap, err = b.GetChildBlocks(ctx, withChildren)
-					if err != nil {
-						return nil, err
-					}
-				}
-				m["content"] = markdown.FromBlocks(all.Blocks, childMap)
+				m["content"] = content
 				return m, nil
 			})
 			if err != nil {

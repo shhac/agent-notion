@@ -263,11 +263,11 @@ func TestBackendIsDatabase(t *testing.T) {
 	s.Handle("GET /v1/databases/pg1", mocknotion.Response{Status: 404,
 		Body: map[string]any{"object": "error", "status": 404, "code": "object_not_found"}})
 
-	if ok, err := b.IsDatabase(context.Background(), "db1"); err != nil || !ok {
-		t.Errorf("IsDatabase(db1) = %v, %v; want true, nil", ok, err)
+	if ok := b.isDatabase(context.Background(), "db1"); !ok {
+		t.Errorf("isDatabase(db1) = %v; want true", ok)
 	}
-	if ok, err := b.IsDatabase(context.Background(), "pg1"); err != nil || ok {
-		t.Errorf("IsDatabase(pg1) = %v, %v; want false, nil", ok, err)
+	if ok := b.isDatabase(context.Background(), "pg1"); ok {
+		t.Errorf("isDatabase(pg1) = %v; want false", ok)
 	}
 }
 

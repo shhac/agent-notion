@@ -461,19 +461,6 @@ func (b *Backend) GetAllBlocks(ctx context.Context, id string) (notion.BlockList
 	return notion.BlockListResult{Blocks: blocks, HasMore: len(blocks) >= 1000}, nil
 }
 
-// GetChildBlocks fetches all blocks under each given block ID.
-func (b *Backend) GetChildBlocks(ctx context.Context, blockIDs []string) (map[string][]notion.NormalizedBlock, error) {
-	childMap := make(map[string][]notion.NormalizedBlock, len(blockIDs))
-	for _, blockID := range blockIDs {
-		result, err := b.GetAllBlocks(ctx, blockID)
-		if err != nil {
-			return nil, err
-		}
-		childMap[blockID] = result.Blocks
-	}
-	return childMap, nil
-}
-
 // AppendBlocks converts official API block objects to v3 and appends them,
 // chaining ordering via the previous block and emitting a single parent
 // editMeta at the end.
@@ -652,20 +639,6 @@ func (b *Backend) GetMe(ctx context.Context) (notion.UserMe, error) {
 }
 
 // --- Utility ---
-
-// IsDatabase reports whether the ID refers to a database block. Any error
-// (e.g. not found) yields false, matching the TS behavior.
-func (b *Backend) IsDatabase(ctx context.Context, id string) (bool, error) {
-	resp, err := b.Client.LoadPageChunk(ctx, LoadPageChunkParams{PageID: id, Limit: 1})
-	if err != nil {
-		return false, nil
-	}
-	block, ok := resp.RecordMap.GetBlock(id)
-	if !ok {
-		return false, nil
-	}
-	return isDatabaseBlock(block), nil
-}
 
 // --- Private helpers ---
 

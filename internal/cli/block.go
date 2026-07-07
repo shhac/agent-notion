@@ -70,22 +70,13 @@ func blockListCmd(g *GlobalFlags) *cobra.Command {
 				if err != nil {
 					return blockListResult{}, err
 				}
-				var withChildren []string
-				for _, blk := range all.Blocks {
-					if blk.HasChildren {
-						withChildren = append(withChildren, blk.ID)
-					}
-				}
-				childMap := map[string][]notion.NormalizedBlock{}
-				if len(withChildren) > 0 {
-					childMap, err = b.GetChildBlocks(ctx, withChildren)
-					if err != nil {
-						return blockListResult{}, err
-					}
+				content, err := renderMarkdown(ctx, b, all.Blocks)
+				if err != nil {
+					return blockListResult{}, err
 				}
 				return blockListResult{
 					PageID:     pageID,
-					Content:    markdown.FromBlocks(all.Blocks, childMap),
+					Content:    content,
 					BlockCount: len(all.Blocks),
 					HasMore:    all.HasMore,
 				}, nil
