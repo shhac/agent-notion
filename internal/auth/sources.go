@@ -43,8 +43,8 @@ var browserSources = []browserSource{
 		darwin: "Chromium", linux: ".config/chromium", windows: "Chromium/User Data",
 		queries: chromiumSafeStorage("Chromium Safe Storage"),
 	}),
-	geckoBrowser("firefox", "Firefox profile on disk (browser need not be running)", "Firefox", ".mozilla/firefox", "Mozilla/Firefox/Profiles"),
-	geckoBrowser("zen", "Zen Browser profile on disk (Firefox-based)", "zen", ".zen", "zen/Profiles"),
+	geckoBrowser("firefox", "Firefox profile on disk (browser need not be running)", "Firefox/Profiles", ".mozilla/firefox", "Mozilla/Firefox/Profiles"),
+	geckoBrowser("zen", "Zen Browser profile on disk (Firefox-based)", "zen/Profiles", ".zen", "zen/Profiles"),
 	{
 		name:    "safari",
 		summary: "Safari cookie store (macOS; needs Full Disk Access)",

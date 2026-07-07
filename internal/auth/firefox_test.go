@@ -93,6 +93,27 @@ func TestGeckoProfilesExactAndSuffixMatch(t *testing.T) {
 	}
 }
 
+// TestGeckoProfilesZenNaming covers Zen's profile directory names, which are
+// title-cased and parenthesized (e.g. "abcd0000.Default (release)") rather
+// than Firefox's "xxxx.default-release" — they must still be discovered.
+func TestGeckoProfilesZenNaming(t *testing.T) {
+	base := t.TempDir()
+	newProfile(t, base, "abcd0000.Default (release)", "")
+	newProfile(t, base, "efgh1111.Default Profile", "")
+
+	profiles, err := geckoProfiles(base, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, p := range profiles {
+		got[filepath.Base(p)] = true
+	}
+	if !got["abcd0000.Default (release)"] || !got["efgh1111.Default Profile"] {
+		t.Errorf("Zen profiles not discovered: %v", profiles)
+	}
+}
+
 func TestGeckoProfilesErrors(t *testing.T) {
 	if _, err := geckoProfiles(filepath.Join(t.TempDir(), "missing"), ""); err == nil {
 		t.Error("expected error for a missing base dir")

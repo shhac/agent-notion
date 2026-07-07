@@ -9,7 +9,10 @@ import (
 	"strings"
 )
 
-// geckoBaseDir returns a Firefox-family profile root for the given app dir name.
+// geckoBaseDir returns the directory that holds a Firefox-family app's profile
+// directories. Note the layout differs by OS: macOS and Windows nest profiles
+// under a "Profiles" subdirectory (so the darwin/windows names include it),
+// while Linux keeps them directly under the app dir.
 func geckoBaseDir(darwin, linux, windows string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
