@@ -143,13 +143,9 @@ func addInlineComment(ctx context.Context, c *Client, params notion.AddInlineCom
 	discussionID := newUUID()
 	commentID := newUUID()
 
-	resp, err := c.SyncRecordValues(ctx, []SyncRequest{{Pointer: SyncPointer{ID: params.BlockID, Table: "block"}, Version: -1}})
+	block, _, err := fetchBlock(ctx, c, params.BlockID)
 	if err != nil {
 		return empty, err
-	}
-	block, ok := resp.RecordMap.GetBlock(params.BlockID)
-	if !ok {
-		return empty, fmt.Errorf("Block not found: %s", params.BlockID)
 	}
 
 	currentTitle := block.Property("title")
@@ -197,4 +193,18 @@ func addInlineComment(ctx context.Context, c *Client, params notion.AddInlineCom
 		Body:         params.Body,
 		CreatedAt:    MsToISO(now.UnixMilli()),
 	}, nil
+}
+
+// fetchBlock fetches one block record by ID via syncRecordValues. The
+// not-found message is LLM-facing contract text shared by every caller.
+func fetchBlock(ctx context.Context, c *Client, id string) (*Block, RecordMap, error) {
+	resp, err := c.SyncRecordValues(ctx, []SyncRequest{{Pointer: SyncPointer{ID: id, Table: "block"}, Version: -1}})
+	if err != nil {
+		return nil, nil, err
+	}
+	block, ok := resp.RecordMap.GetBlock(id)
+	if !ok {
+		return nil, nil, fmt.Errorf("Block not found: %s", id)
+	}
+	return block, resp.RecordMap, nil
 }

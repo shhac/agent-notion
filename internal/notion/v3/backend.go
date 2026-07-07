@@ -87,18 +87,29 @@ func (b *Backend) ListDatabases(ctx context.Context, params notion.ListParams) (
 	return notion.Paginated[notion.DatabaseListItem]{Items: items, HasMore: false}, nil
 }
 
-// GetDatabase resolves a database's collection and returns its detail.
-func (b *Backend) GetDatabase(ctx context.Context, id string) (notion.DatabaseDetail, error) {
+// requireCollection loads a database block and resolves its collection,
+// failing with the shared not-found message. The record map is returned for
+// callers that also need view IDs.
+func (b *Backend) requireCollection(ctx context.Context, id string) (*Collection, RecordMap, error) {
 	resp, err := b.Client.LoadPageChunk(ctx, LoadPageChunkParams{PageID: id, Limit: 1})
 	if err != nil {
-		return notion.DatabaseDetail{}, err
+		return nil, nil, err
 	}
 	collection, err := b.resolveCollection(ctx, id, resp.RecordMap)
 	if err != nil {
-		return notion.DatabaseDetail{}, err
+		return nil, nil, err
 	}
 	if collection == nil {
-		return notion.DatabaseDetail{}, fmt.Errorf("Database not found: %s", id)
+		return nil, nil, fmt.Errorf("Database not found: %s", id)
+	}
+	return collection, resp.RecordMap, nil
+}
+
+// GetDatabase resolves a database's collection and returns its detail.
+func (b *Backend) GetDatabase(ctx context.Context, id string) (notion.DatabaseDetail, error) {
+	collection, _, err := b.requireCollection(ctx, id)
+	if err != nil {
+		return notion.DatabaseDetail{}, err
 	}
 	return ToDatabaseDetail(collection, id), nil
 }
@@ -107,22 +118,15 @@ func (b *Backend) GetDatabase(ctx context.Context, id string) (notion.DatabaseDe
 func (b *Backend) QueryDatabase(ctx context.Context, params notion.QueryDatabaseParams) (notion.Paginated[notion.QueryRow], error) {
 	empty := notion.Paginated[notion.QueryRow]{}
 
-	pageResp, err := b.Client.LoadPageChunk(ctx, LoadPageChunkParams{PageID: params.ID, Limit: 1})
+	collection, rm, err := b.requireCollection(ctx, params.ID)
 	if err != nil {
 		return empty, err
-	}
-	collection, err := b.resolveCollection(ctx, params.ID, pageResp.RecordMap)
-	if err != nil {
-		return empty, err
-	}
-	if collection == nil {
-		return empty, fmt.Errorf("Database not found: %s", params.ID)
 	}
 
 	viewID := ""
-	if vids := blockViewIDs(pageResp.RecordMap, params.ID); len(vids) > 0 {
+	if vids := blockViewIDs(rm, params.ID); len(vids) > 0 {
 		viewID = vids[0]
-	} else if vid, ok := pageResp.RecordMap.FirstCollectionViewID(); ok {
+	} else if vid, ok := rm.FirstCollectionViewID(); ok {
 		viewID = vid
 	}
 	if viewID == "" {
@@ -158,16 +162,9 @@ func (b *Backend) QueryDatabase(ctx context.Context, params notion.QueryDatabase
 
 // GetDatabaseSchema resolves a database's collection and returns its schema.
 func (b *Backend) GetDatabaseSchema(ctx context.Context, id string) (notion.DatabaseSchema, error) {
-	resp, err := b.Client.LoadPageChunk(ctx, LoadPageChunkParams{PageID: id, Limit: 1})
+	collection, _, err := b.requireCollection(ctx, id)
 	if err != nil {
 		return notion.DatabaseSchema{}, err
-	}
-	collection, err := b.resolveCollection(ctx, id, resp.RecordMap)
-	if err != nil {
-		return notion.DatabaseSchema{}, err
-	}
-	if collection == nil {
-		return notion.DatabaseSchema{}, fmt.Errorf("Database not found: %s", id)
 	}
 	return ToDatabaseSchema(collection, id), nil
 }
@@ -525,12 +522,8 @@ func (b *Backend) UpdateBlock(ctx context.Context, params notion.UpdateBlockPara
 	empty := notion.BlockUpdateResult{}
 	spaceID, userID := b.Client.SpaceID, b.Client.UserID
 
-	resp, err := b.Client.SyncRecordValues(ctx, []SyncRequest{{Pointer: SyncPointer{ID: params.ID, Table: "block"}, Version: -1}})
-	if err != nil {
+	if _, _, err := fetchBlock(ctx, b.Client, params.ID); err != nil {
 		return empty, err
-	}
-	if _, ok := resp.RecordMap.GetBlock(params.ID); !ok {
-		return empty, fmt.Errorf("Block not found: %s", params.ID)
 	}
 
 	v3Props := map[string]any{}
@@ -556,13 +549,9 @@ func (b *Backend) DeleteBlock(ctx context.Context, id string) (notion.BlockDelet
 	empty := notion.BlockDeleteResult{}
 	spaceID, userID := b.Client.SpaceID, b.Client.UserID
 
-	resp, err := b.Client.SyncRecordValues(ctx, []SyncRequest{{Pointer: SyncPointer{ID: id, Table: "block"}, Version: -1}})
+	block, _, err := fetchBlock(ctx, b.Client, id)
 	if err != nil {
 		return empty, err
-	}
-	block, ok := resp.RecordMap.GetBlock(id)
-	if !ok {
-		return empty, fmt.Errorf("Block not found: %s", id)
 	}
 
 	ops := TrashBlockOps(TrashBlockParams{
@@ -584,13 +573,9 @@ func (b *Backend) MoveBlock(ctx context.Context, params notion.MoveBlockParams) 
 	empty := notion.BlockMoveResult{}
 	spaceID, userID := b.Client.SpaceID, b.Client.UserID
 
-	resp, err := b.Client.SyncRecordValues(ctx, []SyncRequest{{Pointer: SyncPointer{ID: params.ID, Table: "block"}, Version: -1}})
+	block, _, err := fetchBlock(ctx, b.Client, params.ID)
 	if err != nil {
 		return empty, err
-	}
-	block, ok := resp.RecordMap.GetBlock(params.ID)
-	if !ok {
-		return empty, fmt.Errorf("Block not found: %s", params.ID)
 	}
 
 	newParentID := block.ParentID
