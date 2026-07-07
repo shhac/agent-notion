@@ -34,3 +34,6 @@ yarn-error.log*
 # claude
 .claude/*.local.json
 CLAUDE.local.md
+
+# go build output
+/agent-notion
