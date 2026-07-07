@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/shhac/agent-notion/internal/notion"
 )
 
 // capture records the last request a test server received.
@@ -69,7 +71,7 @@ func TestSearch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := testClient(srv.URL).Search(context.Background(), SearchParams{Query: "hi", Filter: "page", Limit: 10})
+	got, err := testClient(srv.URL).Search(context.Background(), notion.SearchParams{Query: "hi", Filter: "page", Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +95,7 @@ func TestSearchNextCursor(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := testClient(srv.URL).Search(context.Background(), SearchParams{Query: "x"})
+	got, err := testClient(srv.URL).Search(context.Background(), notion.SearchParams{Query: "x"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +116,7 @@ func TestQueryDatabase(t *testing.T) {
 	defer srv.Close()
 
 	filter := map[string]any{"property": "Count", "number": map[string]any{"greater_than": 0}}
-	got, err := testClient(srv.URL).QueryDatabase(context.Background(), QueryParams{ID: "db1", Filter: filter, Limit: 25})
+	got, err := testClient(srv.URL).QueryDatabase(context.Background(), notion.QueryDatabaseParams{ID: "db1", Filter: filter, Limit: 25})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +168,7 @@ func TestCreatePageInDatabase(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := testClient(srv.URL).CreatePage(context.Background(), CreatePageParams{
+	got, err := testClient(srv.URL).CreatePage(context.Background(), notion.CreatePageParams{
 		ParentID: "db1", Title: "Task", Properties: map[string]any{"Priority": "High"}, Icon: "🚀",
 	})
 	if err != nil {
@@ -208,7 +210,7 @@ func TestCreatePageUnderPage(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := testClient(srv.URL).CreatePage(context.Background(), CreatePageParams{ParentID: "parent1", Title: "Child"})
+	_, err := testClient(srv.URL).CreatePage(context.Background(), notion.CreatePageParams{ParentID: "parent1", Title: "Child"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +232,7 @@ func TestUpdatePage(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := testClient(srv.URL).UpdatePage(context.Background(), UpdatePageParams{
+	got, err := testClient(srv.URL).UpdatePage(context.Background(), notion.UpdatePageParams{
 		ID: "pg1", Title: "New Title", Properties: map[string]any{"Name": "ignored", "Done": true},
 	})
 	if err != nil {
@@ -291,7 +293,7 @@ func TestListBlocks(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := testClient(srv.URL).ListBlocks(context.Background(), ListBlocksParams{ID: "blk1", Limit: 30, Cursor: "c1"})
+	got, err := testClient(srv.URL).ListBlocks(context.Background(), notion.ListBlocksParams{ID: "blk1", Limit: 30, Cursor: "c1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,7 +346,7 @@ func TestAppendBlocks(t *testing.T) {
 	defer srv.Close()
 
 	blocks := []any{map[string]any{"type": "paragraph"}, map[string]any{"type": "divider"}}
-	added, err := testClient(srv.URL).AppendBlocks(context.Background(), "blk1", blocks)
+	added, err := testClient(srv.URL).AppendBlocks(context.Background(), notion.AppendBlocksParams{ID: "blk1", Blocks: blocks})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,8 +356,8 @@ func TestAppendBlocks(t *testing.T) {
 	if children := cap.body["children"].([]any); len(children) != 2 {
 		t.Errorf("children = %#v", children)
 	}
-	if added != 2 {
-		t.Errorf("added = %d", added)
+	if added.BlocksAdded != 2 {
+		t.Errorf("added = %d", added.BlocksAdded)
 	}
 }
 
@@ -373,7 +375,7 @@ func TestUpdateBlockRetrievesType(t *testing.T) {
 	defer srv.Close()
 
 	content := "Updated"
-	got, err := testClient(srv.URL).UpdateBlock(context.Background(), UpdateBlockParams{ID: "b1", Content: &content})
+	got, err := testClient(srv.URL).UpdateBlock(context.Background(), notion.UpdateBlockParams{ID: "b1", Content: &content})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -413,7 +415,7 @@ func TestListComments(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := testClient(srv.URL).ListComments(context.Background(), ListCommentsParams{PageID: "pg1", Limit: 15})
+	got, err := testClient(srv.URL).ListComments(context.Background(), notion.ListCommentsParams{PageID: "pg1", Limit: 15})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -437,7 +439,7 @@ func TestAddComment(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := testClient(srv.URL).AddComment(context.Background(), "pg1", "the body")
+	got, err := testClient(srv.URL).AddComment(context.Background(), notion.AddCommentParams{PageID: "pg1", Body: "the body"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -459,7 +461,7 @@ func TestAddCommentFallsBackToRequestBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := testClient(srv.URL).AddComment(context.Background(), "pg1", "fallback text")
+	got, err := testClient(srv.URL).AddComment(context.Background(), notion.AddCommentParams{PageID: "pg1", Body: "fallback text"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -484,7 +486,7 @@ func TestListUsersAndGetMe(t *testing.T) {
 	defer srv.Close()
 
 	c := testClient(srv.URL)
-	users, err := c.ListUsers(context.Background(), ListParams{})
+	users, err := c.ListUsers(context.Background(), notion.ListParams{})
 	if err != nil {
 		t.Fatal(err)
 	}

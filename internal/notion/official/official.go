@@ -25,18 +25,37 @@ func pageSize(limit int) int {
 	return limit
 }
 
-// --- Search ---
-
-// SearchParams controls a workspace search.
-type SearchParams struct {
-	Query  string
-	Filter string // "page" | "database" | "" (no filter)
-	Limit  int
-	Cursor string
+// fetchList runs a list request, decodes the shared paginated envelope, applies
+// transform to each raw result, and wraps the page. For POST endpoints body
+// carries the request payload; for GET endpoints body is nil and path already
+// includes the query string.
+func fetchList[T any](ctx context.Context, c Client, method, path string, body any, transform func(map[string]any) T) (notion.Paginated[T], error) {
+	var resp paginatedRaw
+	if err := c.do(ctx, method, path, body, &resp); err != nil {
+		return notion.Paginated[T]{}, err
+	}
+	items := make([]T, 0, len(resp.Results))
+	for _, r := range resp.Results {
+		items = append(items, transform(r))
+	}
+	return notion.Paginated[T]{Items: items, HasMore: resp.HasMore, NextCursor: resp.cursor()}, nil
 }
 
+// listQuery builds the page_size (+ optional start_cursor) query shared by the
+// GET list endpoints. Callers add any endpoint-specific keys before Encode.
+func listQuery(limit int, cursor string) url.Values {
+	q := url.Values{}
+	q.Set("page_size", strconv.Itoa(pageSize(limit)))
+	if cursor != "" {
+		q.Set("start_cursor", cursor)
+	}
+	return q
+}
+
+// --- Search ---
+
 // Search runs a workspace search (POST /v1/search).
-func (c Client) Search(ctx context.Context, p SearchParams) (notion.Paginated[notion.SearchResult], error) {
+func (c Client) Search(ctx context.Context, p notion.SearchParams) (notion.Paginated[notion.SearchResult], error) {
 	body := map[string]any{
 		"query":     p.Query,
 		"page_size": pageSize(p.Limit),
@@ -47,28 +66,13 @@ func (c Client) Search(ctx context.Context, p SearchParams) (notion.Paginated[no
 	if p.Cursor != "" {
 		body["start_cursor"] = p.Cursor
 	}
-
-	var resp paginatedRaw
-	if err := c.do(ctx, http.MethodPost, "/v1/search", body, &resp); err != nil {
-		return notion.Paginated[notion.SearchResult]{}, err
-	}
-	items := make([]notion.SearchResult, 0, len(resp.Results))
-	for _, r := range resp.Results {
-		items = append(items, transformSearchResult(r))
-	}
-	return notion.Paginated[notion.SearchResult]{Items: items, HasMore: resp.HasMore, NextCursor: resp.cursor()}, nil
+	return fetchList(ctx, c, http.MethodPost, "/v1/search", body, transformSearchResult)
 }
 
 // --- Databases ---
 
-// ListParams is the shared pagination input for list endpoints.
-type ListParams struct {
-	Limit  int
-	Cursor string
-}
-
 // ListDatabases lists databases via search filtered to object=database.
-func (c Client) ListDatabases(ctx context.Context, p ListParams) (notion.Paginated[notion.DatabaseListItem], error) {
+func (c Client) ListDatabases(ctx context.Context, p notion.ListParams) (notion.Paginated[notion.DatabaseListItem], error) {
 	body := map[string]any{
 		"filter":    map[string]any{"property": "object", "value": "database"},
 		"page_size": pageSize(p.Limit),
@@ -76,16 +80,7 @@ func (c Client) ListDatabases(ctx context.Context, p ListParams) (notion.Paginat
 	if p.Cursor != "" {
 		body["start_cursor"] = p.Cursor
 	}
-
-	var resp paginatedRaw
-	if err := c.do(ctx, http.MethodPost, "/v1/search", body, &resp); err != nil {
-		return notion.Paginated[notion.DatabaseListItem]{}, err
-	}
-	items := make([]notion.DatabaseListItem, 0, len(resp.Results))
-	for _, r := range resp.Results {
-		items = append(items, transformDatabaseListItem(r))
-	}
-	return notion.Paginated[notion.DatabaseListItem]{Items: items, HasMore: resp.HasMore, NextCursor: resp.cursor()}, nil
+	return fetchList(ctx, c, http.MethodPost, "/v1/search", body, transformDatabaseListItem)
 }
 
 // GetDatabase retrieves a database's full detail (GET /v1/databases/{id}).
@@ -106,17 +101,8 @@ func (c Client) GetDatabaseSchema(ctx context.Context, id string) (notion.Databa
 	return transformDatabaseSchema(db), nil
 }
 
-// QueryParams controls a database query.
-type QueryParams struct {
-	ID     string
-	Filter any // official-API filter object, passed through verbatim
-	Sort   any // official-API sorts value, passed through verbatim
-	Limit  int
-	Cursor string
-}
-
 // QueryDatabase runs a database query (POST /v1/databases/{id}/query).
-func (c Client) QueryDatabase(ctx context.Context, p QueryParams) (notion.Paginated[notion.QueryRow], error) {
+func (c Client) QueryDatabase(ctx context.Context, p notion.QueryDatabaseParams) (notion.Paginated[notion.QueryRow], error) {
 	body := map[string]any{"page_size": pageSize(p.Limit)}
 	if p.Filter != nil {
 		body["filter"] = p.Filter
@@ -127,16 +113,7 @@ func (c Client) QueryDatabase(ctx context.Context, p QueryParams) (notion.Pagina
 	if p.Cursor != "" {
 		body["start_cursor"] = p.Cursor
 	}
-
-	var resp paginatedRaw
-	if err := c.do(ctx, http.MethodPost, "/v1/databases/"+p.ID+"/query", body, &resp); err != nil {
-		return notion.Paginated[notion.QueryRow]{}, err
-	}
-	items := make([]notion.QueryRow, 0, len(resp.Results))
-	for _, r := range resp.Results {
-		items = append(items, transformQueryRow(r))
-	}
-	return notion.Paginated[notion.QueryRow]{Items: items, HasMore: resp.HasMore, NextCursor: resp.cursor()}, nil
+	return fetchList(ctx, c, http.MethodPost, "/v1/databases/"+p.ID+"/query", body, transformQueryRow)
 }
 
 // --- Pages ---
@@ -150,17 +127,9 @@ func (c Client) GetPage(ctx context.Context, id string) (notion.PageDetail, erro
 	return transformPageDetail(page), nil
 }
 
-// CreatePageParams controls page creation.
-type CreatePageParams struct {
-	ParentID   string
-	Title      string
-	Properties map[string]any
-	Icon       string
-}
-
 // CreatePage creates a page (POST /v1/pages). Whether the parent is a database
 // or a page decides the property shape; it probes with isDatabase.
-func (c Client) CreatePage(ctx context.Context, p CreatePageParams) (notion.PageCreateResult, error) {
+func (c Client) CreatePage(ctx context.Context, p notion.CreatePageParams) (notion.PageCreateResult, error) {
 	body := map[string]any{}
 	if c.isDatabase(ctx, p.ParentID) {
 		body["parent"] = map[string]any{"database_id": p.ParentID}
@@ -186,17 +155,9 @@ func (c Client) CreatePage(ctx context.Context, p CreatePageParams) (notion.Page
 	}, nil
 }
 
-// UpdatePageParams controls a page update.
-type UpdatePageParams struct {
-	ID         string
-	Title      string
-	Properties map[string]any
-	Icon       string
-}
-
 // UpdatePage updates a page's title, properties, and/or icon
 // (PATCH /v1/pages/{id}).
-func (c Client) UpdatePage(ctx context.Context, p UpdatePageParams) (notion.PageUpdateResult, error) {
+func (c Client) UpdatePage(ctx context.Context, p notion.UpdatePageParams) (notion.PageUpdateResult, error) {
 	body := map[string]any{}
 	if p.Title != "" || len(p.Properties) > 0 {
 		props := map[string]any{}
@@ -242,6 +203,13 @@ func (c Client) RestorePage(ctx context.Context, id string) (notion.PageTrashRes
 	return notion.PageTrashResult{ID: id, Trashed: false}, nil
 }
 
+// IsDatabase reports whether the ID refers to a database. Any lookup error is
+// treated as "not a database", matching the TS behavior; the error return is
+// always nil (it exists to satisfy notion.Backend).
+func (c Client) IsDatabase(ctx context.Context, id string) (bool, error) {
+	return c.isDatabase(ctx, id), nil
+}
+
 // isDatabase reports whether id resolves to a database. Any error (including a
 // 404 for a page id) is treated as "not a database", matching the TS try/catch.
 func (c Client) isDatabase(ctx context.Context, id string) bool {
@@ -250,31 +218,11 @@ func (c Client) isDatabase(ctx context.Context, id string) bool {
 
 // --- Blocks ---
 
-// ListBlocksParams controls a single page of child blocks.
-type ListBlocksParams struct {
-	ID     string
-	Limit  int
-	Cursor string
-}
-
 // ListBlocks lists one page of a block's children
 // (GET /v1/blocks/{id}/children).
-func (c Client) ListBlocks(ctx context.Context, p ListBlocksParams) (notion.Paginated[notion.NormalizedBlock], error) {
-	q := url.Values{}
-	q.Set("page_size", strconv.Itoa(pageSize(p.Limit)))
-	if p.Cursor != "" {
-		q.Set("start_cursor", p.Cursor)
-	}
-
-	var resp paginatedRaw
-	if err := c.do(ctx, http.MethodGet, "/v1/blocks/"+p.ID+"/children?"+q.Encode(), nil, &resp); err != nil {
-		return notion.Paginated[notion.NormalizedBlock]{}, err
-	}
-	items := make([]notion.NormalizedBlock, 0, len(resp.Results))
-	for _, b := range resp.Results {
-		items = append(items, normalizeBlock(b))
-	}
-	return notion.Paginated[notion.NormalizedBlock]{Items: items, HasMore: resp.HasMore, NextCursor: resp.cursor()}, nil
+func (c Client) ListBlocks(ctx context.Context, p notion.ListBlocksParams) (notion.Paginated[notion.NormalizedBlock], error) {
+	q := listQuery(p.Limit, p.Cursor)
+	return fetchList(ctx, c, http.MethodGet, "/v1/blocks/"+p.ID+"/children?"+q.Encode(), nil, normalizeBlock)
 }
 
 // maxAllBlocks caps GetAllBlocks, matching the TS 1000-block ceiling.
@@ -330,30 +278,21 @@ func (c Client) GetChildBlocks(ctx context.Context, blockIDs []string) (map[stri
 	return out, nil
 }
 
-// AppendBlocks appends children to a block and returns how many were added
+// AppendBlocks appends children to a block and reports how many were added
 // (PATCH /v1/blocks/{id}/children).
-func (c Client) AppendBlocks(ctx context.Context, id string, blocks []any) (int, error) {
+func (c Client) AppendBlocks(ctx context.Context, p notion.AppendBlocksParams) (notion.AppendBlocksResult, error) {
 	var resp struct {
 		Results []any `json:"results"`
 	}
-	if err := c.do(ctx, http.MethodPatch, "/v1/blocks/"+id+"/children", map[string]any{"children": blocks}, &resp); err != nil {
-		return 0, err
+	if err := c.do(ctx, http.MethodPatch, "/v1/blocks/"+p.ID+"/children", map[string]any{"children": p.Blocks}, &resp); err != nil {
+		return notion.AppendBlocksResult{}, err
 	}
-	return len(resp.Results), nil
-}
-
-// UpdateBlockParams controls a block update. Content is a pointer so an empty
-// string is distinguishable from "no content change" (mirrors the TS
-// `content !== undefined` guard).
-type UpdateBlockParams struct {
-	ID      string
-	Content *string
-	Type    string
+	return notion.AppendBlocksResult{BlocksAdded: len(resp.Results)}, nil
 }
 
 // UpdateBlock updates a block's rich text (PATCH /v1/blocks/{id}). When Type is
 // empty it first retrieves the block to learn its type.
-func (c Client) UpdateBlock(ctx context.Context, p UpdateBlockParams) (notion.BlockUpdateResult, error) {
+func (c Client) UpdateBlock(ctx context.Context, p notion.UpdateBlockParams) (notion.BlockUpdateResult, error) {
 	blockType := p.Type
 	if blockType == "" {
 		var existing map[string]any
@@ -385,39 +324,19 @@ func (c Client) DeleteBlock(ctx context.Context, id string) (notion.BlockDeleteR
 
 // --- Comments ---
 
-// ListCommentsParams controls a page of comments.
-type ListCommentsParams struct {
-	PageID string
-	Limit  int
-	Cursor string
-}
-
 // ListComments lists comments on a page/block (GET /v1/comments).
-func (c Client) ListComments(ctx context.Context, p ListCommentsParams) (notion.Paginated[notion.CommentItem], error) {
-	q := url.Values{}
+func (c Client) ListComments(ctx context.Context, p notion.ListCommentsParams) (notion.Paginated[notion.CommentItem], error) {
+	q := listQuery(p.Limit, p.Cursor)
 	q.Set("block_id", p.PageID)
-	q.Set("page_size", strconv.Itoa(pageSize(p.Limit)))
-	if p.Cursor != "" {
-		q.Set("start_cursor", p.Cursor)
-	}
-
-	var resp paginatedRaw
-	if err := c.do(ctx, http.MethodGet, "/v1/comments?"+q.Encode(), nil, &resp); err != nil {
-		return notion.Paginated[notion.CommentItem]{}, err
-	}
-	items := make([]notion.CommentItem, 0, len(resp.Results))
-	for _, r := range resp.Results {
-		items = append(items, transformComment(r))
-	}
-	return notion.Paginated[notion.CommentItem]{Items: items, HasMore: resp.HasMore, NextCursor: resp.cursor()}, nil
+	return fetchList(ctx, c, http.MethodGet, "/v1/comments?"+q.Encode(), nil, transformComment)
 }
 
 // AddComment adds a top-level comment to a page (POST /v1/comments). The
 // returned body falls back to the request text when the response omits it.
-func (c Client) AddComment(ctx context.Context, pageID, body string) (notion.CommentCreateResult, error) {
+func (c Client) AddComment(ctx context.Context, p notion.AddCommentParams) (notion.CommentCreateResult, error) {
 	reqBody := map[string]any{
-		"parent":    map[string]any{"page_id": pageID},
-		"rich_text": richTextValue(body),
+		"parent":    map[string]any{"page_id": p.PageID},
+		"rich_text": richTextValue(p.Body),
 	}
 
 	var resp map[string]any
@@ -426,7 +345,7 @@ func (c Client) AddComment(ctx context.Context, pageID, body string) (notion.Com
 	}
 	text := richTextToPlain(mslice(resp, "rich_text"))
 	if text == "" {
-		text = body
+		text = p.Body
 	}
 	return notion.CommentCreateResult{
 		ID:        mstr(resp, "id"),
@@ -438,22 +357,9 @@ func (c Client) AddComment(ctx context.Context, pageID, body string) (notion.Com
 // --- Users ---
 
 // ListUsers lists workspace users (GET /v1/users).
-func (c Client) ListUsers(ctx context.Context, p ListParams) (notion.Paginated[notion.UserItem], error) {
-	q := url.Values{}
-	q.Set("page_size", strconv.Itoa(pageSize(p.Limit)))
-	if p.Cursor != "" {
-		q.Set("start_cursor", p.Cursor)
-	}
-
-	var resp paginatedRaw
-	if err := c.do(ctx, http.MethodGet, "/v1/users?"+q.Encode(), nil, &resp); err != nil {
-		return notion.Paginated[notion.UserItem]{}, err
-	}
-	items := make([]notion.UserItem, 0, len(resp.Results))
-	for _, r := range resp.Results {
-		items = append(items, transformUser(r))
-	}
-	return notion.Paginated[notion.UserItem]{Items: items, HasMore: resp.HasMore, NextCursor: resp.cursor()}, nil
+func (c Client) ListUsers(ctx context.Context, p notion.ListParams) (notion.Paginated[notion.UserItem], error) {
+	q := listQuery(p.Limit, p.Cursor)
+	return fetchList(ctx, c, http.MethodGet, "/v1/users?"+q.Encode(), nil, transformUser)
 }
 
 // GetMe returns the current bot/user identity as a UserMe (GET /v1/users/me).
