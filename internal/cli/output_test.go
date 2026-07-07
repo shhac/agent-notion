@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -10,15 +11,20 @@ import (
 
 // childFetchBackend is a minimal notion.Backend that only answers GetAllBlocks
 // from a fixed parent→children map; every other method is unused by
-// renderMarkdown. It also counts fetches so tests can assert descent bounds.
+// renderMarkdown. It also counts fetches so tests can assert descent bounds, and
+// can be told to fail on a specific block ID to exercise error propagation.
 type childFetchBackend struct {
 	notion.Backend
 	children map[string][]notion.NormalizedBlock
+	failOn   string
 	fetches  int
 }
 
 func (f *childFetchBackend) GetAllBlocks(_ context.Context, id string) (notion.BlockListResult, error) {
 	f.fetches++
+	if id == f.failOn {
+		return notion.BlockListResult{}, errors.New("boom")
+	}
 	return notion.BlockListResult{Blocks: f.children[id]}, nil
 }
 
@@ -64,5 +70,25 @@ func TestRenderMarkdownDepthBound(t *testing.T) {
 	}
 	if fb.fetches != 1 {
 		t.Errorf("max_depth=1 should fetch exactly the top level's children (1 call), got %d", fb.fetches)
+	}
+}
+
+// TestRenderMarkdownPropagatesFetchError pins that an error from a deep child
+// fetch aborts and surfaces rather than being swallowed or partially rendered.
+func TestRenderMarkdownPropagatesFetchError(t *testing.T) {
+	fb := &childFetchBackend{
+		failOn: "A", // grandchild fetch fails
+		children: map[string][]notion.NormalizedBlock{
+			"C": {{ID: "A", Type: "bulleted_list_item", RichText: "item A", HasChildren: true}},
+		},
+	}
+	top := []notion.NormalizedBlock{{ID: "C", Type: "callout", RichText: "note", HasChildren: true}}
+
+	md, err := renderMarkdown(context.Background(), fb, top, 0)
+	if err == nil {
+		t.Fatal("expected the deep fetch error to propagate")
+	}
+	if md != "" {
+		t.Errorf("expected empty output on error, got %q", md)
 	}
 }

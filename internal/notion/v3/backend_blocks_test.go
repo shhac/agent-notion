@@ -50,6 +50,29 @@ func TestBackendListBlocks(t *testing.T) {
 	})
 }
 
+// TestBackendListBlocksResolvesMention pins the seam: a child block whose title
+// carries a person-mention decoration is normalized with the name resolved from
+// the record map, not left as the ‣ placeholder.
+func TestBackendListBlocksResolvesMention(t *testing.T) {
+	mentionTitle := []any{[]any{"‣", []any{[]any{"u", "U1"}}}}
+	s := mocknotion.New()
+	s.HandleBody("loadPageChunk", mocknotion.PageChunkBody(map[string]map[string]any{
+		"block": {
+			"page-1": mocknotion.BlockEntity("page-1", "page", map[string]any{"content": []any{"b1"}}),
+			"b1":     mocknotion.BlockEntity("b1", "text", map[string]any{"properties": map[string]any{"title": mentionTitle}}),
+		},
+		"notion_user": {"U1": userEntity("U1", "Ivan", "Tchernev")},
+	}))
+	b := newBackend(t, s)
+	res, err := b.ListBlocks(ctx(), notionListBlocks("page-1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Items) != 1 || res.Items[0].RichText != "@Ivan Tchernev" {
+		t.Errorf("items = %#v", res.Items)
+	}
+}
+
 // =============================================================================
 // getAllBlocks / getChildBlocks
 // =============================================================================

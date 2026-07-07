@@ -112,7 +112,10 @@ func mentionRecordMap(t *testing.T) RecordMap {
 			"U1": {"value": {"id":"U1","given_name":"Ivan","family_name":"Tchernev","email":"ivan@example.com"}},
 			"U2": {"value": {"id":"U2","email":"ops@example.com"}}
 		},
-		"block": {"P1": {"value": {"id":"P1","type":"page","properties":{"title":[["Roadmap"]]}}}}
+		"block": {
+			"P1": {"value": {"id":"P1","type":"page","properties":{"title":[["Roadmap"]]}}},
+			"P2": {"value": {"id":"P2","type":"page","properties":{"title":[[""]]}}}
+		}
 	}`
 	if err := json.Unmarshal([]byte(raw), &rm); err != nil {
 		t.Fatal(err)
@@ -134,8 +137,12 @@ func TestRichTextRender(t *testing.T) {
 		{"person mention", RichText{mention("‣", "u", "U1")}, "@Ivan Tchernev"},
 		{"person mention without name falls back to email", RichText{mention("‣", "u", "U2")}, "ops@example.com"},
 		{"page mention", RichText{mention("‣", "p", "P1")}, "Roadmap"},
+		{"page mention with empty title keeps placeholder", RichText{mention("‣", "p", "P2")}, "‣"},
+		{"page mention missing from record map keeps placeholder", RichText{mention("‣", "p", "MISSING")}, "‣"},
 		{"date mention", RichText{dateSegment(map[string]any{"start_date": "2026-07-06"})}, "2026-07-06"},
+		{"date with time", RichText{dateSegment(map[string]any{"start_date": "2026-07-06", "start_time": "14:30"})}, "2026-07-06 14:30"},
 		{"date range", RichText{dateSegment(map[string]any{"start_date": "2026-07-06", "end_date": "2026-07-08"})}, "2026-07-06 → 2026-07-08"},
+		{"date range with time", RichText{dateSegment(map[string]any{"start_date": "2026-07-06", "start_time": "09:00", "end_date": "2026-07-08"})}, "2026-07-06 09:00 → 2026-07-08"},
 		{"text before mention", RichText{{Text: "cc "}, mention("‣", "u", "U1")}, "cc @Ivan Tchernev"},
 		{"bold decoration is not a mention", RichText{{Text: "bold", Decorations: []Decoration{{Type: "b"}}}}, "bold"},
 		{"unresolvable person keeps placeholder", RichText{mention("‣", "u", "MISSING")}, "‣"},
