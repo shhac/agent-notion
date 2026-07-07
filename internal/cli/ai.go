@@ -154,6 +154,7 @@ func aiChatSendCmd(g *GlobalFlags) *cobra.Command {
 		page     string
 		noSearch bool
 		stream   bool
+		readOnly bool
 	)
 	cmd := &cobra.Command{
 		Use:   "send <message>",
@@ -200,6 +201,7 @@ func aiChatSendCmd(g *GlobalFlags) *cobra.Command {
 					IsNewThread: &isNew,
 					PageID:      pageID,
 					NoSearch:    noSearch,
+					ReadOnly:    readOnly,
 					User:        v3.AIUser{ID: sess.UserID, Name: sess.UserName, Email: sess.UserEmail},
 					Space:       v3.AISpace{ID: sess.SpaceID, Name: sess.SpaceName, ViewID: sess.SpaceViewID},
 				}
@@ -233,6 +235,7 @@ func aiChatSendCmd(g *GlobalFlags) *cobra.Command {
 	cmd.Flags().StringVar(&page, "page", "", "Page context for the conversation")
 	cmd.Flags().BoolVar(&noSearch, "no-search", false, "Disable workspace and web search")
 	cmd.Flags().BoolVar(&stream, "stream", false, "Stream response text to stderr as it arrives")
+	cmd.Flags().BoolVar(&readOnly, "read-only", false, "Ask/answer only: request Notion disable the AI's document-editing tools")
 	return cmd
 }
 
@@ -250,8 +253,15 @@ CHAT SEND OPTIONS:
   --model <model>        Model codename or display name (see 'ai model list --raw')
   --page <page-id>       Set page context for the conversation
   --no-search            Disable workspace and web search
+  --read-only            Ask/answer only: request Notion disable the AI's editing tools
   --stream               Stream response text to stderr as it arrives
   --debug                (global flag) also dumps raw NDJSON events to stderr
+
+READ-ONLY:
+  By default the AI has its full document-editing tools (matching Notion),
+  so a prompt can modify a page. Pass --read-only to request ask/answer mode:
+  it asks Notion's backend to disable those tools. Note this is a server-side
+  request, not a client-enforced guarantee.
 
 MODEL RESOLUTION:
   --model flag > config ai.default_model > API default
@@ -277,6 +287,7 @@ EXAMPLES:
   ai chat send "Summarize my projects"            New conversation
   ai chat send "Tell me more" --thread <id>       Continue thread
   ai chat send "Explain this page" --page <id>    With page context
+  ai chat send "Summarize, don't edit" --page <id> --read-only   Ask/answer only
   ai chat send "Quick question" --stream          Stream response
   ai chat send "Hello" --model "GPT-5.2"          Use a specific model
   ai chat mark-read <thread-id>                   Mark as read`

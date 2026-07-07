@@ -143,6 +143,26 @@ var defaultConfigFlags = map[string]bool{
 	"databaseAgentConfigMode":           false,
 }
 
+// editToolFlags are the config flags that let the agent mutate a document; they
+// are forced off in read-only mode so an ask/answer prompt cannot change content.
+var editToolFlags = []string{
+	"enableUpdatePageV2Tool",
+	"enableUpdatePageAutofixer",
+	"enableUpdatePageOrderUpdates",
+	"enableUpdatePageMarkdownTree",
+	"enableAgentSupportPropertyReorder",
+	"enableAgentCreateDbTemplate",
+}
+
+// applyReadOnly forces the config into ask/answer mode: read-only on, every
+// document-mutating tool off.
+func applyReadOnly(configValue map[string]any) {
+	configValue["useReadOnlyMode"] = true
+	for _, k := range editToolFlags {
+		configValue[k] = false
+	}
+}
+
 // buildTranscriptItems assembles the config, context, and user transcript items.
 func buildTranscriptItems(params RunInferenceParams, tz, nowISO string, uuid func() string) []any {
 	searchScopes := []any{}
@@ -162,6 +182,9 @@ func buildTranscriptItems(params RunInferenceParams, tz, nowISO string, uuid fun
 	}
 	for k, v := range defaultConfigFlags {
 		configValue[k] = v
+	}
+	if params.ReadOnly {
+		applyReadOnly(configValue)
 	}
 	configItem := map[string]any{"id": uuid(), "type": "config", "value": configValue}
 

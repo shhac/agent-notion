@@ -179,12 +179,15 @@ agent-notion ai chat get <thread-id>                               # thread mess
 agent-notion ai chat send "Summarize my recent projects"           # new conversation
 agent-notion ai chat send "Tell me more" --thread <id>             # continue a thread
 agent-notion ai chat send "Explain this page" --page <page-id>     # with page context
+agent-notion ai chat send "Summarize this" --page <page-id> --read-only  # ask/answer only, no edits
 agent-notion ai chat send "Quick question" --stream                # stream response text to stderr
 agent-notion ai chat send "Hello" --model "GPT-5.2"                # specific model
 agent-notion ai chat mark-read <thread-id>
 ```
 
 `ai chat send` returns `{thread_id, response, title, model, tokens: {input, output, cached}}`. Model resolution: `--model` flag > config `ai.default_model` > API default; accepts codenames (e.g. `oatmeal-cookie`) or display names. With `--stream`, response text streams to stderr while the JSON result still goes to stdout.
+
+By default the AI has its document-editing tools (matching Notion), so a prompt can modify a page. Pass `--read-only` to request ask/answer mode — it asks Notion's backend to disable those tools (a server-side request, not a client-enforced guarantee).
 
 ## Users
 

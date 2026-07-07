@@ -78,7 +78,7 @@ Output is NDJSON on stdout; errors are `{error, fixable_by, hint}` on stderr (ex
 
 - `agent-notion ai model list [--raw]` — list available AI models (default: name, family, tier; `--raw`: full objects with codenames and disabled models)
 - `agent-notion ai chat list [--limit <n>]` — list recent AI chat threads
-- `agent-notion ai chat send <message> [--thread <thread-id>] [--model <model>] [--page <page-id>] [--no-search] [--stream]` — send a message to Notion AI. `--model` accepts a codename or display name. `--stream` writes response text incrementally to stderr; `--debug` (global) also dumps raw NDJSON events. The JSON result always goes to stdout.
+- `agent-notion ai chat send <message> [--thread <thread-id>] [--model <model>] [--page <page-id>] [--no-search] [--read-only] [--stream]` — send a message to Notion AI. By default the AI keeps its document-editing tools (matching Notion), so a prompt can modify a page; pass `--read-only` to request ask/answer mode (asks Notion's backend to disable those tools — a server-side request, not a client-enforced guarantee). `--model` accepts a codename or display name. `--stream` writes response text incrementally to stderr; `--debug` (global) also dumps raw NDJSON events. The JSON result always goes to stdout.
 - `agent-notion ai chat get <thread-id> [--raw]` — get thread content (messages and metadata); `--raw` returns raw thread-message records
 - `agent-notion ai chat mark-read <thread-id>` — mark a chat thread as read
 

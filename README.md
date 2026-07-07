@@ -131,7 +131,7 @@ agent-notion [--backend auto|official|v3] [--format json|yaml|jsonl] [--full] [-
 ├── ai                                                              ◆
 │   ├── model list [--raw]
 │   ├── chat list [--limit]
-│   ├── chat send <message> [--thread] [--model] [--page] [--no-search] [--stream]
+│   ├── chat send <message> [--thread] [--model] [--page] [--no-search] [--read-only] [--stream]
 │   ├── chat get <thread-id> [--raw]
 │   ├── chat mark-read <thread-id>
 │   └── usage
@@ -225,7 +225,7 @@ v3 commands (marked with `◆` in the command map):
 | `comment inline <block-id> <body> --text <t>` | Inline comment anchored to specific text |
 | `ai model list` | List available AI models |
 | `ai chat list` | List recent AI chat threads |
-| `ai chat send <message>` | Send a message to Notion AI (supports `--stream`) |
+| `ai chat send <message>` | Send a message to Notion AI (`--read-only` for ask/answer only; supports `--stream`) |
 | `ai chat get <thread-id>` | Get thread content (messages and metadata) |
 | `ai chat mark-read <thread-id>` | Mark a chat thread as read |
 

@@ -133,6 +133,30 @@ func TestBuildInferenceRequest(t *testing.T) {
 			t.Errorf("searchScopes = %#v", configVal["searchScopes"])
 		}
 	})
+
+	t.Run("read-only disables edit tools", func(t *testing.T) {
+		p := params
+		p.ReadOnly = true
+		req, _ := buildInferenceRequest(p, "UTC", timeFixture(), uuid)
+		configVal := req.Transcript[0].(map[string]any)["value"].(map[string]any)
+		if configVal["useReadOnlyMode"] != true {
+			t.Errorf("useReadOnlyMode = %#v, want true", configVal["useReadOnlyMode"])
+		}
+		for _, k := range editToolFlags {
+			if configVal[k] != false {
+				t.Errorf("read-only should disable %s, got %#v", k, configVal[k])
+			}
+		}
+	})
+
+	t.Run("edits allowed keeps update-page tool on", func(t *testing.T) {
+		// Default (ReadOnly false) leaves the mutating tools enabled.
+		req, _ := buildInferenceRequest(params, "UTC", timeFixture(), uuid)
+		configVal := req.Transcript[0].(map[string]any)["value"].(map[string]any)
+		if configVal["useReadOnlyMode"] != false || configVal["enableUpdatePageV2Tool"] != true {
+			t.Errorf("non-read-only config = readOnly:%v updatePage:%v", configVal["useReadOnlyMode"], configVal["enableUpdatePageV2Tool"])
+		}
+	})
 }
 
 // timeFixture returns a fixed time for deterministic request building.

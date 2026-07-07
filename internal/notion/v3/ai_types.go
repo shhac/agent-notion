@@ -236,6 +236,9 @@ type RunInferenceParams struct {
 	PageID string
 	// NoSearch disables workspace/web search.
 	NoSearch bool
+	// ReadOnly puts the AI in ask/answer mode: the page-editing tools are
+	// disabled so a prompt cannot mutate a document. This is the CLI default.
+	ReadOnly bool
 	User     AIUser
 	Space    AISpace
 }
