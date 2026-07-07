@@ -54,7 +54,7 @@ func extractChromiumCookie(cookiesPath string, macQueries []safeStorageQuery) (s
 		data = encrypted[3:]
 	}
 
-	passwords := safeStoragePasswords(macQueries, prefix)
+	passwords := safeStoragePasswordsFn(macQueries, prefix)
 	if len(passwords) == 0 {
 		return "", errors.New("could not read a Safe Storage password from the OS keychain")
 	}

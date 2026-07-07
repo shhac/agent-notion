@@ -12,6 +12,12 @@ type safeStorageQuery struct {
 	account string
 }
 
+// safeStoragePasswordsFn is the injection seam for the OS-keychain lookup:
+// extractChromiumCookie calls through this var so tests supply known passwords
+// without shelling out to security/secret-tool (which would touch the real
+// keychain). Production value is safeStoragePasswords.
+var safeStoragePasswordsFn = safeStoragePasswords
+
 // safeStoragePasswords returns candidate Safe Storage passwords for the
 // Chromium cookie key, in try order. On macOS it reads the keychain services;
 // on Linux it tries secret-tool plus Chromium's OSCrypt fallbacks.
