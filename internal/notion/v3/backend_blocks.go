@@ -16,18 +16,24 @@ func (b *Backend) ListBlocks(ctx context.Context, params notion.ListBlocksParams
 		return notion.Paginated[notion.NormalizedBlock]{}, err
 	}
 
+	rm := resp.RecordMap
 	var childIDs []string
-	if parent, ok := resp.RecordMap.GetBlock(params.ID); ok {
+	if parent, ok := rm.GetBlock(params.ID); ok {
 		childIDs = parent.Content
 	}
 
-	items := []notion.NormalizedBlock{}
+	children := make([]*Block, 0, len(childIDs))
 	for _, childID := range childIDs {
-		child, ok := resp.RecordMap.GetBlock(childID)
+		child, ok := rm.GetBlock(childID)
 		if !ok || !child.IsAlive() {
 			continue
 		}
-		items = append(items, NormalizeBlock(child))
+		children = append(children, child)
+	}
+
+	items := make([]notion.NormalizedBlock, 0, len(children))
+	for _, child := range children {
+		items = append(items, NormalizeBlock(child, rm))
 	}
 
 	return notion.Paginated[notion.NormalizedBlock]{Items: items, HasMore: false}, nil
@@ -56,6 +62,7 @@ func (b *Backend) GetAllBlocks(ctx context.Context, id string) (notion.BlockList
 			childIDSet[c] = true
 		}
 
+		var chunkBlocks []*Block
 		for _, childID := range childIDs {
 			child, ok := rm.GetBlock(childID)
 			if !ok || !child.IsAlive() {
@@ -63,7 +70,7 @@ func (b *Backend) GetAllBlocks(ctx context.Context, id string) (notion.BlockList
 			}
 			if !seen[child.ID] {
 				seen[child.ID] = true
-				blocks = append(blocks, NormalizeBlock(child))
+				chunkBlocks = append(chunkBlocks, child)
 			}
 		}
 
@@ -74,8 +81,12 @@ func (b *Backend) GetAllBlocks(ctx context.Context, id string) (notion.BlockList
 			}
 			if childIDSet[block.ID] || block.ParentID == id {
 				seen[block.ID] = true
-				blocks = append(blocks, NormalizeBlock(block))
+				chunkBlocks = append(chunkBlocks, block)
 			}
+		}
+
+		for _, blk := range chunkBlocks {
+			blocks = append(blocks, NormalizeBlock(blk, rm))
 		}
 
 		if len(resp.Cursor.Stack) == 0 || len(blocks) >= 1000 {

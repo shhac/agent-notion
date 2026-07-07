@@ -1,6 +1,7 @@
 package v3
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 
@@ -95,6 +96,73 @@ func TestRichTextPlain(t *testing.T) {
 				t.Errorf("Plain() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// =============================================================================
+// RichText.Render (inline mention resolution)
+// =============================================================================
+
+// mentionRecordMap holds a person (U1) and a page (P1) for mention resolution.
+func mentionRecordMap(t *testing.T) RecordMap {
+	t.Helper()
+	var rm RecordMap
+	raw := `{
+		"notion_user": {
+			"U1": {"value": {"id":"U1","given_name":"Ivan","family_name":"Tchernev","email":"ivan@example.com"}},
+			"U2": {"value": {"id":"U2","email":"ops@example.com"}}
+		},
+		"block": {"P1": {"value": {"id":"P1","type":"page","properties":{"title":[["Roadmap"]]}}}}
+	}`
+	if err := json.Unmarshal([]byte(raw), &rm); err != nil {
+		t.Fatal(err)
+	}
+	return rm
+}
+
+func dateSegment(obj map[string]any) Segment {
+	return Segment{Text: "‣", Decorations: []Decoration{{Type: "d", Args: []any{obj}}}}
+}
+
+func TestRichTextRender(t *testing.T) {
+	rm := mentionRecordMap(t)
+	tests := []struct {
+		name string
+		rt   RichText
+		want string
+	}{
+		{"person mention", RichText{mention("‣", "u", "U1")}, "@Ivan Tchernev"},
+		{"person mention without name falls back to email", RichText{mention("‣", "u", "U2")}, "ops@example.com"},
+		{"page mention", RichText{mention("‣", "p", "P1")}, "Roadmap"},
+		{"date mention", RichText{dateSegment(map[string]any{"start_date": "2026-07-06"})}, "2026-07-06"},
+		{"date range", RichText{dateSegment(map[string]any{"start_date": "2026-07-06", "end_date": "2026-07-08"})}, "2026-07-06 → 2026-07-08"},
+		{"text before mention", RichText{{Text: "cc "}, mention("‣", "u", "U1")}, "cc @Ivan Tchernev"},
+		{"bold decoration is not a mention", RichText{{Text: "bold", Decorations: []Decoration{{Type: "b"}}}}, "bold"},
+		{"unresolvable person keeps placeholder", RichText{mention("‣", "u", "MISSING")}, "‣"},
+		{"plain text unchanged", RichText{{Text: "Hello world"}}, "Hello world"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.rt.Render(rm); got != tt.want {
+				t.Errorf("Render() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestNormalizeBlockResolvesMention pins the wiring: a text block whose content
+// carries a person mention comes out with the resolved name, not the ‣ glyph.
+func TestNormalizeBlockResolvesMention(t *testing.T) {
+	rm := mentionRecordMap(t)
+	alive := true
+	b := &Block{
+		ID:         "b1",
+		Type:       "text",
+		Alive:      &alive,
+		Properties: map[string]RichText{"title": {{Text: "assign to "}, mention("‣", "u", "U1")}},
+	}
+	if got := NormalizeBlock(b, rm).RichText; got != "assign to @Ivan Tchernev" {
+		t.Errorf("RichText = %q, want %q", got, "assign to @Ivan Tchernev")
 	}
 }
 
@@ -222,7 +290,7 @@ func TestNormalizeBlock(t *testing.T) {
 		b := newBlock("b1")
 		b.Type = "text"
 		b.Properties = map[string]RichText{"title": NewRichText("Hello world")}
-		got := NormalizeBlock(b)
+		got := NormalizeBlock(b, nil)
 		eq(t, got.ID, "b1")
 		eq(t, got.Type, "paragraph")
 		eq(t, got.RichText, "Hello world")
@@ -234,7 +302,7 @@ func TestNormalizeBlock(t *testing.T) {
 			b := newBlock("b")
 			b.Type = typ
 			b.Properties = map[string]RichText{"title": NewRichText("H")}
-			if got := NormalizeBlock(b).Type; got != want {
+			if got := NormalizeBlock(b, nil).Type; got != want {
 				t.Errorf("%s → %q, want %q", typ, got, want)
 			}
 		}
@@ -243,7 +311,7 @@ func TestNormalizeBlock(t *testing.T) {
 	t.Run("hasChildren from content", func(t *testing.T) {
 		b := newBlock("b1")
 		b.Content = []string{"child-1", "child-2"}
-		if !NormalizeBlock(b).HasChildren {
+		if !NormalizeBlock(b, nil).HasChildren {
 			t.Error("expected hasChildren true")
 		}
 	})
@@ -252,7 +320,7 @@ func TestNormalizeBlock(t *testing.T) {
 		b := newBlock("b1")
 		b.Type = "to_do"
 		b.Properties = map[string]RichText{"title": NewRichText("Task"), "checked": NewRichText("Yes")}
-		got := NormalizeBlock(b)
+		got := NormalizeBlock(b, nil)
 		eq(t, got.Type, "to_do")
 		if got.Checked == nil || !*got.Checked {
 			t.Errorf("checked = %v, want true", got.Checked)
@@ -263,7 +331,7 @@ func TestNormalizeBlock(t *testing.T) {
 		b := newBlock("b1")
 		b.Type = "to_do"
 		b.Properties = map[string]RichText{"title": NewRichText("Task")}
-		got := NormalizeBlock(b)
+		got := NormalizeBlock(b, nil)
 		if got.Checked == nil || *got.Checked {
 			t.Errorf("checked = %v, want false", got.Checked)
 		}
@@ -273,7 +341,7 @@ func TestNormalizeBlock(t *testing.T) {
 		b := newBlock("b1")
 		b.Type = "code"
 		b.Properties = map[string]RichText{"title": NewRichText("const x = 1"), "language": NewRichText("typescript")}
-		got := NormalizeBlock(b)
+		got := NormalizeBlock(b, nil)
 		eq(t, got.Type, "code")
 		eq(t, got.Language, "typescript")
 		eq(t, got.RichText, "const x = 1")
@@ -284,7 +352,7 @@ func TestNormalizeBlock(t *testing.T) {
 		b.Type = "image"
 		b.Format = map[string]any{"display_source": "https://example.com/img.png"}
 		b.Properties = map[string]RichText{"source": NewRichText("https://fallback.com/img.png"), "caption": NewRichText("A caption")}
-		got := NormalizeBlock(b)
+		got := NormalizeBlock(b, nil)
 		eq(t, got.Type, "image")
 		eq(t, got.URL, "https://example.com/img.png")
 		eq(t, got.Caption, "A caption")
@@ -294,14 +362,14 @@ func TestNormalizeBlock(t *testing.T) {
 		b := newBlock("b1")
 		b.Type = "image"
 		b.Properties = map[string]RichText{"source": NewRichText("https://fallback.com/img.png")}
-		eq(t, NormalizeBlock(b).URL, "https://fallback.com/img.png")
+		eq(t, NormalizeBlock(b, nil).URL, "https://fallback.com/img.png")
 	})
 
 	t.Run("bookmark", func(t *testing.T) {
 		b := newBlock("b1")
 		b.Type = "bookmark"
 		b.Properties = map[string]RichText{"link": NewRichText("https://example.com"), "description": NewRichText("A site")}
-		got := NormalizeBlock(b)
+		got := NormalizeBlock(b, nil)
 		eq(t, got.Type, "bookmark")
 		eq(t, got.URL, "https://example.com")
 		eq(t, got.Caption, "A site")
@@ -311,7 +379,7 @@ func TestNormalizeBlock(t *testing.T) {
 		b := newBlock("b1")
 		b.Type = "equation"
 		b.Properties = map[string]RichText{"title": NewRichText("E = mc^2")}
-		got := NormalizeBlock(b)
+		got := NormalizeBlock(b, nil)
 		eq(t, got.Type, "equation")
 		eq(t, got.Expression, "E = mc^2")
 	})
@@ -320,7 +388,7 @@ func TestNormalizeBlock(t *testing.T) {
 		b := newBlock("b1")
 		b.Type = "page"
 		b.Properties = map[string]RichText{"title": NewRichText("Child Page")}
-		got := NormalizeBlock(b)
+		got := NormalizeBlock(b, nil)
 		eq(t, got.Type, "child_page")
 		eq(t, got.Title, "Child Page")
 	})
@@ -329,7 +397,7 @@ func TestNormalizeBlock(t *testing.T) {
 		b := newBlock("b1")
 		b.Type = "collection_view_page"
 		b.Properties = map[string]RichText{"title": NewRichText("My DB")}
-		got := NormalizeBlock(b)
+		got := NormalizeBlock(b, nil)
 		eq(t, got.Type, "child_database")
 		eq(t, got.Title, "My DB")
 	})
@@ -339,7 +407,7 @@ func TestNormalizeBlock(t *testing.T) {
 		b.Type = "callout"
 		b.Properties = map[string]RichText{"title": NewRichText("Note")}
 		b.Format = map[string]any{"page_icon": "💡"}
-		got := NormalizeBlock(b)
+		got := NormalizeBlock(b, nil)
 		eq(t, got.Type, "callout")
 		eq(t, got.Emoji, "💡")
 	})
@@ -348,14 +416,14 @@ func TestNormalizeBlock(t *testing.T) {
 		b := newBlock("b1")
 		b.Type = "embed"
 		b.Properties = map[string]RichText{"source": NewRichText("https://youtube.com/embed/abc")}
-		eq(t, NormalizeBlock(b).URL, "https://youtube.com/embed/abc")
+		eq(t, NormalizeBlock(b, nil).URL, "https://youtube.com/embed/abc")
 	})
 
 	t.Run("video", func(t *testing.T) {
 		b := newBlock("b1")
 		b.Type = "video"
 		b.Properties = map[string]RichText{"source": NewRichText("https://example.com/video.mp4"), "caption": NewRichText("Video")}
-		got := NormalizeBlock(b)
+		got := NormalizeBlock(b, nil)
 		eq(t, got.Type, "video")
 		eq(t, got.URL, "https://example.com/video.mp4")
 		eq(t, got.Caption, "Video")
@@ -364,7 +432,7 @@ func TestNormalizeBlock(t *testing.T) {
 	t.Run("unknown type passes through", func(t *testing.T) {
 		b := newBlock("b1")
 		b.Type = "fancy_new_block"
-		eq(t, NormalizeBlock(b).Type, "fancy_new_block")
+		eq(t, NormalizeBlock(b, nil).Type, "fancy_new_block")
 	})
 }
 

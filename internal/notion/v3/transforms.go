@@ -205,13 +205,14 @@ var blockTypeMap = map[string]string{
 }
 
 // NormalizeBlock converts a v3 block into a NormalizedBlock in the official
-// API's type vocabulary, flattening type-specific extras alongside.
-func NormalizeBlock(b *Block) notion.NormalizedBlock {
+// API's type vocabulary, flattening type-specific extras alongside. The record
+// map resolves inline mentions in the block's text to readable names/titles.
+func NormalizeBlock(b *Block, rm RecordMap) notion.NormalizedBlock {
 	typ := b.Type
 	if mapped, ok := blockTypeMap[b.Type]; ok {
 		typ = mapped
 	}
-	titleText := b.Property("title").Plain()
+	titleText := b.Property("title").Render(rm)
 
 	nb := notion.NormalizedBlock{
 		ID:          b.ID,

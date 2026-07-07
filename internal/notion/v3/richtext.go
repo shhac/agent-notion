@@ -34,6 +34,71 @@ func (rt RichText) Plain() string {
 	return b.String()
 }
 
+// Render concatenates the segment texts like Plain, but resolves inline mention
+// decorations to readable text via the record map: person mentions become
+// "@Given Family", page mentions become the target page's title, and date
+// mentions become the date. Notion stores each mention as a "‣" placeholder
+// segment with the real target in its decorations, so Plain alone loses them.
+// Segments without a resolvable mention keep their literal text, so bold/link/
+// etc. decorations pass through unchanged.
+func (rt RichText) Render(rm RecordMap) string {
+	var b strings.Builder
+	for _, s := range rt {
+		b.WriteString(s.render(rm))
+	}
+	return b.String()
+}
+
+// render resolves a single segment's inline mention to readable text, falling
+// back to the literal text when there is no mention or it can't be resolved.
+func (s Segment) render(rm RecordMap) string {
+	for _, d := range s.Decorations {
+		switch d.Type {
+		case "u": // person mention ["u", userID]
+			if u, ok := rm.GetUser(d.StringArg(0)); ok {
+				if name := strings.TrimSpace(u.GivenName + " " + u.FamilyName); name != "" {
+					return "@" + name
+				}
+				// The page chunk often ships a mentioned user as id+email only;
+				// the email is a readable identity, so fall back to it verbatim.
+				if u.Email != "" {
+					return u.Email
+				}
+			}
+		case "p": // page mention ["p", pageID]
+			if blk, ok := rm.GetBlock(d.StringArg(0)); ok {
+				if title := blk.Property("title").Plain(); title != "" {
+					return title
+				}
+			}
+		case "d": // date mention ["d", {start_date,…}]
+			if txt := dateMentionText(d.ObjectArg(0)); txt != "" {
+				return txt
+			}
+		}
+	}
+	return s.Text
+}
+
+// dateMentionText renders a date decoration's object as "start", "start time",
+// or "start → end". Returns "" when there is no start date.
+func dateMentionText(obj map[string]any) string {
+	if obj == nil {
+		return ""
+	}
+	start, _ := obj["start_date"].(string)
+	if start == "" {
+		return ""
+	}
+	if t, _ := obj["start_time"].(string); t != "" {
+		start += " " + t
+	}
+	if end, _ := obj["end_date"].(string); end != "" {
+		return start + " → " + end
+	}
+	return start
+}
+
 // NewRichText wraps plain text as a single undecorated segment.
 func NewRichText(text string) RichText {
 	return RichText{{Text: text}}
