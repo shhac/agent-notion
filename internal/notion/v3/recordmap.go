@@ -23,12 +23,15 @@ type Entry struct {
 	Role  string          `json:"role,omitempty"`
 }
 
+// roleWrapped is one level of {value, role} wrapping on the wire.
+type roleWrapped struct {
+	Value json.RawMessage `json:"value"`
+	Role  string          `json:"role"`
+}
+
 // UnmarshalJSON normalizes both RecordMap entry wire formats.
 func (e *Entry) UnmarshalJSON(data []byte) error {
-	var outer struct {
-		Value json.RawMessage `json:"value"`
-		Role  string          `json:"role"`
-	}
+	var outer roleWrapped
 	if err := json.Unmarshal(data, &outer); err != nil {
 		return err
 	}
@@ -37,10 +40,7 @@ func (e *Entry) UnmarshalJSON(data []byte) error {
 	// "value" is an object. (In the old format that slot is the entity, whose
 	// "value" field — if any — is not an object.)
 	if isJSONObject(outer.Value) {
-		var inner struct {
-			Value json.RawMessage `json:"value"`
-			Role  string          `json:"role"`
-		}
+		var inner roleWrapped
 		if err := json.Unmarshal(outer.Value, &inner); err == nil && isJSONObject(inner.Value) {
 			e.Value, e.Role = inner.Value, inner.Role
 			return nil
@@ -56,54 +56,51 @@ func isJSONObject(raw json.RawMessage) bool {
 	return len(trimmed) > 0 && trimmed[0] == '{'
 }
 
-// Table maps record ID → entry.
-type Table map[string]Entry
-
-// UnmarshalJSON skips non-object values (metadata like __version__) so they
-// don't fail the whole parse.
-func (t *Table) UnmarshalJSON(data []byte) error {
+// decodeObjectMap decodes a JSON object into key → T, skipping non-object
+// values (metadata like the __version__ number the API includes alongside
+// records). The single home of the skip-non-object contract.
+func decodeObjectMap[T any](data []byte) (map[string]T, error) {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
+		return nil, err
 	}
-	out := make(Table, len(raw))
-	for id, entry := range raw {
-		if !isJSONObject(entry) {
+	out := make(map[string]T, len(raw))
+	for key, val := range raw {
+		if !isJSONObject(val) {
 			continue
 		}
-		var e Entry
-		if err := json.Unmarshal(entry, &e); err != nil {
-			return err
+		var decoded T
+		if err := json.Unmarshal(val, &decoded); err != nil {
+			return nil, err
 		}
-		out[id] = e
+		out[key] = decoded
 	}
-	*t = out
+	return out, nil
+}
+
+// Table maps record ID → entry. Decoding skips non-object metadata.
+type Table map[string]Entry
+
+func (t *Table) UnmarshalJSON(data []byte) error {
+	m, err := decodeObjectMap[Entry](data)
+	if err != nil {
+		return err
+	}
+	*t = m
 	return nil
 }
 
 // RecordMap maps table name (block, collection, notion_user, space, …) →
-// records. Decoding normalizes every entry; see Entry.
+// records. Decoding skips non-object metadata and normalizes every entry;
+// see Entry.
 type RecordMap map[string]Table
 
-// UnmarshalJSON skips non-object values (metadata like __version__ the API
-// now includes alongside the tables) so they don't fail the whole parse.
 func (rm *RecordMap) UnmarshalJSON(data []byte) error {
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
+	m, err := decodeObjectMap[Table](data)
+	if err != nil {
 		return err
 	}
-	out := make(RecordMap, len(raw))
-	for name, table := range raw {
-		if !isJSONObject(table) {
-			continue
-		}
-		var t Table
-		if err := json.Unmarshal(table, &t); err != nil {
-			return err
-		}
-		out[name] = t
-	}
-	*rm = out
+	*rm = m
 	return nil
 }
 
