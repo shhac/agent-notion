@@ -104,21 +104,19 @@ func withBackend[T any](ctx context.Context, g *GlobalFlags, fn func(b notion.Ba
 	}
 
 	result, err := fn(handle.backend)
-	if err == nil || !isUnauthorized(err) {
+	// Desktop tokens can't be refreshed programmatically, so v3 auth failures
+	// go straight to classification (classifyV3 owns the 401-expired vs
+	// 403-access-denied guidance) like every other error.
+	if err == nil || !isUnauthorized(err) || handle.backend.Kind() == "v3" {
 		return result, agenterrors.Classify(err)
 	}
 
-	// Desktop tokens can't be refreshed programmatically.
-	if handle.backend.Kind() == "v3" {
-		return zero, output.New("desktop token expired", output.FixableByHuman).
-			WithHint("run 'agent-notion auth import-desktop' to re-import")
-	}
 	// Internal integrations can't refresh either.
-	if handle.authType == config.AuthInternalIntegration || handle.workspace == "" {
-		if handle.authType == config.AuthInternalIntegration {
-			return zero, output.New("token is invalid or revoked", output.FixableByHuman).
-				WithHint("run 'agent-notion auth import' to re-authenticate")
-		}
+	if handle.authType == config.AuthInternalIntegration {
+		return zero, output.New("token is invalid or revoked", output.FixableByHuman).
+			WithHint("run 'agent-notion auth import' to re-authenticate")
+	}
+	if handle.workspace == "" {
 		return zero, output.New("not authenticated", output.FixableByHuman).
 			WithHint("run 'agent-notion auth login' to connect")
 	}
