@@ -129,18 +129,6 @@ type PropertySchema struct {
 	CollectionID string                 `json:"collection_id,omitempty"`
 }
 
-// CollectionView is a v3 collection view record.
-type CollectionView struct {
-	ID          string         `json:"id"`
-	Version     int64          `json:"version"`
-	Type        string         `json:"type"`
-	Name        string         `json:"name,omitempty"`
-	ParentID    string         `json:"parent_id"`
-	ParentTable string         `json:"parent_table"`
-	Alive       *bool          `json:"alive"`
-	Format      map[string]any `json:"format,omitempty"`
-	Query2      map[string]any `json:"query2,omitempty"`
-}
 
 // User is a v3 notion_user record.
 type User struct {
