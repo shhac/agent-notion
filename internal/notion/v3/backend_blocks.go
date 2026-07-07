@@ -17,20 +17,7 @@ func (b *Backend) ListBlocks(ctx context.Context, params notion.ListBlocksParams
 	}
 
 	rm := resp.RecordMap
-	var childIDs []string
-	if parent, ok := rm.GetBlock(params.ID); ok {
-		childIDs = parent.Content
-	}
-
-	children := make([]*Block, 0, len(childIDs))
-	for _, childID := range childIDs {
-		child, ok := rm.GetBlock(childID)
-		if !ok || !child.IsAlive() {
-			continue
-		}
-		children = append(children, child)
-	}
-
+	children := collectAliveChildren(rm, params.ID, nil)
 	items := make([]notion.NormalizedBlock, 0, len(children))
 	for _, child := range children {
 		items = append(items, NormalizeBlock(child, rm))
@@ -39,57 +26,55 @@ func (b *Backend) ListBlocks(ctx context.Context, params notion.ListBlocksParams
 	return notion.Paginated[notion.NormalizedBlock]{Items: items, HasMore: false}, nil
 }
 
-// GetAllBlocks walks page chunks, collecting alive descendant blocks up to 1000.
+// maxAllBlocks caps how many direct children GetAllBlocks returns across chunks.
+const maxAllBlocks = 1000
+
+// collectAliveChildren returns id's alive direct children from the record map,
+// in Content order. When seen is non-nil, already-seen children are skipped and
+// newly returned ones are recorded (used to dedup across pagination chunks).
+func collectAliveChildren(rm RecordMap, id string, seen map[string]bool) []*Block {
+	parent, ok := rm.GetBlock(id)
+	if !ok {
+		return nil
+	}
+	children := make([]*Block, 0, len(parent.Content))
+	for _, childID := range parent.Content {
+		child, ok := rm.GetBlock(childID)
+		if !ok || !child.IsAlive() {
+			continue
+		}
+		if seen != nil {
+			if seen[child.ID] {
+				continue
+			}
+			seen[child.ID] = true
+		}
+		children = append(children, child)
+	}
+	return children
+}
+
+// GetAllBlocks walks page chunks, collecting a block's alive direct children up
+// to maxAllBlocks. Deeper descent is the caller's job (renderMarkdown recurses
+// per child), so this returns exactly one level.
 func (b *Backend) GetAllBlocks(ctx context.Context, id string) (notion.BlockListResult, error) {
 	blocks := []notion.NormalizedBlock{}
 	seen := map[string]bool{}
 	var cursor *Cursor
 	chunkNumber := 0
 
-	for len(blocks) < 1000 {
+	for len(blocks) < maxAllBlocks {
 		resp, err := b.Client.LoadPageChunk(ctx, LoadPageChunkParams{PageID: id, Limit: 100, Cursor: cursor, ChunkNumber: chunkNumber})
 		if err != nil {
 			return notion.BlockListResult{}, err
 		}
 		rm := resp.RecordMap
 
-		var childIDs []string
-		if parent, ok := rm.GetBlock(id); ok {
-			childIDs = parent.Content
-		}
-		childIDSet := make(map[string]bool, len(childIDs))
-		for _, c := range childIDs {
-			childIDSet[c] = true
+		for _, child := range collectAliveChildren(rm, id, seen) {
+			blocks = append(blocks, NormalizeBlock(child, rm))
 		}
 
-		var chunkBlocks []*Block
-		for _, childID := range childIDs {
-			child, ok := rm.GetBlock(childID)
-			if !ok || !child.IsAlive() {
-				continue
-			}
-			if !seen[child.ID] {
-				seen[child.ID] = true
-				chunkBlocks = append(chunkBlocks, child)
-			}
-		}
-
-		// Also include descendant blocks present in the record map.
-		for _, block := range rm.AllBlocks() {
-			if block.ID == id || seen[block.ID] {
-				continue
-			}
-			if childIDSet[block.ID] || block.ParentID == id {
-				seen[block.ID] = true
-				chunkBlocks = append(chunkBlocks, block)
-			}
-		}
-
-		for _, blk := range chunkBlocks {
-			blocks = append(blocks, NormalizeBlock(blk, rm))
-		}
-
-		if len(resp.Cursor.Stack) == 0 || len(blocks) >= 1000 {
+		if len(resp.Cursor.Stack) == 0 {
 			break
 		}
 		next := resp.Cursor
@@ -97,7 +82,7 @@ func (b *Backend) GetAllBlocks(ctx context.Context, id string) (notion.BlockList
 		chunkNumber++
 	}
 
-	return notion.BlockListResult{Blocks: blocks, HasMore: len(blocks) >= 1000}, nil
+	return notion.BlockListResult{Blocks: blocks, HasMore: len(blocks) >= maxAllBlocks}, nil
 }
 
 // AppendBlocks converts official API block objects to v3 and appends them,
