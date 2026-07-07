@@ -98,6 +98,26 @@ func TestMixedFormatsAcrossTables(t *testing.T) {
 	}
 }
 
+func TestRecordMapSkipsVersionMetadata(t *testing.T) {
+	rm := decodeRecordMap(t, `{
+		"__version__": 3,
+		"block": {
+			"__version__": 3,
+			"page-1": {"spaceId": "space-1", "value": {"value": `+blockJSON("page-1", "page", true)+`, "role": "reader"}}
+		}
+	}`)
+
+	if _, ok := rm["__version__"]; ok {
+		t.Error("__version__ leaked into the record map")
+	}
+	if _, ok := rm["block"]["__version__"]; ok {
+		t.Error("__version__ leaked into the block table")
+	}
+	if b, ok := rm.GetBlock("page-1"); !ok || b.Type != "page" {
+		t.Errorf("block = %+v ok=%v", b, ok)
+	}
+}
+
 func TestEntryKeepsEntityWithPrimitiveValueField(t *testing.T) {
 	// An old-format entity that itself has a primitive "value" field must not
 	// be mistaken for a role wrapper.

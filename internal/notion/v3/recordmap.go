@@ -59,9 +59,53 @@ func isJSONObject(raw json.RawMessage) bool {
 // Table maps record ID → entry.
 type Table map[string]Entry
 
+// UnmarshalJSON skips non-object values (metadata like __version__) so they
+// don't fail the whole parse.
+func (t *Table) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	out := make(Table, len(raw))
+	for id, entry := range raw {
+		if !isJSONObject(entry) {
+			continue
+		}
+		var e Entry
+		if err := json.Unmarshal(entry, &e); err != nil {
+			return err
+		}
+		out[id] = e
+	}
+	*t = out
+	return nil
+}
+
 // RecordMap maps table name (block, collection, notion_user, space, …) →
 // records. Decoding normalizes every entry; see Entry.
 type RecordMap map[string]Table
+
+// UnmarshalJSON skips non-object values (metadata like __version__ the API
+// now includes alongside the tables) so they don't fail the whole parse.
+func (rm *RecordMap) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	out := make(RecordMap, len(raw))
+	for name, table := range raw {
+		if !isJSONObject(table) {
+			continue
+		}
+		var t Table
+		if err := json.Unmarshal(table, &t); err != nil {
+			return err
+		}
+		out[name] = t
+	}
+	*rm = out
+	return nil
+}
 
 // Block is a v3 block record.
 type Block struct {
