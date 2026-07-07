@@ -201,11 +201,14 @@ domain payload structure (the parity target).
 - [x] `WithOAuthKeyringService(app.paulie.agent-notion.mcp)`, --color hidden
 
 ### Phase 7 — docs, release, cutover
-- [ ] rewrite skill (`skills/agent-notion/`) + README + usage in lockstep
-- [ ] `.github/workflows/release.yml` → `shhac/homebrew-tap` `go-release.yml`
-      (`name: agent-notion`, `formula_class: AgentNotion`, `help_match: "Notion CLI"`)
-- [ ] parity sign-off: integration suite + side-by-side golden runs vs `bun/`
-- [ ] delete `bun/`; tag `v0.7.0`
+- [x] rewrite skill (`skills/agent-notion/`) + README + usage in lockstep
+      (derived from the binary's own usage cards; verified against isolated runs)
+- [x] `.github/workflows/release.yml` verified: shared go-release.yml with
+      `name: agent-notion`, `formula_class: AgentNotion`, help_match matching
+      the root Short exactly
+- [ ] parity sign-off: integration suite against a real test page +
+      side-by-side golden runs vs `bun/` — **needs real credentials (human)**
+- [ ] delete `bun/`; tag `v0.7.0` — **after sign-off (human decision)**
 
 ## Parity checklist (before deleting bun/)
 
