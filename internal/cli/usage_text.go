@@ -34,7 +34,10 @@ BACKENDS
 OUTPUT
   One JSON record per line on stdout (NDJSON). --format json|yaml for pretty.
   Errors on stderr as {error, fixable_by, hint} with exit 1;
-  fixable_by is agent|human|retry. Tokens are never printed.`
+  fixable_by is agent|human|retry. Tokens are never printed.
+  Fields named description/body/content are truncated (default 200 chars,
+  'config set truncation.max_length' overrides) with a {field}Length
+  companion showing the full size; --expand <fields> or --full lifts it.`
 
 // domainUsage maps a command-group name to its detail card.
 var domainUsage = map[string]string{

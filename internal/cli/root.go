@@ -62,6 +62,10 @@ func newRootWithDeps(deps rootDeps) *cobra.Command {
 
 	root.PersistentFlags().StringVar(&g.Backend, "backend", "auto",
 		"API backend: auto (by workspace auth type), official, or v3")
+	root.PersistentFlags().StringVar(&g.Expand, "expand", "",
+		"Expand truncated fields (comma-separated: description,body,content)")
+	root.PersistentFlags().BoolVar(&g.Full, "full", false,
+		"Show full content for all truncated fields")
 	root.PersistentFlags().StringVar(&g.BaseURL, "base-url", "",
 		"Override the Notion API base URL (testing)")
 	_ = root.PersistentFlags().MarkHidden("base-url")

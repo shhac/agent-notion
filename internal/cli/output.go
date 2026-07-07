@@ -1,18 +1,49 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 
+	"github.com/shhac/agent-notion/internal/config"
 	"github.com/shhac/agent-notion/internal/notion"
+	"github.com/shhac/agent-notion/internal/truncation"
 	libcli "github.com/shhac/lib-agent-cli/cli"
 	output "github.com/shhac/lib-agent-output"
 )
 
 // emitItem writes a single record per the family's get-output contract:
 // NDJSON by default (one compact line), the bare pretty object under
-// --format json|yaml.
+// --format json|yaml. Truncation policy is applied first.
 func emitItem(g *GlobalFlags, item any) error {
-	return libcli.EmitItem(g.stdout, g.Format, item)
+	return libcli.EmitItem(g.stdout, g.Format, applyTruncation(g, item))
+}
+
+// applyTruncation shapes an output record per the truncation convention:
+// description/body/content fields are capped (default 200, the
+// truncation.max_length setting overrides) with {field}Length companions;
+// --expand/--full lift the cap. Typed records round-trip through JSON so the
+// walker sees plain maps — the TS applied truncation post-serialization too.
+func applyTruncation(g *GlobalFlags, item any) any {
+	settings := config.ReadSettings()
+	maxLength := 0
+	if settings.Truncation != nil {
+		maxLength = settings.Truncation.MaxLength
+	}
+	tr := truncation.New(truncation.Options{Expand: g.Expand, Full: g.Full, MaxLength: maxLength})
+
+	switch item.(type) {
+	case map[string]any, []any:
+		return tr.Apply(item)
+	}
+	raw, err := json.Marshal(item)
+	if err != nil {
+		return item
+	}
+	var tree any
+	if err := json.Unmarshal(raw, &tree); err != nil {
+		return item
+	}
+	return tr.Apply(tree)
 }
 
 // printList writes items NDJSON by default — one record per line, then any
@@ -23,11 +54,15 @@ func printList(g *GlobalFlags, items []any, meta map[string]any) error {
 	if err != nil {
 		return err
 	}
+	truncated := make([]any, len(items))
+	for i, item := range items {
+		truncated[i] = applyTruncation(g, item)
+	}
 	prefixed := make(map[string]any, len(meta))
 	for key, value := range meta {
 		prefixed["@"+key] = value
 	}
-	return output.WriteList(g.stdout, format, items, prefixed, nil)
+	return output.WriteList(g.stdout, format, truncated, prefixed, nil)
 }
 
 // printPaginated writes a backend page of results: the items, then the

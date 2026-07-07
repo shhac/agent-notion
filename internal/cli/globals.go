@@ -25,6 +25,10 @@ type GlobalFlags struct {
 	// Backend (--backend) forces the API backend: auto (default, dispatch by
 	// the workspace's auth type), official, or v3.
 	Backend string
+	// Expand (--expand) lists truncatable field names to leave untruncated;
+	// Full (--full) expands them all. See internal/truncation.
+	Expand string
+	Full   bool
 
 	// Injected seams — wired by newRoot, substituted by tests.
 	version        string
