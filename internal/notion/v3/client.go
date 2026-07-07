@@ -90,6 +90,10 @@ func reasonPhrase(resp *http.Response) string {
 // tests can substitute a deterministic generator.
 var newUUID = randomUUID
 
+// NewUUID mints a v4 UUID through the package's stubbable generator, for
+// callers (e.g. the CLI) that must mint IDs consistent with the client's own.
+func NewUUID() string { return newUUID() }
+
 func randomUUID() string {
 	var b [16]byte
 	_, _ = rand.Read(b[:])
