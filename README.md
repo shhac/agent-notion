@@ -2,12 +2,13 @@
 
 Notion CLI for humans and LLMs.
 
-- **Structured JSON output** — all output is JSON to stdout, errors to stderr
-- **LLM-optimized** — `agent-notion usage` prints concise docs for agent consumption
-- **Full CRUD** — search, read, create, update, trash/restore, and archive pages and databases
+- **NDJSON output** — one JSON record per line on stdout; structured `{error, fixable_by, hint}` on stderr
+- **LLM-optimized** — `agent-notion usage` (and `<group> usage`) print concise docs for agent consumption
+- **Full CRUD** — search, read, create, update, trash/restore, and archive pages, databases, and blocks
 - **AI chat** — send messages to Notion AI, list models and threads, stream responses
 - **Markdown conversion** — page content rendered as markdown, append content from markdown
-- **Zero runtime deps** — single compiled binary via `bun build --compile`
+- **Two backends** — official REST API (integration tokens, OAuth) and the v3 desktop-session API
+- **Zero runtime deps** — a single static Go binary
 
 **Website:** [agent-notion.paulie.app](https://agent-notion.paulie.app/)
 
@@ -39,7 +40,13 @@ agent-notion auth login
 **Internal integration token:**
 
 ```bash
-agent-notion auth login --token ntn_...
+agent-notion auth import --token ntn_...        # or pipe the token via stdin
+```
+
+**Desktop session (for v3 features):**
+
+```bash
+agent-notion auth import-desktop                # reads token_v2 from the Notion Desktop app
 ```
 
 ### 2. Search and explore
@@ -55,7 +62,7 @@ agent-notion database schema <database-id>
 ```bash
 agent-notion page get <page-id>                    # properties only
 agent-notion page get <page-id> --content          # with markdown content
-agent-notion database query <database-id>          # all rows
+agent-notion database query <database-id>          # rows (one NDJSON record each)
 ```
 
 ### 4. Create and update
@@ -65,15 +72,17 @@ agent-notion page create --parent <id> --title "New Page"
 agent-notion page update <page-id> --properties '{"Status":"Done"}'
 agent-notion block append <page-id> --content "## New Section\n\nContent here."
 agent-notion block update <block-id> --content "Updated text"
-agent-notion block delete <block-id>
-agent-notion block replace <page-id> --content "# Fresh Content\n\nReplaced everything."
+agent-notion block delete <block-id> --yes
+agent-notion block replace <page-id> --content "# Fresh Content\n\nReplaced everything." --yes
 agent-notion comment page <page-id> "Looks good!"
 ```
 
 ## Command map
 
+`◆` = requires the v3 desktop session; `--yes` on a signature marks a destructive command that refuses to run without it.
+
 ```text
-agent-notion [--full] [--expand <fields>]
+agent-notion [--backend auto|official|v3] [--format json|yaml|jsonl] [--full] [--expand <fields>]
 ├── search
 │   ├── query <query> [--filter page|database] [--limit] [--cursor]
 │   └── usage
@@ -87,62 +96,74 @@ agent-notion [--full] [--expand <fields>]
 │   ├── get <page-id> [--content] [--raw-content]
 │   ├── create --parent <id> --title <title> [--properties <json>] [--icon <emoji>]
 │   ├── update <page-id> [--title] [--properties <json>] [--icon <emoji>]
-│   ├── trash <page-id>
+│   ├── trash <page-id> --yes
 │   ├── restore <page-id>
-│   ├── archive <page-id>                                            ◆
-│   ├── unarchive <page-id>                                          ◆
-│   ├── backlinks <page-id>                                        ◆
-│   ├── history <page-id> [--limit]                                ◆
+│   ├── archive <page-id> --yes                                     ◆
+│   ├── unarchive <page-id>                                         ◆
+│   ├── backlinks <page-id>                                         ◆
+│   ├── history <page-id> [--limit]                                 ◆
 │   └── usage
 ├── block
 │   ├── list <page-id> [--raw] [--limit] [--cursor]
 │   ├── append <page-id> [--content <markdown>] [--blocks <json>]
 │   ├── update <block-id> --content <text>
-│   ├── delete <block-id>
-│   ├── move <block-id> [--parent <block-id>] [--after <block-id>]     ◆
-│   ├── replace <page-id> [--content <markdown>] [--blocks <json>]
+│   ├── delete <block-id> --yes
+│   ├── move <block-id> [--parent <block-id>] [--after <block-id>]  ◆
+│   ├── replace <page-id> [--content <markdown>] [--blocks <json>] --yes
 │   └── usage
 ├── comment
 │   ├── list <page-id> [--limit] [--cursor]
 │   ├── page <page-id> <body>
-│   ├── inline <block-id> <body> --text <target> [--occurrence <n>]  ◆
+│   ├── inline <block-id> <body> --text <target> [--occurrence <n>] ◆
 │   └── usage
-├── export                                                           ◆
-│   ├── page <page-id> [--format md|html] [--recursive] [--output] [--timeout]
-│   ├── workspace [--format md|html] [--output] [--timeout]
+├── export                                                          ◆
+│   ├── page <page-id> [--format md|html] [--recursive] [--output] [--wait]
+│   ├── workspace [--format md|html] [--output] [--wait]
+│   ├── poll <task-id> [--output] [--wait]
 │   └── usage
 ├── user
 │   ├── list [--limit] [--cursor]
 │   ├── me
 │   └── usage
-├── activity                                                       ◆
+├── activity                                                        ◆
 │   ├── log [--page <page-id>] [--limit]
 │   └── usage
-├── ai                                                             ◆
+├── ai                                                              ◆
 │   ├── model list [--raw]
 │   ├── chat list [--limit]
-│   ├── chat send <message> [--thread] [--model] [--page] [--no-search] [--stream] [--debug]
+│   ├── chat send <message> [--thread] [--model] [--page] [--no-search] [--stream]
 │   ├── chat get <thread-id> [--raw]
 │   ├── chat mark-read <thread-id>
 │   └── usage
 ├── config
-│   ├── get [key]
+│   ├── get <key>
 │   ├── set <key> <value>
-│   ├── reset [key]
-│   ├── list-keys
+│   ├── unset <key>
+│   ├── list
 │   └── usage
 ├── auth
 │   ├── setup-oauth --client-id <id> --client-secret <secret>
-│   ├── login [--alias <name>] [--token <token>] [--port <port>]
-│   ├── logout [--all] [--workspace <alias>]
+│   ├── login [--alias <name>] [--port <port>]
+│   ├── import [--token <token>] [--alias <name>]
+│   ├── logout [--all] [--workspace <alias>] --yes
 │   ├── status
-│   ├── import-desktop [--skip-validation]                           ◆
-│   ├── workspace list | switch <alias> | remove <alias>
+│   ├── import-desktop [--skip-validation]                          ◆
+│   ├── import-browser <browser> [--profile <p>]                    ◆
+│   ├── workspace list | switch <alias> | set-default <alias> | remove <alias> --yes
 │   └── usage
-└── usage                              # LLM-optimized docs
+└── usage                              # LLM-optimized overview
 ```
 
-Each command group has a `usage` subcommand for detailed, LLM-friendly documentation (e.g., `agent-notion page usage`). The top-level `agent-notion usage` gives a broad overview.
+Each command group has a `usage` subcommand for detailed, LLM-friendly documentation (e.g. `agent-notion page usage`). The top-level `agent-notion usage` gives a broad overview.
+
+## Backends
+
+Two API backends serve the same command surface:
+
+- **Official REST API** — integration tokens and OAuth (`auth import`, `auth login`).
+- **v3 desktop-session API** — `auth import-desktop` / `auth import-browser`. Powers `export`, `page backlinks`/`history`, `activity log`, real `page archive`/`unarchive`, `block move`, `comment inline`, and `ai`.
+
+`--backend auto` (default) prefers a stored v3 session, else the official credential. Force one with `--backend official` or `--backend v3`.
 
 ## Authentication
 
@@ -152,46 +173,51 @@ OAuth provides full access to any workspace the user authorizes. Requires a [Not
 
 ```bash
 agent-notion auth setup-oauth --client-id <id> --client-secret <secret>
-agent-notion auth login                        # opens browser
+agent-notion auth login                        # opens the browser
 agent-notion auth login --alias work           # multiple workspaces
 ```
 
-Client secrets are stored in the macOS Keychain when available, falling back to plaintext config.
+Client secrets are stored in the OS keychain when available, falling back to plaintext config (a warning field says which).
 
 ### Internal integration token
 
 For simpler setups or CI environments, use an [internal integration token](https://www.notion.so/profile/integrations):
 
 ```bash
-agent-notion auth login --token ntn_...
+agent-notion auth import --token ntn_...        # or pipe the token via stdin
 ```
 
 ### Workspace management
 
 ```bash
-agent-notion auth status                       # current auth state
+agent-notion auth status                       # current auth state (never prints tokens)
 agent-notion auth workspace list               # all stored workspaces
 agent-notion auth workspace switch <alias>     # change default
-agent-notion auth workspace remove <alias>
-agent-notion auth logout --all                 # clear everything
+agent-notion auth workspace remove <alias> --yes
+agent-notion auth logout --all --yes           # clear everything
 ```
 
-Token resolution order: `NOTION_TOKEN` env > active workspace credentials.
+Token resolution order: `NOTION_API_KEY`/`NOTION_TOKEN` env var > default workspace token (OS keychain, else config file).
 
 ## Advanced commands (v3 API)
 
-Some commands use Notion's internal v3 API instead of the public API. These provide capabilities not available through official integrations but require a desktop session token:
+Some commands use Notion's internal v3 API instead of the public API. They provide capabilities not available through official integrations but require a desktop session token:
 
 ```bash
-agent-notion auth import-desktop               # macOS only — reads token from Notion Desktop app
+agent-notion auth import-desktop               # reads token_v2 from the Notion Desktop app
+agent-notion auth import-browser chrome        # or from a browser cookie store
 ```
+
+`import-browser` supports chrome, brave, edge, arc, chromium, firefox, zen, safari (`--profile <p>`).
 
 v3 commands (marked with `◆` in the command map):
 
 | Command | Description |
 | ------- | ----------- |
 | `export page <id> [--recursive]` | Export page (or page tree) to markdown/HTML zip |
-| `export workspace` | Export entire workspace |
+| `export workspace` | Export the entire workspace |
+| `export poll <task-id>` | Resume/poll a queued export by task ID |
+| `page archive <id> --yes` / `page unarchive <id>` | Real Archive: hide from search, keep the page alive |
 | `page backlinks <page-id>` | Find pages that link to a given page |
 | `page history <page-id>` | Version history snapshots |
 | `activity log [--page <id>]` | Workspace or page activity log |
@@ -199,61 +225,67 @@ v3 commands (marked with `◆` in the command map):
 | `comment inline <block-id> <body> --text <t>` | Inline comment anchored to specific text |
 | `ai model list` | List available AI models |
 | `ai chat list` | List recent AI chat threads |
-| `ai chat send <message>` | Send message to Notion AI (supports streaming) |
+| `ai chat send <message>` | Send a message to Notion AI (supports `--stream`) |
 | `ai chat get <thread-id>` | Get thread content (messages and metadata) |
 | `ai chat mark-read <thread-id>` | Mark a chat thread as read |
 
-Run `<command> usage` for full options and output format (e.g., `agent-notion export usage`).
+Run `<command> usage` for full options and output format (e.g. `agent-notion export usage`).
 
 ## Output
 
-- All output is JSON to stdout
-- Errors go to stderr as `{ "error": "..." }` with non-zero exit code
-- Empty/null fields are pruned automatically
-- Long strings are truncated with companion `*Length` fields
+- **NDJSON on stdout** — one JSON record per line. List commands print one record per item, then a trailing `{"@pagination": {has_more, next_cursor}}` (or `{"@meta": …}` / `{"@total": n}`) line when there is more.
+- **`--format json|yaml`** wraps everything in one pretty `{ "data": [ … ] }` envelope; `--format jsonl` is the default NDJSON.
+- **Errors** print to stderr as `{ "error": "...", "fixable_by": "agent|human|retry", "hint": "..." }` with exit code 1. Tokens are never printed.
+- Empty/null fields are pruned automatically — a missing key means no value.
 
 ## Truncation
 
-Fields named `description`, `body`, or `content` are truncated to 200 characters by default. A companion `*Length` key (e.g. `descriptionLength`) shows the full size.
+Fields named `description`, `body`, or `content` are truncated to 200 characters by default. A companion `{field}Length` key (e.g. `descriptionLength`) always carries the full rune count so you can detect clipping.
 
 ```bash
-agent-notion --full page get <page-id>                             # expand all fields
+agent-notion --full page get <page-id>                             # expand every truncatable field
 agent-notion --expand description database get <id>                # expand specific fields
-agent-notion config set truncation.maxLength 500                   # change default
+agent-notion config set truncation.max_length 500                  # raise the default cap
 ```
+
+`--expand`/`--full` are global flags and may appear before or after the command.
 
 ## Configuration
 
-Persistent settings via `agent-notion config`:
+Persistent settings via `agent-notion config` (`get`/`set`/`unset`/`list`):
 
-| Key                          | Default | Description                                           |
-| ---------------------------- | ------- | ----------------------------------------------------- |
-| `truncation.maxLength`       | 200     | Max characters before truncating (0 = no truncation)  |
-| `pagination.defaultPageSize` | 50      | Default results per page (max 100)                    |
-| `ai.defaultModel`            | —       | Default AI model codename (see `ai model list --raw`) |
+| Key                     | Default | Description                                            |
+| ----------------------- | ------- | ------------------------------------------------------ |
+| `page_size`             | 50      | Default results per list command (integer 1–100)       |
+| `max_depth`             | —       | Max nesting depth when recursively fetching blocks     |
+| `truncation.max_length` | 200     | Max characters before truncating description/body/content |
+| `ai.default_model`      | —       | Default AI model codename (see `ai model list --raw`)  |
 
 ```bash
-agent-notion config set truncation.maxLength 500
-agent-notion config get pagination.defaultPageSize
-agent-notion config list-keys              # all keys with defaults
-agent-notion config reset                  # reset all to defaults
+agent-notion config set truncation.max_length 500
+agent-notion config get page_size
+agent-notion config list                   # every key with value + description
+agent-notion config unset truncation.max_length
 ```
+
+Settings persist in `~/.config/agent-notion/config.json`; clearing every key drops the `settings` object entirely.
 
 ## Environment variables
 
-| Variable       | Description                                      |
-| -------------- | ------------------------------------------------ |
-| `NOTION_TOKEN` | Notion API token (overrides stored credentials)  |
-| `XDG_CONFIG_HOME` | Override config directory (default: `~/.config`) |
+| Variable                   | Description                                          |
+| -------------------------- | --------------------------------------------------- |
+| `NOTION_API_KEY` / `NOTION_TOKEN` | Notion API token (overrides stored credentials)     |
+| `XDG_CONFIG_HOME`          | Override the config directory (default `~/.config`)  |
+| `AGENT_NOTION_NO_KEYCHAIN` | Set to `1` to skip the OS keychain (config-file only) |
 
 ## Development
 
 ```bash
-bun install
-bun run dev -- --help        # run in dev mode
-bun run tsc --noEmit         # type check
-bun test                     # run tests
-bun run lint                 # lint
+make build                   # build the binary
+make dev ARGS="--help"       # run from source
+make test                    # unit tests (no external calls)
+make vet                     # go vet
+make lint                    # golangci-lint
 ```
 
 ## License

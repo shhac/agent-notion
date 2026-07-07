@@ -3,13 +3,20 @@ node_modules
 .env
 .env.*
 
-# bun
-bun.lockb
 
 # build
 dist
 release
 *.bun-build
+
+# go
+# built binary at repo root (Makefile: -o agent-notion); the cmd/agent-notion
+# SOURCE dir must stay tracked, so anchor to the root only.
+/agent-notion
+*.test
+*.out
+go.work
+go.work.sum
 
 # local
 .cache
@@ -25,3 +32,6 @@ yarn-error.log*
 # claude
 .claude/*.local.json
 CLAUDE.local.md
+
+# go build output
+/agent-notion

@@ -1,0 +1,21 @@
+# Release on a v* tag push: the shared workflow cross-builds, publishes the
+# GitHub Release, and regenerates + pushes the Homebrew formula. To release:
+#   git tag vX.Y.Z && git push origin vX.Y.Z
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    uses: shhac/homebrew-tap/.github/workflows/go-release.yml@main
+    permissions:
+      contents: write
+    secrets: inherit
+    with:
+      name: agent-notion
+      desc: "Notion CLI for humans and LLMs"
+      formula_class: AgentNotion
+      help_match: "Notion CLI for humans and LLMs"
