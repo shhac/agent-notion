@@ -37,6 +37,23 @@ func TestAuthStatusNeverPrintsToken(t *testing.T) {
 	}
 }
 
+// TestAuthStatusReportsV3Session pins that a stored desktop session is
+// reported (it's what --backend auto resolves first), not "no credential".
+func TestAuthStatusReportsV3Session(t *testing.T) {
+	isolateState(t)
+	seedV3Session(t)
+
+	out, _, err := runCLI(t, "", "auth", "status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := decodeLines(t, out)[0]
+	if item["authenticated"] != true || item["source"] != "desktop" ||
+		item["auth_type"] != "desktop" || item["workspace"] != "Desk Space" {
+		t.Errorf("status = %v", item)
+	}
+}
+
 func TestParsePropertiesTable(t *testing.T) {
 	cases := []struct {
 		name    string

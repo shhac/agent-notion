@@ -39,7 +39,26 @@ func authStatusCmd(g *GlobalFlags) *cobra.Command {
 		Short: "Show the resolved Notion credential (never prints the token)",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			res, ok := credential.Resolve(config.Read(), g.keychain())
+			cfg := config.Read()
+
+			// Mirror the auto-backend resolution order: a stored v3 desktop
+			// session wins, then the official-API credential.
+			if _, ok := credential.ResolveV3Token(cfg, g.keychain()); ok && cfg.V3 != nil {
+				item := map[string]any{
+					"authenticated": true,
+					"source":        "desktop",
+					"auth_type":     string(config.AuthDesktop),
+				}
+				if cfg.V3.SpaceName != "" {
+					item["workspace"] = cfg.V3.SpaceName
+				}
+				if cfg.V3.UserName != "" {
+					item["user"] = cfg.V3.UserName
+				}
+				return emitItem(g, item)
+			}
+
+			res, ok := credential.Resolve(cfg, g.keychain())
 			if !ok {
 				return output.New("no Notion credential configured", output.FixableByHuman).
 					WithHint("run 'agent-notion auth login', import a desktop token, or set NOTION_TOKEN")
