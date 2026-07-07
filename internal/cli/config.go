@@ -13,8 +13,8 @@ import (
 
 // registerConfig adds the family-standard `config` group (get/set/unset/list)
 // over the tunable settings in config.json.
-func registerConfig(root *cobra.Command) {
-	root.AddCommand(libcli.ConfigCommand(configKeys()))
+func registerConfig(root *cobra.Command, g *GlobalFlags) {
+	root.AddCommand(libcli.ConfigCommand(&g.Globals, configKeys()))
 	addDomainUsage("config", configUsageText)
 }
 
@@ -142,8 +142,8 @@ const configUsageText = `agent-notion config — View and update persistent CLI 
 
 SUBCOMMANDS
   config get <key>            Show one setting: {key, value, set}
-  config set <key> <value>    Update a setting: {set, value}
-  config unset <key>          Reset a setting to its default: {unset}
+  config set <key> <value>    Update a setting: {key, value, set}
+  config unset <key>          Reset a setting to its default: {key, value, set}
   config list                 List every key: {key, value, set, description}
 
 SETTING KEYS
@@ -164,8 +164,9 @@ STORAGE
   setting is cleared, the 'settings' object is dropped from the file entirely.
 
 OUTPUT
-  NDJSON on stdout. Unknown keys return {error, fixable_by:agent, hint} listing
-  the valid keys.
+  NDJSON on stdout by default; --format json|yaml renders the object (or a
+  {"data":[...]} envelope for list). Unknown keys return {error,
+  fixable_by:agent, hint} listing the valid keys.
 
 NOTE
   This adopts the family-standard get/set/unset/list surface, replacing the TS

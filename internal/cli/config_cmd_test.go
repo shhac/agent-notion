@@ -1,38 +1,19 @@
 package cli
 
 import (
-	"bytes"
-	"io"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/shhac/agent-notion/internal/config"
 )
 
-// runConfig runs a config subcommand, capturing os.Stdout — the lib's
-// ConfigCommand writes its NDJSON records there directly rather than through
-// cobra's output writer.
+// runConfig runs a config subcommand; since lib-agent-cli v0.19.0 the lib's
+// ConfigCommand writes through cobra's output writer, so runCLI's buffer
+// captures it.
 func runConfig(t *testing.T, args ...string) (stdout string, err error) {
 	t.Helper()
-	orig := os.Stdout
-	r, w, pipeErr := os.Pipe()
-	if pipeErr != nil {
-		t.Fatal(pipeErr)
-	}
-	os.Stdout = w
-	done := make(chan string, 1)
-	go func() {
-		var buf bytes.Buffer
-		_, _ = io.Copy(&buf, r)
-		done <- buf.String()
-	}()
-
-	_, _, err = runCLI(t, "", args...)
-
-	_ = w.Close()
-	os.Stdout = orig
-	return <-done, err
+	stdout, _, err = runCLI(t, "", args...)
+	return stdout, err
 }
 
 func TestConfigSetGetRoundTrip(t *testing.T) {
@@ -42,7 +23,7 @@ func TestConfigSetGetRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if item := decodeLines(t, out)[0]; item["set"] != "page_size" || item["value"] != "20" {
+	if item := decodeLines(t, out)[0]; item["key"] != "page_size" || item["value"] != "20" || item["set"] != true {
 		t.Errorf("set output = %v", item)
 	}
 	if got := config.ReadSettings().PageSize; got != 20 {
@@ -138,7 +119,7 @@ func TestConfigUnsetPrunesNested(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if item := decodeLines(t, out)[0]; item["unset"] != "truncation.max_length" {
+	if item := decodeLines(t, out)[0]; item["key"] != "truncation.max_length" || item["set"] != false {
 		t.Errorf("unset output = %v", item)
 	}
 	// It was the only setting, so the whole settings object is gone.

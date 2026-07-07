@@ -83,7 +83,7 @@ func newRootWithDeps(deps rootDeps) *cobra.Command {
 	registerExport(root, g)
 	registerActivity(root, g)
 	registerAI(root, g)
-	registerConfig(root)
+	registerConfig(root, g)
 	registerUsage(root)
 	attachDomainUsage(root)
 
