@@ -77,7 +77,9 @@ func editMetaOp(pointer Pointer, userID string, now time.Time) Operation {
 	})
 }
 
-// CreateBlockParams describes a block to create.
+// CreateBlockParams describes a block to create. The optional fields express
+// caller intent directly so no caller ever patches the emitted ops after the
+// fact — the builder is the single owner of the op shapes.
 type CreateBlockParams struct {
 	ID          string
 	Type        string
@@ -87,6 +89,15 @@ type CreateBlockParams struct {
 	UserID      string
 	Properties  map[string]any
 	Format      map[string]any
+	// ListParent overrides the pointer that receives the content listAfter
+	// and the parent editMeta — e.g. a database page's collection_view_page
+	// block, while the block args still name the collection as parent.
+	ListParent *Pointer
+	// AfterID inserts the new block after a specific sibling.
+	AfterID string
+	// SkipParentEditMeta omits the parent editMeta op, for callers batching
+	// many creates that add one trailing editMeta themselves.
+	SkipParentEditMeta bool
 }
 
 // CreateBlockOps builds the operations that create a new block and add it to
@@ -98,6 +109,9 @@ func CreateBlockOps(p CreateBlockParams, now time.Time) []Operation {
 		parentTable = "block"
 	}
 	pp := ptr(parentTable, p.ParentID, p.SpaceID)
+	if p.ListParent != nil {
+		pp = *p.ListParent
+	}
 
 	blockArgs := map[string]any{
 		"type":                 p.Type,
@@ -121,11 +135,14 @@ func CreateBlockOps(p CreateBlockParams, now time.Time) []Operation {
 		blockArgs["format"] = p.Format
 	}
 
-	return []Operation{
+	ops := []Operation{
 		setOp(bp, nil, blockArgs),
-		listAfterOp(pp, "content", p.ID, ""),
-		editMetaOp(pp, p.UserID, now),
+		listAfterOp(pp, "content", p.ID, p.AfterID),
 	}
+	if !p.SkipParentEditMeta {
+		ops = append(ops, editMetaOp(pp, p.UserID, now))
+	}
+	return ops
 }
 
 // TrashBlockParams identifies a block to move to Trash.

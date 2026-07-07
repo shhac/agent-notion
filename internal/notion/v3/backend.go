@@ -237,6 +237,14 @@ func (b *Backend) CreatePage(ctx context.Context, params notion.CreatePageParams
 		format = map[string]any{"page_icon": params.Icon}
 	}
 
+	// For database parents, the content listAfter + parent editMeta target
+	// the collection_view_page block, while the block itself names the
+	// collection as parent.
+	var listParent *Pointer
+	if isDB {
+		listParent = &Pointer{Table: "block", ID: params.ParentID, SpaceID: spaceID}
+	}
+
 	now := time.Now()
 	ops := CreateBlockOps(CreateBlockParams{
 		ID:          newPageID,
@@ -247,21 +255,8 @@ func (b *Backend) CreatePage(ctx context.Context, params notion.CreatePageParams
 		UserID:      userID,
 		Properties:  v3Props,
 		Format:      format,
+		ListParent:  listParent,
 	}, now)
-
-	// For database parents, listAfter + editMeta target the collection_view_page
-	// block, not the collection.
-	if isDB {
-		parentPtr := Pointer{Table: "block", ID: params.ParentID, SpaceID: spaceID}
-		for i := range ops {
-			switch {
-			case ops[i].Command == "listAfter":
-				ops[i].Pointer = parentPtr
-			case ops[i].Command == "update" && ops[i].Pointer.ID != newPageID:
-				ops[i].Pointer = parentPtr
-			}
-		}
-	}
 
 	if err := b.Client.SaveTransactions(ctx, ops); err != nil {
 		return empty, err
@@ -497,50 +492,26 @@ func (b *Backend) AppendBlocks(ctx context.Context, params notion.AppendBlocksPa
 		newBlockID := newUUID()
 		args := OfficialBlockToV3Args(blockObj)
 
-		ops := CreateBlockOps(CreateBlockParams{
-			ID:          newBlockID,
-			Type:        args.Type,
-			ParentID:    params.ID,
-			ParentTable: "block",
-			SpaceID:     spaceID,
-			UserID:      userID,
-			Properties:  args.Properties,
-			Format:      args.Format,
-		}, now)
-
-		if previousBlockID != "" {
-			for i := range ops {
-				if ops[i].Command != "listAfter" {
-					continue
-				}
-				if m, ok := ops[i].Args.(map[string]string); ok {
-					m["after"] = previousBlockID
-				}
-			}
-		}
-
-		// Drop the per-block parent editMeta; a single one is added at the end.
-		for _, op := range ops {
-			if op.Command == "update" && op.Pointer.ID == params.ID {
-				continue
-			}
-			allOps = append(allOps, op)
-		}
+		// Chain siblings with AfterID and skip the per-block parent
+		// editMeta; one trailing editMeta covers the whole batch.
+		allOps = append(allOps, CreateBlockOps(CreateBlockParams{
+			ID:                 newBlockID,
+			Type:               args.Type,
+			ParentID:           params.ID,
+			ParentTable:        "block",
+			SpaceID:            spaceID,
+			UserID:             userID,
+			Properties:         args.Properties,
+			Format:             args.Format,
+			AfterID:            previousBlockID,
+			SkipParentEditMeta: true,
+		}, now)...)
 
 		previousBlockID = newBlockID
 	}
 
 	if len(params.Blocks) > 0 {
-		allOps = append(allOps, Operation{
-			Pointer: Pointer{Table: "block", ID: params.ID, SpaceID: spaceID},
-			Path:    []string{},
-			Command: "update",
-			Args: map[string]any{
-				"last_edited_time":     now.UnixMilli(),
-				"last_edited_by_table": "notion_user",
-				"last_edited_by_id":    userID,
-			},
-		})
+		allOps = append(allOps, editMetaOp(ptr("block", params.ID, spaceID), userID, now))
 	}
 
 	if err := b.Client.SaveTransactions(ctx, allOps); err != nil {
