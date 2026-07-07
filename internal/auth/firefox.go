@@ -57,16 +57,16 @@ func geckoCookie(profilePath string) (string, bool) {
 	defer cleanup()
 
 	rows, err := queryReadonlySqlite(copyPath,
-		"select value from moz_cookies where host like '%notion.so%' and name = '"+cookieName+
+		"select value from moz_cookies where "+hostClause("host")+" and name = '"+cookieName+
 			"' order by length(value) desc")
 	if err != nil {
 		return "", false
 	}
 	for _, row := range rows {
+		// Firefox stores the cookie value verbatim; send it as-is. Notion's
+		// token_v2 embeds a percent-encoded prefix (e.g. "v03%3A…") that is
+		// part of the value — URL-decoding it corrupts the token.
 		if v := rowString(row, "value"); v != "" {
-			if decoded, derr := decodeMaybe(v); derr == nil {
-				return decoded, true
-			}
 			return v, true
 		}
 	}

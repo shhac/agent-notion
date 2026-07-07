@@ -30,7 +30,7 @@ func TestDecryptChromiumCBCRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decrypt: %v", err)
 	}
-	if got := normalizeCookiePlaintext(plain, 0); got != "v02:user_token_associated_secret:abcdef123456" {
+	if got := normalizeCookiePlaintext(plain, 0); got != "v02%3Auser_token_associated_secret%3Aabcdef123456" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -48,8 +48,10 @@ func TestNormalizeStripsMetaV24Prefix(t *testing.T) {
 	}
 }
 
-func TestNormalizeURLDecodes(t *testing.T) {
-	if got := normalizeCookiePlaintext([]byte("a%3Ab%2Fc"), 0); got != "a:b/c" {
+func TestNormalizeKeepsValueVerbatim(t *testing.T) {
+	// The cookie value is sent exactly as the browser stored it — any
+	// percent-encoding is part of the token, not transport encoding.
+	if got := normalizeCookiePlaintext([]byte("a%3Ab%2Fc"), 0); got != "a%3Ab%2Fc" {
 		t.Errorf("got %q", got)
 	}
 }

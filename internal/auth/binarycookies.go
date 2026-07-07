@@ -3,7 +3,6 @@ package auth
 import (
 	"encoding/binary"
 	"errors"
-	"net/url"
 )
 
 type binaryCookie struct {
@@ -94,13 +93,4 @@ func cstringAt(rec []byte, off int) string {
 		end++
 	}
 	return string(rec[off:end])
-}
-
-// decodeMaybe URL-decodes a cookie value, returning it unchanged if it is not
-// percent-encoded.
-func decodeMaybe(v string) (string, error) {
-	if decoded, err := url.PathUnescape(v); err == nil {
-		return decoded, nil
-	}
-	return v, nil
 }

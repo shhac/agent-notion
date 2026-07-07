@@ -130,7 +130,7 @@ func TestGeckoCookieReadsAndDecodes(t *testing.T) {
 	profile := newProfile(t, base, "abc.default-release", "v02%3Agecko_token%3A99")
 
 	got, ok := geckoCookie(profile)
-	if !ok || got != "v02:gecko_token:99" {
+	if !ok || got != "v02%3Agecko_token%3A99" {
 		t.Errorf("geckoCookie = %q, %v", got, ok)
 	}
 
@@ -149,7 +149,7 @@ func TestExtractGecko(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sess.TokenV2 != "v02:extracted" {
+	if sess.TokenV2 != "v02%3Aextracted" {
 		t.Errorf("token = %q", sess.TokenV2)
 	}
 	if sess.Source["profile"] == "" {

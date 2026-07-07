@@ -10,6 +10,8 @@
 // rather than scanning for a token signature.
 package auth
 
+import "strings"
+
 // Session is an extracted Notion desktop session.
 type Session struct {
 	TokenV2 string            `json:"token_v2"`
@@ -19,5 +21,16 @@ type Session struct {
 // cookieName is the Notion session cookie.
 const cookieName = "token_v2"
 
-// hostLike matches Notion cookie host_key / host values in SQL LIKE form.
-const hostLike = "%notion.so"
+// hostClause is a SQL predicate on the given host column matching Notion's
+// cookie hosts. Notion serves the session across two domains — www.notion.so
+// (legacy) and app.notion.com (current; the Desktop app uses it) — so both
+// must match, or the token is missed entirely on one of them.
+func hostClause(col string) string {
+	return "(" + col + " like '%notion.so' or " + col + " like '%notion.com')"
+}
+
+// isNotionDomain reports whether a cookie domain belongs to Notion (either
+// domain). The string form of hostClause, for the Safari path.
+func isNotionDomain(domain string) bool {
+	return strings.Contains(domain, "notion.so") || strings.Contains(domain, "notion.com")
+}

@@ -6,7 +6,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"errors"
-	"net/url"
 )
 
 // decryptChromiumCBC decrypts a Chromium "v10"/"v11" cookie value (already
@@ -37,16 +36,14 @@ func decryptChromiumCBC(data []byte, password string, iterations int) ([]byte, e
 
 // normalizeCookiePlaintext turns decrypted cookie bytes into the cookie value:
 // Chromium meta-version ≥24 prepends a 32-byte SHA-256(host) hash, which is
-// dropped, then the value is URL-decoded (Chromium may percent-encode it).
+// dropped. The remaining bytes are the verbatim cookie value and are returned
+// as-is — Notion's token_v2 embeds a percent-encoded prefix (e.g. "v03%3A…")
+// that is part of the value, so URL-decoding it would corrupt the token.
 func normalizeCookiePlaintext(plain []byte, metaVersion int) string {
 	if metaVersion >= 24 && len(plain) >= 32 {
 		plain = plain[32:]
 	}
-	s := string(plain)
-	if decoded, err := url.PathUnescape(s); err == nil {
-		return decoded
-	}
-	return s
+	return string(plain)
 }
 
 func bytes16Spaces() []byte {

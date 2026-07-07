@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 )
 
 // extractSafari reads token_v2 from Safari's Cookies.binarycookies store.
@@ -38,9 +37,10 @@ func extractSafari() (*Session, error) {
 			continue
 		}
 		for _, c := range cookies {
-			if c.Name == cookieName && strings.Contains(c.Domain, "notion.so") && c.Value != "" {
-				val, _ := decodeMaybe(c.Value)
-				return &Session{TokenV2: val, Source: map[string]string{"cookies_path": path}}, nil
+			// Match either Notion domain; send the value verbatim (see hostClause
+			// and normalizeCookiePlaintext — the token embeds its own encoding).
+			if c.Name == cookieName && isNotionDomain(c.Domain) && c.Value != "" {
+				return &Session{TokenV2: c.Value, Source: map[string]string{"cookies_path": path}}, nil
 			}
 		}
 	}

@@ -55,11 +55,26 @@ func TestExtractChromiumCookiePlaintext(t *testing.T) {
 	}
 }
 
+// TestExtractChromiumCookieAppNotionCom pins the desktop-app fix: Notion's
+// current domain is app.notion.com (the Desktop app's only token host), which
+// the old "%notion.so"-only host filter missed entirely.
+func TestExtractChromiumCookieAppNotionCom(t *testing.T) {
+	path := newCookiesDB(t, t.TempDir(), 0, ".app.notion.com", "v03%3Adesktop_token", nil)
+
+	got, err := extractChromiumCookie(path, nil)
+	if err != nil {
+		t.Fatalf("app.notion.com host not matched: %v", err)
+	}
+	if got != "v03%3Adesktop_token" {
+		t.Errorf("cookie = %q, want verbatim", got)
+	}
+}
+
 func TestExtractChromiumCookieCBCRoundTrip(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows uses the DPAPI branch, not CBC")
 	}
-	const token = "v02%3Auser_token%3Aabc123" // URL-encoded on the wire
+	const token = "v02%3Auser_token%3Aabc123" // percent-encoding is part of the token
 	enc := append([]byte("v10"), encryptCBC(t, []byte(token), "keychain-pass", chromiumIterations())...)
 	path := newCookiesDB(t, t.TempDir(), 20, ".notion.so", "", enc)
 
@@ -68,7 +83,7 @@ func TestExtractChromiumCookieCBCRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "v02:user_token:abc123" {
+	if got != "v02%3Auser_token%3Aabc123" {
 		t.Errorf("decrypted cookie = %q", got)
 	}
 }

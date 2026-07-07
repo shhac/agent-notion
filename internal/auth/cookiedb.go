@@ -20,7 +20,7 @@ func extractChromiumCookie(cookiesPath string, macQueries []safeStorageQuery) (s
 
 	rows, err := queryReadonlySqlite(copyPath,
 		"select value, encrypted_value from cookies where name = '"+cookieName+
-			"' and host_key like '"+hostLike+"' order by length(encrypted_value) desc")
+			"' and "+hostClause("host_key")+" order by length(encrypted_value) desc")
 	if err != nil {
 		return "", err
 	}
