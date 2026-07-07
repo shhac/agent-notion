@@ -2,112 +2,73 @@
 
 ## General
 
-All commands print JSON to stdout. Errors print `{ "error": "..." }` to stderr with non-zero exit.
+Commands print **NDJSON** to stdout — one JSON record per line. A single-item command prints one line; a list command prints one line per item followed by a trailer line (`{"@pagination": …}`, `{"@meta": …}`, or `{"@total": n}`) when relevant.
 
-Empty/null fields are pruned automatically — missing keys mean no value, not `null`.
+`--format json` or `--format yaml` collapses everything into one pretty document with a `data` array and the trailers hoisted as `@`-keys; `--format jsonl` is the default NDJSON.
+
+Errors print to stderr as `{ "error": "...", "fixable_by": "agent|human|retry", "hint": "..." }` with exit code 1. `fixable_by` tells an agent who can resolve it. Empty/null fields are pruned — a missing key means no value.
+
+Field names are snake_case (e.g. `last_edited_at`, `page_id`). The one exception is the truncation companion `{field}Length` (see below).
 
 ## Truncation
 
-Fields named `description`, `body`, or `content` are truncated to ~200 characters by default. A companion `*Length` field (e.g. `descriptionLength`) always shows the full character count.
+Fields named `description`, `body`, or `content` are truncated to 200 characters (runes) by default. A companion `{field}Length` field (e.g. `descriptionLength`) always carries the full rune count.
 
 **Default (truncated):**
 
 ```json
-{
-  "description": "This is the beginning of a long database description that goes on for many paragraphs...",
-  "descriptionLength": 1847
-}
+{ "description": "This is the beginning of a long database description...", "descriptionLength": 1847 }
 ```
 
-**With `--full` or `--expand description` (expanded):**
+**With `--full` or `--expand description` (expanded):** the field carries the full text; `descriptionLength` is unchanged.
+
+Detect clipping with `len(description) < descriptionLength`. Truncatable fields: `description`, `body`, `content`. Global flags: `--expand <field,...>`, `--full`. Raise the default cap with `config set truncation.max_length <n>`.
+
+## List output (NDJSON)
+
+Default (NDJSON) — one record per item, then a pagination trailer when more remain:
+
+```
+{"id":"a1b2c3d4-...","type":"page","title":"Meeting Notes","url":"https://www.notion.so/..."}
+{"id":"c5d6e7f8-...","type":"database","title":"Project Tracker","url":"https://www.notion.so/..."}
+{"@pagination":{"has_more":true,"next_cursor":"abc123"}}
+```
+
+Under `--format json`:
 
 ```json
-{
-  "description": "This is the beginning of a long database description that goes on for many paragraphs and includes detailed specifications...",
-  "descriptionLength": 1847
-}
+{ "data": [ { "id": "a1b2c3d4-..." }, { "id": "c5d6e7f8-..." } ], "@pagination": { "has_more": true, "next_cursor": "abc123" } }
 ```
 
-The `*Length` field is always present when the source field has content, regardless of truncation. Use it to detect whether content was truncated (`description.length < descriptionLength`).
-
-Truncatable fields: `description`, `body`, `content`. Global flags: `--expand <field,...>` or `--full`.
-
-## List output
-
-List commands return:
-
-```json
-{
-  "items": [ ... ],
-  "pagination": {
-    "hasMore": true,
-    "nextCursor": "abc123"
-  }
-}
-```
-
-When there are no more pages, the `pagination` key is omitted entirely.
+When there are no more pages the pagination trailer is omitted. Paginate with `--limit <n>` (max 100) and `--cursor <token>`.
 
 ## Single item output
 
-Single-item commands (e.g., `page get`, `user me`) return the object directly:
-
-```json
-{
-  "id": "...",
-  "url": "...",
-  "properties": { ... }
-}
-```
+Single-item commands (`page get`, `user me`, `page create`, …) print the object directly on one line.
 
 ## Search results (`search query`)
 
+One record per hit:
+
 ```json
-{
-  "items": [
-    {
-      "id": "aaaaaaaa-1111-2222-3333-444444444444",
-      "type": "page",
-      "title": "Meeting Notes",
-      "url": "https://www.notion.so/...",
-      "parent": { "type": "database", "id": "bbbbbbbb-..." },
-      "lastEditedAt": "2026-01-15T10:30:00.000Z"
-    },
-    {
-      "id": "cccccccc-...",
-      "type": "database",
-      "title": "Project Tracker",
-      "url": "https://www.notion.so/...",
-      "parent": { "type": "workspace" },
-      "lastEditedAt": "2026-01-14T08:00:00.000Z"
-    }
-  ],
-  "pagination": { "hasMore": true, "nextCursor": "..." }
-}
+{ "id": "a1b2c3d4-...", "type": "page", "title": "Meeting Notes", "url": "https://www.notion.so/...", "parent": { "type": "database", "id": "b2c3d4e5-..." }, "last_edited_at": "2026-01-15T10:30:00.000Z" }
 ```
 
-Parent types: `database`, `page`, `workspace`. The `id` field is only present for `database` and `page` parents.
+`type`: `page` | `database`. `parent.type`: `database` | `page` | `workspace`; `parent.id` is present only for `database`/`page` parents.
 
 ## Database list items (`database list`)
 
 ```json
-{
-  "id": "...",
-  "title": "Project Tracker",
-  "url": "https://www.notion.so/...",
-  "parent": { "type": "page", "id": "..." },
-  "propertyCount": 8,
-  "lastEditedAt": "2026-01-15T10:30:00.000Z"
-}
+{ "id": "b2c3d4e5-...", "title": "Project Tracker", "url": "https://www.notion.so/...", "parent": { "type": "page", "id": "..." }, "property_count": 8, "last_edited_at": "2026-01-15T10:30:00.000Z" }
 ```
 
 ## Database detail (`database get`)
 
-Includes full property definitions with type-specific metadata:
+Full property definitions with type-specific metadata:
 
 ```json
 {
-  "id": "...",
+  "id": "b2c3d4e5-...",
   "title": "Project Tracker",
   "description": "All active projects",
   "url": "https://www.notion.so/...",
@@ -115,39 +76,17 @@ Includes full property definitions with type-specific metadata:
   "properties": {
     "Name": { "id": "title", "type": "title" },
     "Status": {
-      "id": "abc",
-      "type": "status",
-      "options": [
-        { "name": "Not started", "color": "default" },
-        { "name": "In Progress", "color": "blue" },
-        { "name": "Done", "color": "green" }
-      ],
-      "groups": [
-        { "name": "To-do", "options": ["Not started"] },
-        { "name": "In progress", "options": ["In Progress"] },
-        { "name": "Complete", "options": ["Done"] }
-      ]
+      "id": "abc", "type": "status",
+      "options": [ { "name": "Not started", "color": "default" }, { "name": "Done", "color": "green" } ],
+      "groups": [ { "name": "To-do", "options": ["Not started"] }, { "name": "Complete", "options": ["Done"] } ]
     },
-    "Priority": {
-      "id": "def",
-      "type": "select",
-      "options": [
-        { "name": "High", "color": "red" },
-        { "name": "Medium", "color": "yellow" },
-        { "name": "Low", "color": "gray" }
-      ]
-    },
-    "Tags": {
-      "id": "ghi",
-      "type": "multi_select",
-      "options": [{ "name": "Frontend", "color": "blue" }]
-    },
+    "Priority": { "id": "def", "type": "select", "options": [ { "name": "High", "color": "red" } ] },
     "Task ID": { "id": "jkl", "type": "unique_id", "prefix": "TASK" },
-    "Related": { "id": "mno", "type": "relation", "relatedDatabase": "..." }
+    "Related": { "id": "mno", "type": "relation", "related_database": "..." }
   },
-  "isInline": false,
-  "createdAt": "2026-01-01T00:00:00.000Z",
-  "lastEditedAt": "2026-01-15T10:30:00.000Z"
+  "is_inline": false,
+  "created_at": "2026-01-01T00:00:00.000Z",
+  "last_edited_at": "2026-01-15T10:30:00.000Z"
 }
 ```
 
@@ -157,624 +96,293 @@ Compact LLM-friendly format:
 
 ```json
 {
-  "id": "...",
+  "id": "b2c3d4e5-...",
   "title": "Project Tracker",
   "properties": [
     { "name": "Name", "id": "title", "type": "title" },
-    { "name": "Status", "id": "abc", "type": "status", "options": ["Not started", "In Progress", "Done"], "groups": { "To-do": ["Not started"], "In progress": ["In Progress"], "Complete": ["Done"] } },
+    { "name": "Status", "id": "abc", "type": "status", "options": ["Not started", "Done"], "groups": { "To-do": ["Not started"], "Complete": ["Done"] } },
     { "name": "Priority", "id": "def", "type": "select", "options": ["High", "Medium", "Low"] },
-    { "name": "Tags", "id": "ghi", "type": "multi_select", "options": ["Frontend"] },
     { "name": "Task ID", "id": "jkl", "type": "unique_id", "prefix": "TASK" },
-    { "name": "Related", "id": "mno", "type": "relation", "relatedDatabase": "..." }
+    { "name": "Related", "id": "mno", "type": "relation", "related_database": "..." }
   ]
 }
 ```
 
 ## Database query results (`database query`)
 
+One record per row (properties flattened — see "Flattened property types"):
+
 ```json
 {
-  "items": [
-    {
-      "id": "...",
-      "url": "https://www.notion.so/...",
-      "properties": {
-        "Name": "Fix login redirect",
-        "Status": "In Progress",
-        "Priority": "High",
-        "Tags": ["Frontend", "Bug"],
-        "Assignee": [{ "id": "...", "name": "Alice" }],
-        "Due Date": { "start": "2026-02-01", "end": null },
-        "Done": false,
-        "Task ID": "TASK-42"
-      },
-      "createdAt": "2026-01-10T09:00:00.000Z",
-      "lastEditedAt": "2026-01-15T10:30:00.000Z"
-    }
-  ],
-  "pagination": { "hasMore": false }
+  "id": "c3d4e5f6-...",
+  "url": "https://www.notion.so/...",
+  "properties": {
+    "Name": "Fix login redirect", "Status": "In Progress", "Priority": "High",
+    "Tags": ["Frontend", "Bug"], "Assignee": [{ "id": "...", "name": "Alice" }],
+    "Due Date": { "start": "2026-02-01", "end": null }, "Done": false, "Task ID": "TASK-42"
+  },
+  "created_at": "2026-01-10T09:00:00.000Z",
+  "last_edited_at": "2026-01-15T10:30:00.000Z"
 }
 ```
-
-Properties are flattened to simple values. See "Flattened property types" below.
 
 ## Page detail (`page get`)
 
 ```json
 {
-  "id": "...",
+  "id": "d4e5f6a7-...",
   "url": "https://www.notion.so/...",
   "parent": { "type": "database", "id": "..." },
-  "properties": {
-    "Name": "Meeting Notes",
-    "Status": "Done",
-    "Tags": ["Design"]
-  },
+  "properties": { "Name": "Meeting Notes", "Status": "Done", "Tags": ["Design"] },
   "icon": { "type": "emoji", "emoji": "📝" },
-  "createdAt": "2026-01-10T09:00:00.000Z",
-  "createdBy": { "id": "...", "name": "Alice" },
-  "lastEditedAt": "2026-01-15T10:30:00.000Z",
-  "lastEditedBy": { "id": "...", "name": "Bob" },
+  "created_at": "2026-01-10T09:00:00.000Z",
+  "created_by": { "id": "...", "name": "Alice" },
+  "last_edited_at": "2026-01-15T10:30:00.000Z",
+  "last_edited_by": { "id": "...", "name": "Bob" },
   "archived": false
 }
 ```
 
 ### With `--content` (markdown)
 
-Adds:
+Adds `content`, `block_count`, and `content_truncated` (present only when a page has more than 1000 blocks):
 
 ```json
-{
-  "content": "## Overview\n\nThis document covers...\n\n- Item 1\n- Item 2\n\n### Details\n\nMore text here.",
-  "blockCount": 15,
-  "contentTruncated": true
-}
+{ "content": "## Overview\n\nThis document covers...\n\n- Item 1\n- Item 2", "block_count": 15, "content_truncated": true }
 ```
-
-`contentTruncated` appears only when the page has more than 1000 blocks.
 
 ### With `--raw-content` (structured blocks)
 
-Adds:
+Adds `blocks` (flattened block objects), `block_count`, and `content_truncated`:
 
 ```json
-{
-  "blocks": [
-    { "id": "...", "type": "heading_2", "content": "Overview", "hasChildren": false },
-    { "id": "...", "type": "paragraph", "content": "This document covers...", "hasChildren": false },
-    { "id": "...", "type": "bulleted_list_item", "content": "Item 1", "hasChildren": false }
-  ],
-  "blockCount": 15,
-  "contentTruncated": true
-}
+{ "blocks": [ { "id": "...", "type": "heading_2", "content": "Overview", "has_children": false }, { "id": "...", "type": "paragraph", "content": "This document covers...", "has_children": false } ], "block_count": 15 }
 ```
 
-## Page create (`page create`)
+## Page mutations
 
 ```json
-{
-  "id": "...",
-  "url": "https://www.notion.so/...",
-  "title": "New Page",
-  "parent": { "database_id": "..." },
-  "createdAt": "2026-01-15T10:30:00.000Z"
-}
+// page create
+{ "id": "...", "url": "https://www.notion.so/...", "title": "New Page", "parent": { "database_id": "..." }, "created_at": "2026-01-15T10:30:00.000Z" }
+// page update
+{ "id": "...", "url": "https://www.notion.so/...", "last_edited_at": "2026-01-15T10:30:00.000Z" }
+// page trash --yes  /  page restore
+{ "id": "...", "trashed": true }
+{ "id": "...", "trashed": false }
+// page archive --yes  /  page unarchive   (v3)
+{ "id": "...", "archived": true }
+{ "id": "...", "archived": false }
 ```
 
-## Page update (`page update`)
+## Blocks
 
 ```json
-{
-  "id": "...",
-  "url": "https://www.notion.so/...",
-  "lastEditedAt": "2026-01-15T10:30:00.000Z"
-}
+// block list  (markdown mode)
+{ "page_id": "...", "content": "## Heading\n\nParagraph text\n\n- List item 1", "block_count": 4, "has_more": false }
 ```
 
-## Page trash (`page trash`)
+`block list --raw` — one record per block, then a pagination trailer:
+
+```
+{"id":"...","type":"heading_2","content":"Heading","has_children":false}
+{"id":"...","type":"paragraph","content":"Paragraph text","has_children":false}
+{"@pagination":{"has_more":true,"next_cursor":"..."}}
+```
 
 ```json
-{
-  "id": "...",
-  "trashed": true
-}
+// block append
+{ "page_id": "...", "blocks_added": 3 }
+// block update
+{ "id": "...", "last_edited_at": "2026-01-15T10:30:00.000Z" }
+// block delete --yes
+{ "id": "...", "deleted": true }
+// block move  (v3)
+{ "id": "...", "parent_id": "...", "after_id": "..." }
+// block replace --yes
+{ "page_id": "...", "blocks_deleted": 5, "blocks_added": 3 }
 ```
 
-## Page restore (`page restore`)
+## Comments
+
+`comment list` — one record per comment (`author` is omitted for bot comments with no user context):
 
 ```json
-{
-  "id": "...",
-  "trashed": false
-}
+{ "id": "...", "body": "This looks good!", "author": { "id": "...", "name": "Alice" }, "created_at": "2026-01-15T10:30:00.000Z" }
 ```
-
-## Page archive (`page archive`) — v3 only
 
 ```json
-{
-  "id": "...",
-  "archived": true
-}
+// comment page
+{ "id": "...", "discussion_id": "...", "body": "This looks good!", "created_at": "2026-01-15T10:30:00.000Z" }
+// comment inline  (v3) — adds anchor_text
+{ "id": "...", "discussion_id": "...", "body": "Great point!", "created_at": "2026-01-15T10:30:00.000Z", "anchor_text": "target phrase" }
 ```
 
-## Page unarchive (`page unarchive`) — v3 only
+## Users
+
+`user list` — one record per user (`email` only for `person` type):
 
 ```json
-{
-  "id": "...",
-  "archived": false
-}
+{ "id": "...", "name": "Alice Example", "type": "person", "email": "alice@example.com", "avatar_url": "https://..." }
 ```
-
-## Block list — markdown mode (`block list`)
 
 ```json
-{
-  "pageId": "...",
-  "content": "## Heading\n\nParagraph text\n\n- List item 1\n- List item 2",
-  "blockCount": 4,
-  "hasMore": false
-}
+// user me
+{ "id": "...", "name": "My Integration", "type": "bot", "workspace_name": "Acme Corp" }
 ```
 
-## Block list — raw mode (`block list --raw`)
+## Export (v3)
 
 ```json
-{
-  "items": [
-    { "id": "...", "type": "heading_2", "content": "Heading", "hasChildren": false },
-    { "id": "...", "type": "paragraph", "content": "Paragraph text", "hasChildren": false },
-    { "id": "...", "type": "bulleted_list_item", "content": "List item 1", "hasChildren": false }
-  ],
-  "pagination": { "hasMore": true, "nextCursor": "..." }
-}
+// export page
+{ "exported": "/absolute/path/to/notion-export-1234567890.zip", "format": "markdown", "pages_exported": 15, "recursive": true }
+// export workspace
+{ "exported": "/absolute/path/...", "format": "markdown", "pages_exported": 250 }
+// export poll
+{ "exported": "/absolute/path/...", "pages_exported": 250 }
 ```
 
-## Block append (`block append`)
-
-```json
-{
-  "pageId": "...",
-  "blocksAdded": 3
-}
-```
-
-## Comment list items (`comment list`)
-
-```json
-{
-  "id": "...",
-  "body": "This looks good!",
-  "author": { "id": "...", "name": "Alice" },
-  "createdAt": "2026-01-15T10:30:00.000Z"
-}
-```
-
-`author` is `null` for bot-created comments without a user context.
-
-## Comment page (`comment page`)
-
-```json
-{
-  "id": "...",
-  "discussionId": "...",
-  "body": "This looks good!",
-  "createdAt": "2026-01-15T10:30:00.000Z"
-}
-```
-
-## Comment inline (`comment inline`) — v3
-
-```json
-{
-  "id": "...",
-  "discussionId": "...",
-  "body": "Great point!",
-  "createdAt": "2026-01-15T10:30:00.000Z",
-  "anchorText": "target phrase"
-}
-```
-
-## User list items (`user list`)
-
-```json
-{
-  "id": "...",
-  "name": "Alice Example",
-  "type": "person",
-  "email": "alice@example.com",
-  "avatarUrl": "https://..."
-}
-```
-
-`email` is only present for `person` type users.
-
-## User me (`user me`)
-
-```json
-{
-  "id": "...",
-  "name": "My Integration",
-  "type": "bot",
-  "workspaceName": "Acme Corp"
-}
-```
-
-## Export page (`export page`) — v3
-
-```json
-{
-  "exported": "/absolute/path/to/notion-export-1234567890.zip",
-  "format": "markdown",
-  "pagesExported": 15,
-  "recursive": true
-}
-```
-
-## Export workspace (`export workspace`) — v3
-
-```json
-{
-  "exported": "/absolute/path/to/notion-export-1234567890.zip",
-  "format": "markdown",
-  "pagesExported": 250
-}
-```
+`exported` is the absolute zip path. Progress is written to stderr during polling; on `--wait` timeout the task ID is printed for `export poll`.
 
 ## Backlinks (`page backlinks`) — v3
 
-```json
-{
-  "backlinks": [
-    { "blockId": "...", "pageId": "...", "pageTitle": "Meeting Notes" },
-    { "blockId": "...", "pageId": "...", "pageTitle": "Project Plan" }
-  ],
-  "total": 2
-}
-```
+One record per source page (deduplicated by `page_id`), then a total:
 
-Results are deduplicated by `pageId` — each linking page appears at most once.
+```
+{"block_id":"...","page_id":"...","page_title":"Meeting Notes"}
+{"block_id":"...","page_id":"...","page_title":"Project Plan"}
+{"@total":2}
+```
 
 ## History (`page history`) — v3
 
-```json
-{
-  "snapshots": [
-    {
-      "id": "...",
-      "version": 42,
-      "lastVersion": 40,
-      "timestamp": "2026-01-15T10:30:00.000Z",
-      "authors": ["user-id-1", "user-id-2"]
-    }
-  ],
-  "total": 20
-}
+One record per snapshot, then a total:
+
+```
+{"id":"...","version":42,"last_version":40,"timestamp":"2026-01-15T10:30:00.000Z","authors":["user-id-1","user-id-2"]}
+{"@total":20}
 ```
 
 ## Activity (`activity log`) — v3
 
-```json
-{
-  "activities": [
-    {
-      "id": "...",
-      "type": "page-edited",
-      "pageId": "...",
-      "pageTitle": "Meeting Notes",
-      "authors": ["Alice", "Bob"],
-      "editTypes": ["content-change"],
-      "startTime": "2026-01-15T10:00:00.000Z",
-      "endTime": "2026-01-15T10:30:00.000Z"
-    }
-  ],
-  "total": 20
-}
-```
-
-## AI model list (`ai model list`)
+One record per activity:
 
 ```json
-{
-  "models": [
-    { "name": "GPT-5.2", "family": "openai", "tier": "intelligent" },
-    { "name": "Claude Sonnet 4", "family": "anthropic", "tier": "fast" }
-  ]
-}
+{ "id": "...", "type": "page-edited", "page_id": "...", "page_title": "Meeting Notes", "authors": ["Alice", "Bob"], "edit_types": ["content-change"], "start_time": "2026-01-15T10:00:00.000Z", "end_time": "2026-01-15T10:30:00.000Z" }
 ```
 
-### With `--raw`
+## AI (v3)
+
+`ai model list` — one record per active model; `--raw` prints one full model object per line (including codename and disabled models):
 
 ```json
-{
-  "models": [
-    {
-      "model": "oatmeal-cookie",
-      "modelMessage": "GPT-5.2",
-      "modelFamily": "openai",
-      "displayGroup": "intelligent",
-      "markdownChat": { "beta": false },
-      "workflow": { "finalModelName": "gpt-5.2" }
-    }
-  ]
-}
+{ "name": "GPT-5.2", "family": "openai", "tier": "intelligent" }
 ```
 
-`--raw` includes all model fields (codename, beta flags, disabled models).
+`ai chat list` — one record per thread, then a meta trailer:
 
-## AI chat list (`ai chat list`)
+```
+{"id":"...","title":"Summarize recent projects","created_at":1737000000000,"updated_at":1737000600000,"type":"workflow"}
+{"@meta":{"unread_thread_ids":["thread-id-1"],"has_more":false}}
+```
 
 ```json
-{
-  "items": [
-    {
-      "id": "...",
-      "title": "Summarize recent projects",
-      "created_at": 1737000000000,
-      "updated_at": 1737000600000,
-      "created_by_display_name": "Alice",
-      "type": "workflow"
-    }
-  ],
-  "unreadThreadIds": ["thread-id-1"],
-  "hasMore": false
-}
+// ai chat get   (--raw returns raw thread-message records instead of parsed messages)
+{ "title": "Summarize recent projects", "messages": [ { "id": "...", "role": "user", "content": "Summarize my recent projects", "created_at": "..." }, { "id": "...", "role": "assistant", "content": "Based on your workspace..." } ] }
+// ai chat send
+{ "thread_id": "a1b2c3d4-...", "response": "Based on your workspace...", "title": "Summarize recent projects", "model": "oatmeal-cookie", "tokens": { "input": 1250, "output": 340, "cached": 800 } }
+// ai chat mark-read
+{ "ok": true }
 ```
 
-`unreadThreadIds` lists thread IDs that have not been marked as read.
+`title` is present for new threads (auto-generated). With `--stream`, response text streams to stderr; the JSON result still prints to stdout at the end.
 
-## AI chat get (`ai chat get`)
+## Auth
 
 ```json
-{
-  "title": "Summarize recent projects",
-  "messages": [
-    {
-      "id": "...",
-      "role": "user",
-      "content": "Summarize my recent projects"
-    },
-    {
-      "id": "...",
-      "role": "assistant",
-      "content": "Based on your workspace, here are your recent projects..."
-    }
-  ]
-}
+// auth status  (authenticated)
+{ "authenticated": true, "source": "keychain", "workspace": "acme", "auth_type": "oauth" }
+// auth status  (no credential) -> stderr error
+{ "error": "no Notion credential configured", "fixable_by": "human", "hint": "run 'agent-notion auth login', import a desktop token, or set NOTION_TOKEN" }
+// auth login
+{ "ok": true, "storage": "keychain", "workspace": { "alias": "acme", "name": "Acme Corp", "id": "...", "bot_id": "...", "default": true }, "hint": "add more workspaces with 'agent-notion auth login --alias <name>'" }
+// auth import  (internal integration)
+{ "ok": true, "storage": "keychain", "workspace": { "alias": "acme", "name": "Acme Corp", "id": "...", "auth_type": "internal_integration", "default": true } }
+// auth import-desktop  (v3)
+{ "ok": true, "storage": "config", "extracted_at": "2026-01-15T10:30:00.000Z", "user": "Alice Example", "email": "alice@example.com", "space": "Acme Corp", "space_id": "...", "source": { "path": "..." } }
+// auth logout --yes
+{ "ok": true, "removed": "acme", "remaining_workspaces": ["personal"], "default_workspace": "personal" }
+// auth logout --all --yes
+{ "ok": true, "cleared": "all" }
 ```
 
-`role` is one of: `user`, `assistant`, `tool`, `system`. Tool messages may include `toolName` and `toolState`.
+`auth workspace list` — one record per workspace: `{ alias, name, auth_type, default }`. `auth workspace switch`/`set-default` — `{ ok, default_workspace }`.
 
-### With `--raw`
-
-Returns raw thread_message records without parsing:
+## Config
 
 ```json
-{
-  "title": "Summarize recent projects",
-  "rawMessages": [
-    { "id": "...", "step": { "type": "user", "value": [["message text"]] } },
-    { "id": "...", "step": { "type": "agent-inference", "value": [...] } }
-  ]
-}
+// config get <key>
+{ "key": "truncation.max_length", "value": "500", "set": true }
+// config set <key> <value>
+{ "set": "truncation.max_length", "value": "500" }
+// config unset <key>
+{ "unset": "truncation.max_length" }
 ```
 
-## AI chat send (`ai chat send`)
-
-```json
-{
-  "threadId": "aaaaaaaa-1111-2222-3333-444444444444",
-  "title": "Summarize recent projects",
-  "response": "Based on your workspace, here are your recent projects...",
-  "model": "oatmeal-cookie",
-  "tokens": {
-    "input": 1250,
-    "output": 340,
-    "cached": 800
-  }
-}
-```
-
-`title` is present only for new threads (auto-generated). `tokens.cached` may be absent if no cached tokens were used.
-
-With `--stream`, the response text is written incrementally to stderr. The JSON result is always printed to stdout at the end.
-
-## AI chat mark-read (`ai chat mark-read`)
-
-```json
-{
-  "ok": true
-}
-```
-
-## Auth import-desktop (`auth import-desktop`) — v3
-
-```json
-{
-  "ok": true,
-  "session": {
-    "user": "Alice Example",
-    "email": "alice@example.com",
-    "space": "Acme Corp",
-    "space_id": "...",
-    "storage": "keychain",
-    "extracted_at": "2026-01-15T10:30:00.000Z"
-  }
-}
-```
-
-## Auth status (`auth status`)
-
-**Authenticated:**
-
-```json
-{
-  "authenticated": true,
-  "source": "keychain",
-  "user": { "id": "...", "name": "My Bot", "type": "bot" },
-  "workspace": {
-    "alias": "acme",
-    "name": "Acme Corp",
-    "id": "...",
-    "auth_type": "oauth"
-  },
-  "other_workspaces": [
-    { "alias": "personal", "name": "Personal", "auth_type": "internal_integration" }
-  ],
-  "oauth_configured": true
-}
-```
-
-**Not authenticated:**
-
-```json
-{
-  "authenticated": false,
-  "oauth_configured": false,
-  "hint": "Run 'agent-notion auth setup-oauth' to configure OAuth, or 'agent-notion auth login --token <token>' for internal integrations."
-}
-```
-
-## Auth login (`auth login`)
-
-```json
-{
-  "ok": true,
-  "workspace": {
-    "alias": "acme",
-    "name": "Acme Corp",
-    "id": "...",
-    "bot_id": "...",
-    "default": true
-  },
-  "hint": "Add more workspaces with 'agent-notion auth login --alias <name>'"
-}
-```
-
-## Auth workspace list (`auth workspace list`)
-
-```json
-{
-  "items": [
-    { "alias": "acme", "name": "Acme Corp", "auth_type": "oauth", "default": true },
-    { "alias": "personal", "name": "Personal", "auth_type": "internal_integration" }
-  ]
-}
-```
-
-## Auth logout (`auth logout`)
-
-```json
-{
-  "ok": true,
-  "removed": "acme",
-  "remaining_workspaces": ["personal"],
-  "default_workspace": "personal"
-}
-```
-
-## Config list-keys (`config list-keys`)
-
-```json
-{
-  "keys": [
-    {
-      "key": "truncation.maxLength",
-      "description": "Max characters before truncating description/body/content fields (default: 200, 0 = no truncation)",
-      "default": 200
-    },
-    {
-      "key": "pagination.defaultPageSize",
-      "description": "Default number of results for list commands (default: 50, max: 100)",
-      "default": 50
-    },
-    {
-      "key": "ai.defaultModel",
-      "description": "Default AI model codename (e.g., oatmeal-cookie). Use 'ai model list' to see options.",
-      "default": null
-    }
-  ]
-}
-```
-
-## Config get/set (`config get`, `config set`)
-
-```json
-{
-  "truncation.maxLength": 500
-}
-```
-
-## Config reset (`config reset`)
-
-```json
-{
-  "reset": "all"
-}
-```
-
-Or for a single key:
-
-```json
-{
-  "reset": "truncation.maxLength"
-}
-```
+`config list` — one record per key: `{ key, value, set, description }`. `value` is a string; `set` is `false` for a key left at its default. Keys: `page_size`, `max_depth`, `truncation.max_length`, `ai.default_model`.
 
 ## Flattened property types
 
 Page properties (from `page get` and `database query`) are flattened to simple values:
 
-| Notion type        | Flattened output                                           |
-| ------------------ | ---------------------------------------------------------- |
-| title              | `"string"`                                                 |
-| rich_text          | `"string"`                                                 |
-| number             | `123` or `null`                                            |
-| select             | `"Option Name"` or `null`                                  |
-| multi_select       | `["Option1", "Option2"]`                                   |
-| status             | `"Status Name"` or `null`                                  |
-| date               | `{ "start": "2026-01-15", "end": null }` or `null`        |
-| people             | `[{ "id": "...", "name": "Alice" }]`                       |
-| checkbox           | `true` or `false`                                          |
-| url                | `"https://..."` or `null`                                  |
-| email              | `"alice@example.com"` or `null`                            |
-| phone_number       | `"+1234567890"` or `null`                                  |
-| files              | `[{ "name": "file.pdf", "url": "https://..." }]`          |
-| relation           | `[{ "id": "..." }]`                                        |
-| formula            | Result value (string, number, boolean, or date) or `null`  |
-| rollup             | Recursively flattened values or `[]`                       |
-| unique_id          | `"PREFIX-123"` or `"123"` (if no prefix)                   |
-| created_time       | `"2026-01-15T10:30:00.000Z"` or `null`                    |
-| last_edited_time   | `"2026-01-15T10:30:00.000Z"` or `null`                    |
-| created_by         | `{ "id": "...", "name": "Alice" }` or `null`               |
-| last_edited_by     | `{ "id": "...", "name": "Bob" }` or `null`                 |
-| verification       | `"state"` or `null`                                        |
+| Notion type      | Flattened output                                    |
+| ---------------- | --------------------------------------------------- |
+| title            | `"string"`                                          |
+| rich_text        | `"string"`                                          |
+| number           | `123` or `null`                                     |
+| select           | `"Option Name"` or `null`                           |
+| multi_select     | `["Option1", "Option2"]`                            |
+| status           | `"Status Name"` or `null`                           |
+| date             | `{ "start": "2026-01-15", "end": null }` or `null`  |
+| people           | `[{ "id": "...", "name": "Alice" }]`                |
+| checkbox         | `true` or `false`                                   |
+| url              | `"https://..."` or `null`                           |
+| email            | `"alice@example.com"` or `null`                     |
+| phone_number     | `"+1234567890"` or `null`                           |
+| files            | `[{ "name": "file.pdf", "url": "https://..." }]`    |
+| relation         | `[{ "id": "..." }]`                                 |
+| formula          | Result value (string/number/boolean/date) or `null` |
+| rollup           | Recursively flattened values or `[]`                |
+| unique_id        | `"PREFIX-123"` or `"123"` (no prefix)               |
+| created_time     | `"2026-01-15T10:30:00.000Z"` or `null`              |
+| last_edited_time | `"2026-01-15T10:30:00.000Z"` or `null`              |
+| created_by       | `{ "id": "...", "name": "Alice" }` or `null`        |
+| last_edited_by   | `{ "id": "...", "name": "Bob" }` or `null`          |
+| verification     | `"state"` or `null`                                 |
 
 ## Markdown block conversion
 
-Block types converted when using `--content` or `block list` (without `--raw`):
+Block types converted with `--content` or `block list` (without `--raw`):
 
-| Block type           | Markdown output                    |
-| -------------------- | ---------------------------------- |
-| paragraph            | Plain text                         |
-| heading_1/2/3        | `#` / `##` / `###`                |
-| bulleted_list_item   | `- text`                           |
-| numbered_list_item   | `1. text`                          |
-| to_do                | `- [ ] text` or `- [x] text`      |
-| toggle               | `> ▶ text`                         |
-| code                 | Fenced code block with language    |
-| quote                | `> text`                           |
-| callout              | `> emoji text`                     |
-| divider              | `---`                              |
-| image                | `![caption](url)`                  |
-| bookmark             | `[caption](url)`                   |
-| equation             | `$$expression$$`                   |
-| child_page           | `📄 Title`                         |
-| child_database       | `📊 Title`                         |
-| table_of_contents    | `[Table of Contents]`              |
-| link_preview         | `[url](url)`                       |
-| embed                | `[embed: url](url)`                |
-| video/pdf/audio/file | `[type](url)` or `[name](url)`    |
+| Block type           | Markdown output                 |
+| -------------------- | ------------------------------- |
+| paragraph            | Plain text                      |
+| heading_1/2/3        | `#` / `##` / `###`              |
+| bulleted_list_item   | `- text`                        |
+| numbered_list_item   | `1. text`                       |
+| to_do                | `- [ ] text` or `- [x] text`    |
+| toggle               | `> ▶ text`                      |
+| code                 | Fenced code block with language |
+| quote                | `> text`                        |
+| callout              | `> emoji text`                  |
+| divider              | `---`                           |
+| image                | `![caption](url)`               |
+| bookmark             | `[caption](url)`                |
+| equation             | `$$expression$$`                |
+| child_page           | `📄 Title`                      |
+| child_database       | `📊 Title`                      |
+| table_of_contents    | `[Table of Contents]`           |
+| link_preview         | `[url](url)`                    |
+| embed                | `[embed: url](url)`             |
+| video/pdf/audio/file | `[type](url)` or `[name](url)`  |
 
 Child blocks (nested content) are rendered with 2-space indentation.

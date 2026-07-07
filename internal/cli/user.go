@@ -66,7 +66,8 @@ SUBCOMMANDS:
   user me                                        Get the bot user (integration) identity
 
 LIST OUTPUT:
-  { "items": [{ id, name, type, email?, avatar_url? }], "pagination"?: ... }
+  One NDJSON record per user: { id, name, type, email?, avatar_url? }
+  A trailing {"@pagination": {has_more, next_cursor}} line when more remain.
 
   type: "person" (human user) or "bot" (integration)
   email: Only available for person users (not bots)

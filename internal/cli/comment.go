@@ -128,7 +128,8 @@ INLINE COMMENTS:
     # Adds a comment on the second occurrence of "the"
 
 LIST OUTPUT:
-  { "items": [{ id, body, author: { id, name }, created_at }], "pagination"?: ... }
+  One NDJSON record per comment: { id, body, author: { id, name }, created_at,
+  anchor_text? }. A trailing {"@pagination": ...} line when more remain.
 
 PAGE OUTPUT:
   { id, discussion_id, body, created_at }
