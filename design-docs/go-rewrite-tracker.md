@@ -4,16 +4,19 @@ Companion to [go-rewrite.md](./go-rewrite.md) (rationale + target layout).
 This file is the live checklist. Tick items as they land; keep the "Now / Next"
 line current so anyone picking up mid-flight knows where things stand.
 
-**Now:** Phases 0–4 done, plus the family-alignment pass (GlobalFlags/
-rootDeps DI, output funnel honoring --format, YAML encoder, hidden
---base-url driving mocknotion end-to-end, --backend auto|official|v3,
-internal/errors classification) and the Phase 5 core: both backends, the
-factory with OAuth 401-refresh-retry, config group, and `search` as the
-command-group exemplar. Remaining groups are being ported in parallel.
-**Next:** page/block/database/user/comment/export/activity/ai groups →
-structure pass → MCP (Phase 6) → docs/release/cutover (Phase 7).
-Leftovers: differential golden runs (needs real creds), export binary
-download (with the export group).
+**Now:** Phases 0–5 done + the structure-pass milestone (16 commits:
+classification at the seams, op-builder intent params, official
+passthrough layer deleted, interface shrunk 24→22, truncation wired
+with --expand/--full, credential/token-placement single owners, v3 file
+splits, auth-extraction test suite 24→64% coverage, dead-code sweep) +
+Phase 7 docs (README + shipped skill rewritten for the Go contract).
+**Next:** MCP (Phase 6) → release-workflow check → parity sign-off
+(integration run against a real test page needs credentials — human
+step) → delete `bun/` → tag v0.7.0.
+Known limitation for owner decision: lib cli.ConfigCommand writes NDJSON
+directly, so the `config` group ignores --format (a lib-agent-cli fix if
+the family wants it honored). Differential golden runs vs bun/ also
+still pend real credentials.
 
 ## Resolved decisions
 
@@ -192,8 +195,10 @@ domain payload structure (the parity target).
 - [ ] decide domain-field casing (see broken-contracts #6)
 
 ### Phase 6 — MCP
-- [ ] `agentmcp.Command(root)`; Expose/ReadOnly data groups; Skip auth/config
-- [ ] `WithOAuthKeyringService`, hidden flags
+- [x] `agentmcp.Command(root)`; data groups exposed (search/page/block/
+      database/comment/user/export/activity/ai), search/user/activity marked
+      read-only, auth/config skipped — wiring pinned by TestMCPWiring
+- [x] `WithOAuthKeyringService(app.paulie.agent-notion.mcp)`, --color hidden
 
 ### Phase 7 — docs, release, cutover
 - [ ] rewrite skill (`skills/agent-notion/`) + README + usage in lockstep

@@ -7,6 +7,8 @@ github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkp
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
 github.com/godbus/dbus/v5 v5.2.2 h1:TUR3TgtSVDmjiXOgAAyaZbYmIeP3DPkld3jgKGV8mXQ=
 github.com/godbus/dbus/v5 v5.2.2/go.mod h1:3AAv2+hPq5rdnr5txxxRwiGjPXamgoIHgz9FPBfOp3c=
+github.com/golang-jwt/jwt/v5 v5.3.1 h1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63YCY=
+github.com/golang-jwt/jwt/v5 v5.3.1/go.mod h1:fxCRLWMO43lRc8nhHWY6LGqRcf+1gQWArsqaEUEa5bE=
 github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e h1:ijClszYn+mADRFY17kjQEVQ1XRhq2/JR1M3sGqeJoxs=
 github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e/go.mod h1:boTsfXsheKC2y+lKOCMpSfarhxDeIzfZG1jqGcPl3cA=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
@@ -28,6 +30,10 @@ github.com/shhac/lib-agent-cli v0.18.0 h1:IUAJyZnhT4RISShmGtNKFJZO6qYracUW/VNu7V
 github.com/shhac/lib-agent-cli v0.18.0/go.mod h1:pXkdLWRWBJFdHWyWD9xDRFjIM2g8pU4H8kbIfnY0E60=
 github.com/shhac/lib-agent-keyring v0.1.1 h1:cAwFr0UzlQ0xsgO0zY607lmwhvSamPN6Tp1DCNJO7hg=
 github.com/shhac/lib-agent-keyring v0.1.1/go.mod h1:nTk+YfRDc2dc8Nghd1o9w4c40xU8Pqx/UgToN0yGvZ8=
+github.com/shhac/lib-agent-mcp v0.23.1 h1:7VSbZcLPtOUUeef95Wanv7hL0rZAPxerqfwoF8vcSQ0=
+github.com/shhac/lib-agent-mcp v0.23.1/go.mod h1:kJfGbLYVhEvntawEHFDf0+u7bbL4tr4jx+uupVUqpGg=
+github.com/shhac/lib-agent-oauth v0.7.1 h1:/ysYhPZi+7evkryQYAAuSlqN42RcGvqiwNjMIayny4A=
+github.com/shhac/lib-agent-oauth v0.7.1/go.mod h1:IL7jpL5DCcOZ4rHzIBQOxVYHtP53Q3Y0sMIcgSE4ibk=
 github.com/shhac/lib-agent-output v0.10.0 h1:m/o7/uxf3FLS7M+qcb4x+socjc7hEsvQM+tJilh2+7Y=
 github.com/shhac/lib-agent-output v0.10.0/go.mod h1:YyO2KSKAZxRrCJGanfB6qAyV0DvG+GSsZNShQoLslT0=
 github.com/spf13/cobra v1.10.2 h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=

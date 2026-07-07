@@ -22,6 +22,7 @@ COMMANDS
   activity   log
   ai         chat-send | chat-list | chat-get | chat-mark-read | model-list
   config     get <key> | set <key> <value> | unset <key> | list
+  mcp        run as an MCP server (stdio; --http <addr>); data groups become tools
   usage      this overview; '<group> usage' has per-domain detail
   * = destructive: requires --yes, otherwise returns what WOULD happen
 

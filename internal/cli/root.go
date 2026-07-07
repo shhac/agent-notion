@@ -6,9 +6,11 @@ import (
 	"fmt"
 
 	"github.com/shhac/agent-notion/internal/auth"
+	"github.com/shhac/agent-notion/internal/config"
 	"github.com/shhac/agent-notion/internal/credential"
 	"github.com/shhac/agent-notion/internal/oauth"
 	libcli "github.com/shhac/lib-agent-cli/cli"
+	agentmcp "github.com/shhac/lib-agent-mcp"
 	output "github.com/shhac/lib-agent-output"
 	"github.com/spf13/cobra"
 
@@ -85,7 +87,51 @@ func newRootWithDeps(deps rootDeps) *cobra.Command {
 	registerUsage(root)
 	attachDomainUsage(root)
 
+	// Expose the data groups as MCP tools (one coarse tool per group);
+	// credential/config/usage commands are deliberately left out — they are
+	// not agent tasks. Read-only groups are annotated so hosts can gate
+	// mutations. Added last so the server reflects the complete tree.
+	exposeGroups(root, "search", "page", "block", "database", "comment", "user",
+		"export", "activity", "ai")
+	markReadOnly(root, "search", "user", "activity")
+	skipGroups(root, "auth", "config")
+	root.AddCommand(agentmcp.Command(root,
+		agentmcp.WithHiddenFlags("color"),
+		// Local-OAuth secrets for `mcp --oauth local` live under a separate
+		// reverse-DNS service from the API credentials.
+		agentmcp.WithOAuthKeyringService(config.KeychainService+".mcp"),
+	))
+
 	return root
+}
+
+// exposeGroups opts the named top-level commands into the MCP tool surface.
+// A name with no matching command is skipped silently — the list is a
+// curation of agent-facing groups, not a registration check.
+func exposeGroups(root *cobra.Command, names ...string) {
+	forEachNamed(root, names, agentmcp.Expose)
+}
+
+// markReadOnly annotates groups whose every leaf is read-only.
+func markReadOnly(root *cobra.Command, names ...string) {
+	forEachNamed(root, names, agentmcp.ReadOnly)
+}
+
+// skipGroups keeps the named groups out of the MCP tool surface entirely.
+func skipGroups(root *cobra.Command, names ...string) {
+	forEachNamed(root, names, agentmcp.Skip)
+}
+
+func forEachNamed(root *cobra.Command, names []string, mark func(*cobra.Command)) {
+	want := make(map[string]bool, len(names))
+	for _, n := range names {
+		want[n] = true
+	}
+	for _, c := range root.Commands() {
+		if want[c.Name()] {
+			mark(c)
+		}
+	}
 }
 
 func validateBackendMode(mode string) error {
