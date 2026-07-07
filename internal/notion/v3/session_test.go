@@ -7,7 +7,7 @@ import (
 
 func parse(t *testing.T, raw string) SessionInfo {
 	t.Helper()
-	var data map[string]map[string]map[string]json.RawMessage
+	var data map[string]map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(raw), &data); err != nil {
 		t.Fatal(err)
 	}
@@ -72,11 +72,27 @@ func TestPreferTeamSpaceOverFree(t *testing.T) {
 }
 
 func TestParseEmptyResponseErrors(t *testing.T) {
-	var data map[string]map[string]map[string]json.RawMessage
+	var data map[string]map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(`{}`), &data); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := ParseGetSpacesSession(data); err == nil {
 		t.Error("expected error for empty response")
+	}
+}
+
+// TestParseTolueratesVersionNumber pins the getSpaces fix: the API now includes
+// a "__version__" number alongside the record tables inside each user entry,
+// which must not fail the parse.
+func TestParseToleratesVersionNumber(t *testing.T) {
+	info := parse(t, `{
+      "u": {
+        "__version__": 5,
+        "notion_user": {"u1": {"value": {"id": "u1", "email": "cy@example.com", "name": "Cy"}}},
+        "space": {"s1": {"value": {"id": "s1", "name": "Space"}}}
+      }
+    }`)
+	if info.UserEmail != "cy@example.com" || info.SpaceName != "Space" {
+		t.Errorf("got %+v", info)
 	}
 }

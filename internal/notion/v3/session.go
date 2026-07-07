@@ -54,7 +54,10 @@ func ValidateDesktopToken(ctx context.Context, client *http.Client, baseURL, tok
 		return SessionInfo{}, err
 	}
 
-	var data map[string]map[string]map[string]json.RawMessage
+	// Decode only two levels (userId → table → raw); the tables are decoded
+	// individually below so non-object siblings (e.g. a "__version__" number
+	// the API now includes) don't fail the whole parse.
+	var data map[string]map[string]json.RawMessage
 	if err := json.Unmarshal(body, &data); err != nil {
 		return SessionInfo{}, fmt.Errorf("could not parse getSpaces response: %w", err)
 	}
@@ -64,20 +67,34 @@ func ValidateDesktopToken(ctx context.Context, client *http.Client, baseURL, tok
 // ParseGetSpacesSession extracts session info from a getSpaces response,
 // shaped userId → table → recordId → record. Only the first user entry is
 // considered. Records may be role-wrapped ({value:{value,role}}) or shallow.
-func ParseGetSpacesSession(data map[string]map[string]map[string]json.RawMessage) (SessionInfo, error) {
+// Table values that are not objects (metadata like __version__) are skipped.
+func ParseGetSpacesSession(data map[string]map[string]json.RawMessage) (SessionInfo, error) {
 	for userID, tables := range data {
-		user := findUserInfo(tables["notion_user"])
-		spaceID, spaceName := pickPreferredSpace(tables["space"])
+		user := findUserInfo(decodeTable(tables["notion_user"]))
+		spaceID, spaceName := pickPreferredSpace(decodeTable(tables["space"]))
 		return SessionInfo{
 			UserID:      userID,
 			UserEmail:   user["email"],
 			UserName:    user["name"],
 			SpaceID:     spaceID,
 			SpaceName:   spaceName,
-			SpaceViewID: findSpaceViewID(tables["space_view"], spaceID),
+			SpaceViewID: findSpaceViewID(decodeTable(tables["space_view"]), spaceID),
 		}, nil
 	}
 	return SessionInfo{}, fmt.Errorf("could not extract user info from token; it may be expired")
+}
+
+// decodeTable decodes a getSpaces table (recordId → record), returning nil when
+// the value is absent or not an object (e.g. the "__version__" number).
+func decodeTable(raw json.RawMessage) map[string]json.RawMessage {
+	if len(raw) == 0 {
+		return nil
+	}
+	var table map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &table); err != nil {
+		return nil
+	}
+	return table
 }
 
 // entityOf returns the actual entity from a record's `value` field, unwrapping
