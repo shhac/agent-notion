@@ -5,7 +5,6 @@
 package v3
 
 import (
-	"sort"
 	"strings"
 	"time"
 )
@@ -278,15 +277,6 @@ func UpdatePropertyOps(p UpdatePropertyParams, now time.Time) []Operation {
 	}
 
 	return append(ops, editMetaOp(bp, p.UserID, now))
-}
-
-func sortedKeys(m map[string]any) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 // CreateCommentParams describes a new page-level discussion + comment.

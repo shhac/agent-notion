@@ -6,7 +6,6 @@ package v3
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -54,124 +53,93 @@ func ValidateDesktopToken(ctx context.Context, client *http.Client, baseURL, tok
 		return SessionInfo{}, err
 	}
 
-	// Decode only two levels (userId → table → raw); the tables are decoded
-	// individually below so non-object siblings (e.g. a "__version__" number
-	// the API now includes) don't fail the whole parse.
-	var data map[string]map[string]json.RawMessage
-	if err := json.Unmarshal(body, &data); err != nil {
+	// Each user entry is structurally a RecordMap, so the canonical decode
+	// path handles all wire-format layering (role-wrapped records, __version__
+	// metadata at any level) in one place.
+	data, err := decodeObjectMap[RecordMap](body)
+	if err != nil {
 		return SessionInfo{}, fmt.Errorf("could not parse getSpaces response: %w", err)
 	}
 	return ParseGetSpacesSession(data)
 }
 
-// ParseGetSpacesSession extracts session info from a getSpaces response,
-// shaped userId → table → recordId → record. Only the first user entry is
-// considered. Records may be role-wrapped ({value:{value,role}}) or shallow.
-// Table values that are not objects (metadata like __version__) are skipped.
-func ParseGetSpacesSession(data map[string]map[string]json.RawMessage) (SessionInfo, error) {
-	for userID, tables := range data {
-		user := findUserInfo(decodeTable(tables["notion_user"]))
-		spaceID, spaceName := pickPreferredSpace(decodeTable(tables["space"]))
+// sessionUser is the slice of a notion_user record the session needs. It is
+// deliberately not the canonical User struct: getSpaces user records carry a
+// display "name" field that User (given_name/family_name) does not.
+type sessionUser struct {
+	Email string `json:"email"`
+	Name  string `json:"name"`
+}
+
+type sessionSpace struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	PlanType string `json:"plan_type"`
+}
+
+type sessionSpaceView struct {
+	ID      string `json:"id"`
+	SpaceID string `json:"space_id"`
+}
+
+// ParseGetSpacesSession extracts session info from a decoded getSpaces
+// response, shaped userId → RecordMap. Only the first user entry (by sorted
+// ID, for determinism) is considered.
+func ParseGetSpacesSession(data map[string]RecordMap) (SessionInfo, error) {
+	for _, userID := range sortedKeys(data) {
+		rm := data[userID]
+		user := findSessionUser(rm["notion_user"])
+		spaceID, spaceName := pickPreferredSpace(rm["space"])
 		return SessionInfo{
 			UserID:      userID,
-			UserEmail:   user["email"],
-			UserName:    user["name"],
+			UserEmail:   user.Email,
+			UserName:    user.Name,
 			SpaceID:     spaceID,
 			SpaceName:   spaceName,
-			SpaceViewID: findSpaceViewID(decodeTable(tables["space_view"]), spaceID),
+			SpaceViewID: findSpaceViewID(rm["space_view"], spaceID),
 		}, nil
 	}
 	return SessionInfo{}, fmt.Errorf("could not extract user info from token; it may be expired")
 }
 
-// decodeTable decodes a getSpaces table (recordId → record), returning nil when
-// the value is absent or not an object (e.g. the "__version__" number).
-func decodeTable(raw json.RawMessage) map[string]json.RawMessage {
-	if len(raw) == 0 {
-		return nil
-	}
-	var table map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &table); err != nil {
-		return nil
-	}
-	return table
-}
-
-// entityOf returns the actual entity from a record's `value` field, unwrapping
-// the role-wrapped {value: entity, role} shape when present.
-func entityOf(record json.RawMessage) map[string]any {
-	var wrapper struct {
-		Value json.RawMessage `json:"value"`
-	}
-	if err := json.Unmarshal(record, &wrapper); err != nil || len(wrapper.Value) == 0 {
-		return nil
-	}
-	var entity map[string]any
-	if err := json.Unmarshal(wrapper.Value, &entity); err != nil {
-		return nil
-	}
-	// Role-wrapped: the entity is nested one level deeper under "value".
-	if nested, ok := entity["value"].(map[string]any); ok {
-		return nested
-	}
-	return entity
-}
-
-func findUserInfo(table map[string]json.RawMessage) map[string]string {
-	for _, rec := range table {
-		e := entityOf(rec)
-		if e == nil {
+// findSessionUser returns the first user record carrying an email.
+func findSessionUser(t Table) sessionUser {
+	for _, id := range sortedKeys(t) {
+		u, ok := decodeEntry[sessionUser](t, id)
+		if !ok || u.Email == "" {
 			continue
 		}
-		if _, ok := e["email"]; ok {
-			return map[string]string{
-				"email": asString(e["email"]),
-				"name":  asString(e["name"]),
-			}
-		}
+		return sessionUser{Email: strings.TrimSpace(u.Email), Name: strings.TrimSpace(u.Name)}
 	}
-	return map[string]string{}
+	return sessionUser{}
 }
 
 // pickPreferredSpace returns a space id/name, preferring team/enterprise plans.
-func pickPreferredSpace(table map[string]json.RawMessage) (id, name string) {
+func pickPreferredSpace(t Table) (id, name string) {
 	var firstID, firstName string
 	found := false
-	for _, rec := range table {
-		e := entityOf(rec)
-		if e == nil {
-			continue
-		}
-		if _, ok := e["name"]; !ok {
+	for _, rid := range sortedKeys(t) {
+		s, ok := decodeEntry[sessionSpace](t, rid)
+		if !ok || s.Name == "" {
 			continue
 		}
 		if !found {
-			firstID, firstName = asString(e["id"]), asString(e["name"])
+			firstID, firstName = strings.TrimSpace(s.ID), strings.TrimSpace(s.Name)
 			found = true
 		}
-		if plan := asString(e["plan_type"]); plan == "team" || plan == "enterprise" {
-			return asString(e["id"]), asString(e["name"])
+		if s.PlanType == "team" || s.PlanType == "enterprise" {
+			return strings.TrimSpace(s.ID), strings.TrimSpace(s.Name)
 		}
 	}
 	return firstID, firstName
 }
 
-func findSpaceViewID(table map[string]json.RawMessage, spaceID string) string {
-	for _, rec := range table {
-		e := entityOf(rec)
-		if e == nil {
-			continue
+func findSpaceViewID(t Table, spaceID string) string {
+	for _, rid := range sortedKeys(t) {
+		v, ok := decodeEntry[sessionSpaceView](t, rid)
+		if ok && strings.TrimSpace(v.SpaceID) == spaceID {
+			return strings.TrimSpace(v.ID)
 		}
-		if asString(e["space_id"]) == spaceID {
-			return asString(e["id"])
-		}
-	}
-	return ""
-}
-
-func asString(v any) string {
-	if s, ok := v.(string); ok {
-		return strings.TrimSpace(s)
 	}
 	return ""
 }

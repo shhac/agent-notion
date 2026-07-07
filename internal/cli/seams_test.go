@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+
+	output "github.com/shhac/lib-agent-output"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -121,6 +123,37 @@ func TestImportDesktopViaSeamAndMockValidation(t *testing.T) {
 
 	if got, _ := credential.ResolveV3Token(config.Read(), credential.DefaultKeychainStore()); got != "v2-test-token" {
 		t.Errorf("stored v3 token = %q", got)
+	}
+}
+
+// An expired/revoked token fails getSpaces with a 401: import must surface
+// the re-import hint and store nothing.
+func TestImportDesktopValidationFailure(t *testing.T) {
+	isolateState(t)
+	s, url := newMockServer(t)
+	s.Handle("getSpaces", mocknotion.Response{Status: 401, Body: map[string]any{
+		"errorId": "mock", "name": "UnauthorizedError",
+	}})
+
+	deps := rootDeps{desktopExtract: func() (*auth.Session, error) {
+		return &auth.Session{TokenV2: "v2-expired-token", Source: map[string]string{"path": "fake"}}, nil
+	}}
+	_, _, err := runCLIWithDeps(t, deps, "", "--base-url", url, "auth", "import-desktop")
+	if err == nil {
+		t.Fatal("expected import to fail on 401 validation")
+	}
+	if !strings.Contains(err.Error(), "token validation failed: HTTP 401") {
+		t.Errorf("err = %v", err)
+	}
+	var outErr *output.Error
+	if !errors.As(err, &outErr) || !strings.Contains(outErr.Hint, "the token may be expired") {
+		t.Errorf("missing expired-token hint: %+v", outErr)
+	}
+	if strings.Contains(err.Error(), "v2-expired-token") {
+		t.Error("error leaked the token")
+	}
+	if got, _ := credential.ResolveV3Token(config.Read(), credential.DefaultKeychainStore()); got != "" {
+		t.Errorf("token should not be stored after failed validation, got %q", got)
 	}
 }
 

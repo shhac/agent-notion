@@ -266,20 +266,20 @@ func decodeEntry[T any](t Table, id string) (*T, bool) {
 	return &v, true
 }
 
-// sortedIDs returns a table's record IDs in stable order. The TS relied on
-// JS object insertion order for "first X" lookups; Go maps are unordered, so
-// we sort for determinism.
-func sortedIDs(t Table) []string {
-	ids := make([]string, 0, len(t))
-	for id := range t {
-		ids = append(ids, id)
+// sortedKeys returns a map's keys in stable order. The TS relied on JS
+// object insertion order for "first X" lookups; Go maps are unordered, so we
+// sort for determinism.
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
 	}
-	sort.Strings(ids)
-	return ids
+	sort.Strings(keys)
+	return keys
 }
 
 func firstEntity[T any](t Table) (*T, bool) {
-	for _, id := range sortedIDs(t) {
+	for _, id := range sortedKeys(t) {
 		if v, ok := decodeEntry[T](t, id); ok {
 			return v, true
 		}
@@ -314,7 +314,7 @@ func (rm RecordMap) GetUser(id string) (*User, bool) {
 func (rm RecordMap) AllBlocks() []*Block {
 	table := rm["block"]
 	blocks := make([]*Block, 0, len(table))
-	for _, id := range sortedIDs(table) {
+	for _, id := range sortedKeys(table) {
 		if b, ok := decodeEntry[Block](table, id); ok && b.IsAlive() {
 			blocks = append(blocks, b)
 		}
@@ -326,7 +326,7 @@ func (rm RecordMap) AllBlocks() []*Block {
 func (rm RecordMap) AllUsers() []*User {
 	table := rm["notion_user"]
 	users := make([]*User, 0, len(table))
-	for _, id := range sortedIDs(table) {
+	for _, id := range sortedKeys(table) {
 		if u, ok := decodeEntry[User](table, id); ok {
 			users = append(users, u)
 		}
@@ -341,7 +341,7 @@ func (rm RecordMap) FirstCollection() (*Collection, bool) {
 
 // FirstCollectionViewID returns the first collection view's ID (by record ID).
 func (rm RecordMap) FirstCollectionViewID() (string, bool) {
-	ids := sortedIDs(rm["collection_view"])
+	ids := sortedKeys(rm["collection_view"])
 	if len(ids) == 0 {
 		return "", false
 	}

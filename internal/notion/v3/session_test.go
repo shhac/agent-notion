@@ -1,14 +1,13 @@
 package v3
 
 import (
-	"encoding/json"
 	"testing"
 )
 
 func parse(t *testing.T, raw string) SessionInfo {
 	t.Helper()
-	var data map[string]map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(raw), &data); err != nil {
+	data, err := decodeObjectMap[RecordMap]([]byte(raw))
+	if err != nil {
 		t.Fatal(err)
 	}
 	info, err := ParseGetSpacesSession(data)
@@ -72,8 +71,8 @@ func TestPreferTeamSpaceOverFree(t *testing.T) {
 }
 
 func TestParseEmptyResponseErrors(t *testing.T) {
-	var data map[string]map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(`{}`), &data); err != nil {
+	data, err := decodeObjectMap[RecordMap]([]byte(`{}`))
+	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := ParseGetSpacesSession(data); err == nil {
@@ -81,18 +80,35 @@ func TestParseEmptyResponseErrors(t *testing.T) {
 	}
 }
 
-// TestParseTolueratesVersionNumber pins the getSpaces fix: the API now includes
-// a "__version__" number alongside the record tables inside each user entry,
-// which must not fail the parse.
+// TestParseTolueratesVersionNumber pins the getSpaces fix: the API includes
+// "__version__" numbers alongside the record tables — inside each user entry,
+// within tables, and potentially at the top level — none of which may fail
+// the parse.
 func TestParseToleratesVersionNumber(t *testing.T) {
 	info := parse(t, `{
+      "__version__": 5,
       "u": {
         "__version__": 5,
-        "notion_user": {"u1": {"value": {"id": "u1", "email": "cy@example.com", "name": "Cy"}}},
+        "notion_user": {"__version__": 5, "u1": {"value": {"id": "u1", "email": "cy@example.com", "name": "Cy"}}},
         "space": {"s1": {"value": {"id": "s1", "name": "Space"}}}
       }
     }`)
-	if info.UserEmail != "cy@example.com" || info.SpaceName != "Space" {
+	if info.UserID != "u" || info.UserEmail != "cy@example.com" || info.SpaceName != "Space" {
 		t.Errorf("got %+v", info)
+	}
+}
+
+// Two eligible team spaces: the sorted-first one must win deterministically.
+func TestPickPreferredSpaceDeterministic(t *testing.T) {
+	info := parse(t, `{
+      "u": {
+        "space": {
+          "b-team": {"value": {"id": "b-team", "name": "Beta", "plan_type": "team"}},
+          "a-team": {"value": {"id": "a-team", "name": "Alpha", "plan_type": "team"}}
+        }
+      }
+    }`)
+	if info.SpaceID != "a-team" || info.SpaceName != "Alpha" {
+		t.Errorf("expected sorted-first team space, got %+v", info)
 	}
 }

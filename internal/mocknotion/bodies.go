@@ -52,14 +52,14 @@ func RecordMapBody(tables map[string]map[string]any) map[string]any {
 }
 
 // GetSpacesBody builds a getSpaces response for one user in the current wire
-// shape (role-wrapped records + __version__ metadata), from
+// shape (role-wrapped records + __version__ metadata at every level), from
 // table → (id → entity).
 func GetSpacesBody(userID string, tables map[string]map[string]any) map[string]any {
 	user := map[string]any{"__version__": wireVersion}
 	for name, entities := range tables {
 		user[name] = Table(entities)
 	}
-	return map[string]any{userID: user}
+	return map[string]any{"__version__": wireVersion, userID: user}
 }
 
 // PageChunkBody is RecordMapBody plus the loadPageChunk cursor envelope.

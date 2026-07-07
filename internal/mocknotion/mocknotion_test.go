@@ -212,6 +212,9 @@ func TestGetSpacesBody(t *testing.T) {
 		"notion_user": {"user-1": map[string]any{"id": "user-1", "email": "t@example.com"}},
 	})
 
+	if body["__version__"] != wireVersion {
+		t.Errorf("top-level __version__ = %v", body["__version__"])
+	}
 	user, ok := body["user-1"].(map[string]any)
 	if !ok || user["__version__"] != wireVersion {
 		t.Fatalf("user entry = %v", body["user-1"])
