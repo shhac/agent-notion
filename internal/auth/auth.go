@@ -1,16 +1,14 @@
 // Package auth extracts a Notion token_v2 session cookie from the Notion
 // Desktop app or a web browser's cookie store.
 //
-// It reads Chromium, Firefox, and Safari cookie databases directly on disk —
-// no running browser required — decrypting Chromium values with the platform
-// Safe Storage password (macOS keychain / Linux secret-tool / Windows DPAPI).
-// The design mirrors agent-slack's internal/auth, adapted for Notion: the
-// token is a plain cookie value with no distinctive prefix, so the caller
-// strips the Chromium meta-version ≥24 SHA-256 domain-hash prefix explicitly
-// rather than scanning for a token signature.
+// The cross-platform cookie mechanism — locating and reading Chromium, Firefox,
+// and Safari stores on disk and decrypting Chromium values — lives in the
+// shared github.com/shhac/lib-agent-browsercookies library. This package is a
+// thin Notion-policy adapter over it: which cookie (token_v2), which hosts
+// (notion.so + notion.com), and where the Desktop app keeps its store.
 package auth
 
-import "strings"
+import browsercookies "github.com/shhac/lib-agent-browsercookies"
 
 // Session is an extracted Notion desktop session.
 type Session struct {
@@ -18,19 +16,13 @@ type Session struct {
 	Source  map[string]string `json:"source,omitempty"`
 }
 
-// cookieName is the Notion session cookie.
-const cookieName = "token_v2"
-
-// hostClause is a SQL predicate on the given host column matching Notion's
-// cookie hosts. Notion serves the session across two domains — www.notion.so
-// (legacy) and app.notion.com (current; the Desktop app uses it) — so both
-// must match, or the token is missed entirely on one of them.
-func hostClause(col string) string {
-	return "(" + col + " like '%notion.so' or " + col + " like '%notion.com')"
-}
-
-// isNotionDomain reports whether a cookie domain belongs to Notion (either
-// domain). The string form of hostClause, for the Safari path.
-func isNotionDomain(domain string) bool {
-	return strings.Contains(domain, "notion.so") || strings.Contains(domain, "notion.com")
+// notionTarget is the extraction policy for Notion's session cookie. Notion
+// serves the session across two domains — notion.so (legacy) and notion.com
+// (current; the Desktop app uses app.notion.com) — so both must match, or the
+// token is missed on one of them. The value is returned verbatim: browsers
+// transmit cookie values byte-for-byte, and Notion's token_v2 is not
+// percent-encoded, so no decode is wanted.
+var notionTarget = browsercookies.Target{
+	CookieName:   "token_v2",
+	HostSuffixes: []string{"notion.so", "notion.com"},
 }

@@ -37,11 +37,3 @@ func TestSupportedBrowsersCoversFamilies(t *testing.T) {
 		t.Error("chrome should not advertise --profile")
 	}
 }
-
-func TestChromiumSafeStorageAlwaysFallsBack(t *testing.T) {
-	q := chromiumSafeStorage("Brave Safe Storage")
-	last2 := q[len(q)-2:]
-	if last2[0].service != "Chrome Safe Storage" || last2[1].service != "Chromium Safe Storage" {
-		t.Errorf("expected Chrome/Chromium fallback, got %+v", q)
-	}
-}

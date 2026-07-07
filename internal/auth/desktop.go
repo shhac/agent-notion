@@ -5,67 +5,70 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	browsercookies "github.com/shhac/lib-agent-browsercookies"
 )
 
-// desktopSafeStorageQueries are the macOS keychain services holding the Notion
-// Desktop app's cookie-encryption password.
-var desktopSafeStorageQueries = []safeStorageQuery{
-	{service: "Notion Safe Storage"},
-	{service: "Chrome Safe Storage"},
-	{service: "Chromium Safe Storage"},
+// desktopSafeStorageServices are the macOS keychain services holding the Notion
+// Desktop app's cookie-encryption password, most-specific first.
+var desktopSafeStorageServices = []string{
+	"Notion Safe Storage",
+	"Chrome Safe Storage",
+	"Chromium Safe Storage",
 }
 
 // desktopCookiePaths returns candidate Cookies DB paths for the Notion Desktop
-// (Electron) app, most-specific first.
-func desktopCookiePaths() ([]string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
-	}
-	var bases []string
-	switch runtime.GOOS {
+// (Electron) app, most-specific first. The Electron partition layout is Notion
+// policy, so it lives here rather than in the shared library.
+func desktopCookiePaths(home, goos string) ([]string, error) {
+	var base string
+	switch goos {
 	case "darwin":
-		bases = []string{filepath.Join(home, "Library", "Application Support", "Notion")}
+		base = filepath.Join(home, "Library", "Application Support", "Notion")
 	case "linux":
-		bases = []string{filepath.Join(home, ".config", "Notion")}
+		base = filepath.Join(home, ".config", "Notion")
 	case "windows":
-		bases = []string{filepath.Join(windowsAppData(home), "Notion")}
+		base = filepath.Join(windowsAppData(home), "Notion")
 	default:
 		return nil, errors.New("unsupported OS for Notion Desktop extraction")
 	}
+	return []string{
+		filepath.Join(base, "Partitions", "notion", "Cookies"),
+		filepath.Join(base, "Network", "Cookies"),
+		filepath.Join(base, "Cookies"),
+	}, nil
+}
 
-	var paths []string
-	for _, base := range bases {
-		// Notion Desktop uses an Electron partition; also try the plain layout.
-		paths = append(paths,
-			filepath.Join(base, "Partitions", "notion", "Cookies"),
-			filepath.Join(base, "Network", "Cookies"),
-			filepath.Join(base, "Cookies"),
-		)
+func windowsAppData(home string) string {
+	if v := os.Getenv("APPDATA"); v != "" {
+		return v
 	}
-	return paths, nil
+	return filepath.Join(home, "AppData", "Roaming")
 }
 
 // ExtractDesktop reads the token_v2 cookie from the Notion Desktop app.
 func ExtractDesktop() (*Session, error) {
-	paths, err := desktopCookiePaths()
+	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
 	}
-	var lastErr error
-	for _, path := range paths {
-		if _, err := os.Stat(path); err != nil {
-			continue
-		}
-		tok, err := extractChromiumCookie(path, desktopSafeStorageQueries)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		return &Session{TokenV2: tok, Source: map[string]string{"cookies_path": path}}, nil
+	return extractDesktop(home, runtime.GOOS)
+}
+
+// extractDesktop is the testable core: a fake Platform lets tests drive
+// extraction against a fixture store on any host.
+func extractDesktop(home, goos string, opts ...browsercookies.Option) (*Session, error) {
+	paths, err := desktopCookiePaths(home, goos)
+	if err != nil {
+		return nil, err
 	}
-	if lastErr != nil {
-		return nil, lastErr
+	res, err := browsercookies.ExtractChromiumStore(
+		browsercookies.ChromiumStore{Paths: paths, Services: desktopSafeStorageServices},
+		notionTarget,
+		opts...,
+	)
+	if err != nil {
+		return nil, err
 	}
-	return nil, errors.New("Notion Desktop cookie store not found; is the Notion app installed and signed in?")
+	return &Session{TokenV2: res.Value, Source: res.Source}, nil
 }
