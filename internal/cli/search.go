@@ -15,6 +15,7 @@ func registerSearch(root *cobra.Command, g *GlobalFlags) {
 		Short: "Search Notion by title (pages and databases)",
 	}
 	search.AddCommand(searchQueryCmd(g))
+	addDomainUsage("search", searchUsageText)
 	root.AddCommand(search)
 }
 
@@ -54,3 +55,26 @@ func searchQueryCmd(g *GlobalFlags) *cobra.Command {
 	_ = cmd.RegisterFlagCompletionFunc("filter", fixedCompletions("page", "database"))
 	return cmd
 }
+
+const searchUsageText = `agent-notion search — Search Notion by title (NOT full-text content search)
+
+USAGE
+  search query <query> [--filter page|database] [--limit <n>] [--cursor <cursor>]
+
+IMPORTANT: Search only matches page and database TITLES. It does NOT search
+page content.
+  To search within content: use "database query <id>" with property filters.
+  To find text in page bodies: use "block list <page-id>" and search the output.
+
+OUTPUT
+  One NDJSON record per hit: {id, type, title, url, parent?, last_edited_at?}
+  type: "page" or "database"; parent: {type: database|page|workspace, id?}
+  A trailing {"@pagination": {has_more, next_cursor}} line when more remain;
+  pass next_cursor back via --cursor. --format json|yaml wraps everything in
+  one {data: […]} envelope instead.
+
+EXAMPLES
+  search query "Project Roadmap"              Search all titles
+  search query "Task" --filter database       Only databases
+  search query "Meeting Notes" --filter page  Only pages
+  search query "Q1" --limit 5                 Limit results`
