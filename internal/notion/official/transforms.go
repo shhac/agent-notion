@@ -37,6 +37,13 @@ func mbool(m map[string]any, key string) bool {
 	return b
 }
 
+// mint reads a numeric field as an int. JSON numbers decode to float64, so it
+// coerces through that; missing or non-numeric values yield 0.
+func mint(m map[string]any, key string) int {
+	f, _ := m[key].(float64)
+	return int(f)
+}
+
 // strOrNil returns the string at key, or nil when absent/non-string — the
 // analogue of the TS `x ?? null` on an optional string.
 func strOrNil(m map[string]any, key string) any {
@@ -449,6 +456,16 @@ func normalizeBlock(block map[string]any) notion.NormalizedBlock {
 		nb.URL = mediaURL(data)
 		nb.Caption = richTextToPlain(mslice(data, "caption"))
 		nb.Title = mstr(data, "name")
+	case "table":
+		nb.TableWidth = mint(data, "table_width")
+		nb.HasColumnHeader = mbool(data, "has_column_header")
+	case "table_row":
+		raw := mslice(data, "cells")
+		cells := make([]string, len(raw))
+		for i, cell := range raw {
+			cells[i] = richTextToPlain(asSlice(cell))
+		}
+		nb.Cells = cells
 	}
 
 	return nb

@@ -47,6 +47,42 @@ func TestBlockListRaw(t *testing.T) {
 	}
 }
 
+// TestBlockListTableMarkdown drives a page whose only block is a table with
+// two rows end-to-end, asserting it renders as a GitHub-flavored pipe table
+// (rows are fetched as the table block's children).
+func TestBlockListTableMarkdown(t *testing.T) {
+	isolateState(t)
+	seedWorkspaces(t)
+	s, url := newMockServer(t)
+	cell := func(text string) []any {
+		return []any{map[string]any{"plain_text": text}}
+	}
+	s.HandleBody("GET /v1/blocks/pg1/children", map[string]any{
+		"has_more": false, "next_cursor": nil,
+		"results": []any{map[string]any{"id": "tbl", "type": "table", "has_children": true,
+			"table": map[string]any{"table_width": float64(2), "has_column_header": true}}},
+	})
+	s.HandleBody("GET /v1/blocks/tbl/children", map[string]any{
+		"has_more": false, "next_cursor": nil,
+		"results": []any{
+			map[string]any{"id": "r1", "type": "table_row", "has_children": false,
+				"table_row": map[string]any{"cells": []any{cell("Name"), cell("State")}}},
+			map[string]any{"id": "r2", "type": "table_row", "has_children": false,
+				"table_row": map[string]any{"cells": []any{cell("draw"), cell("open")}}},
+		},
+	})
+
+	out, _, err := runCLI(t, "", "--base-url", url, "block", "list", "pg1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "| Name | State |\n| --- | --- |\n| draw | open |"
+	item := decodeLines(t, out)[0]
+	if item["content"] != want {
+		t.Errorf("table markdown content = %q, want %q", item["content"], want)
+	}
+}
+
 // --- append ---
 
 func TestBlockAppendMarkdown(t *testing.T) {

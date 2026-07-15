@@ -70,6 +70,14 @@ func blockToMarkdown(b notion.NormalizedBlock, indent string) string {
 		return indent + "[Breadcrumb]"
 	case "column_list", "column", "synced_block":
 		return ""
+	case "table":
+		// The full table is rendered in fromBlocks from its table_row children;
+		// a bare table block with no children map contributes nothing.
+		return ""
+	case "table_row":
+		// Reached only when a row is rendered outside its parent table (e.g. a
+		// flat block list). Emit the row on its own so cell text is never lost.
+		return indent + tableRow(b.Cells)
 	case "link_preview":
 		return indent + "[" + firstNonEmpty(b.URL, "link") + "](" + b.URL + ")"
 	case "embed":
@@ -101,6 +109,69 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+// tableToMarkdown renders a `table` block and its `table_row` children as a
+// GitHub-flavored pipe table. The first row is treated as the header (matching
+// Notion's export convention and common markdown tooling); ragged rows are
+// padded to the table's column count. Returns "" when there are no rows.
+func tableToMarkdown(table notion.NormalizedBlock, rows []notion.NormalizedBlock, indent string) string {
+	if len(rows) == 0 {
+		return ""
+	}
+
+	width := table.TableWidth
+	for _, r := range rows {
+		if len(r.Cells) > width {
+			width = len(r.Cells)
+		}
+	}
+	if width == 0 {
+		return ""
+	}
+
+	lines := make([]string, 0, len(rows)+1)
+	lines = append(lines, indent+tableRowPadded(rows[0].Cells, width))
+	lines = append(lines, indent+tableDelimiter(width))
+	for _, r := range rows[1:] {
+		lines = append(lines, indent+tableRowPadded(r.Cells, width))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// tableRow renders a single pipe-delimited row from its cells.
+func tableRow(cells []string) string { return tableRowPadded(cells, len(cells)) }
+
+// tableRowPadded renders a pipe-delimited row, padding to width empty cells.
+func tableRowPadded(cells []string, width int) string {
+	var b strings.Builder
+	b.WriteString("|")
+	for i := 0; i < width; i++ {
+		cell := ""
+		if i < len(cells) {
+			cell = escapeTableCell(cells[i])
+		}
+		b.WriteString(" " + cell + " |")
+	}
+	return b.String()
+}
+
+// tableDelimiter renders the `| --- | --- |` separator row for width columns.
+func tableDelimiter(width int) string {
+	var b strings.Builder
+	b.WriteString("|")
+	for i := 0; i < width; i++ {
+		b.WriteString(" --- |")
+	}
+	return b.String()
+}
+
+// escapeTableCell makes cell text safe inside a pipe table: literal pipes are
+// escaped and newlines become <br> so a multi-line cell stays on one row.
+func escapeTableCell(s string) string {
+	s = strings.ReplaceAll(s, "|", "\\|")
+	s = strings.ReplaceAll(s, "\n", "<br>")
+	return s
+}
+
 // FromBlocks converts a slice of normalized blocks to markdown. childBlocksMap
 // supplies nested content keyed by parent block ID (nil is fine when there is
 // no nesting). Non-empty lines are joined with blank lines between them.
@@ -112,6 +183,13 @@ func fromBlocks(blocks []notion.NormalizedBlock, childBlocksMap map[string][]not
 	lines := make([]string, 0, len(blocks))
 
 	for _, block := range blocks {
+		// A table renders as a single unit from its table_row children, which
+		// are consumed here rather than recursed into as generic blocks.
+		if block.Type == "table" {
+			lines = append(lines, tableToMarkdown(block, childBlocksMap[block.ID], indent))
+			continue
+		}
+
 		lines = append(lines, blockToMarkdown(block, indent))
 
 		if block.HasChildren {
@@ -145,6 +223,13 @@ func FlattenBlock(block notion.NormalizedBlock) map[string]any {
 	}
 	if block.RichText != "" {
 		flat["content"] = block.RichText
+	}
+	if block.Type == "table" {
+		flat["table_width"] = block.TableWidth
+		flat["has_column_header"] = block.HasColumnHeader
+	}
+	if len(block.Cells) > 0 {
+		flat["cells"] = block.Cells
 	}
 	return flat
 }

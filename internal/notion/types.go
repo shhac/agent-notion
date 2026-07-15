@@ -172,6 +172,11 @@ type NormalizedBlock struct {
 	Emoji      string `json:"emoji,omitempty"`
 	Title      string `json:"title,omitempty"`
 	Expression string `json:"expression,omitempty"`
+	// Table fields. TableWidth and HasColumnHeader are set on `table` blocks;
+	// Cells (one flattened string per column) is set on each `table_row` child.
+	TableWidth      int      `json:"table_width,omitempty"`
+	HasColumnHeader bool     `json:"has_column_header,omitempty"`
+	Cells           []string `json:"cells,omitempty"`
 }
 
 // BlockListResult is a page of child blocks.

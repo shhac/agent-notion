@@ -115,7 +115,7 @@ agent-notion block move <block-id> --parent <callout-id>            # move into 
 agent-notion block replace <page-id> --content "# Fresh\n\nAll new" --yes   # delete all blocks, then append (destructive)
 ```
 
-Markdown conversion supports headings, lists, todos, code fences, blockquotes, callouts, images, and dividers. Use `block list --raw` to get block IDs for `update`/`delete`. `block replace` deletes every existing block before appending, so it requires `--yes`.
+Markdown conversion supports headings, lists, todos, code fences, blockquotes, callouts, images, dividers, and tables (rendered as GitHub-flavored pipe tables, first row as header; `--raw` table_row records carry a `cells` array). Use `block list --raw` to get block IDs for `update`/`delete`. `block replace` deletes every existing block before appending, so it requires `--yes`.
 
 ## Comments
 

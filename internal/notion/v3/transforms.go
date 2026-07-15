@@ -191,6 +191,8 @@ var blockTypeMap = map[string]string{
 	"page":                 "child_page",
 	"collection_view_page": "child_database",
 	"collection_view":      "child_database",
+	"table":                "table",
+	"table_row":            "table_row",
 	"table_of_contents":    "table_of_contents",
 	"breadcrumb":           "breadcrumb",
 	"column_list":          "column_list",
@@ -249,6 +251,20 @@ func NormalizeBlock(b *Block, rm RecordMap) notion.NormalizedBlock {
 		nb.URL = b.Property("source").Plain()
 		nb.Caption = b.Property("caption").Plain()
 		nb.Title = b.Property("title").Plain()
+	case "table":
+		nb.TableWidth = len(tableColumnOrder(b))
+		nb.HasColumnHeader = formatBool(b.Format, "table_block_column_header")
+	case "table_row":
+		// A v3 table_row stores each cell in its properties, keyed by the parent
+		// table's column IDs; the parent's format holds the column order.
+		if parent, ok := rm.GetBlock(b.ParentID); ok {
+			order := tableColumnOrder(parent)
+			cells := make([]string, len(order))
+			for i, colID := range order {
+				cells[i] = b.Property(colID).Render(rm)
+			}
+			nb.Cells = cells
+		}
 	}
 
 	return nb
@@ -261,6 +277,28 @@ func formatString(f map[string]any, key string) string {
 	}
 	s, _ := f[key].(string)
 	return s
+}
+
+// formatBool reads a bool entry from a block's format map, false when absent.
+func formatBool(f map[string]any, key string) bool {
+	if f == nil {
+		return false
+	}
+	b, _ := f[key].(bool)
+	return b
+}
+
+// tableColumnOrder returns the column IDs of a v3 table block in display order,
+// read from its format's table_block_column_order.
+func tableColumnOrder(b *Block) []string {
+	raw, _ := b.Format["table_block_column_order"].([]any)
+	order := make([]string, 0, len(raw))
+	for _, v := range raw {
+		if s, ok := v.(string); ok {
+			order = append(order, s)
+		}
+	}
+	return order
 }
 
 // --- High-level transforms ---

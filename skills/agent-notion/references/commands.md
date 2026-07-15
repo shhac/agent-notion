@@ -46,7 +46,7 @@ Output is NDJSON on stdout; errors are `{error, fixable_by, hint}` on stderr (ex
 
 ## Block
 
-- `agent-notion block list <page-id> [--raw] [--limit <n>] [--cursor <cursor>]` — page content as markdown (default) or structured blocks (`--raw`, paginated; raw default limit 100)
+- `agent-notion block list <page-id> [--raw] [--limit <n>] [--cursor <cursor>]` — page content as markdown (default; tables render as GitHub-flavored pipe tables) or structured blocks (`--raw`, paginated; raw default limit 100)
 - `agent-notion block append <page-id> [--content <markdown>] [--blocks <json>]` — append content as markdown or Notion block objects (one required)
 - `agent-notion block update <block-id> --content <text>` — replace a block's text content
 - `agent-notion block delete <block-id> --yes` — delete a block (destructive)

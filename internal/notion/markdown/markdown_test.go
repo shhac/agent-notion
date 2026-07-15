@@ -152,6 +152,62 @@ func TestFromBlocksIndentAppliesToAllTypes(t *testing.T) {
 	}
 }
 
+// TestFromBlocksTable renders a table block plus its table_row children as a
+// GitHub-flavored pipe table, with the first row as the header.
+func TestFromBlocksTable(t *testing.T) {
+	blocks := []notion.NormalizedBlock{
+		{ID: "tbl", Type: "table", TableWidth: 2, HasColumnHeader: true, HasChildren: true},
+	}
+	children := map[string][]notion.NormalizedBlock{
+		"tbl": {
+			{Type: "table_row", Cells: []string{"Name", "State"}},
+			{Type: "table_row", Cells: []string{"draw", "open"}},
+			{Type: "table_row", Cells: []string{"settle", "closed"}},
+		},
+	}
+	want := "| Name | State |\n" +
+		"| --- | --- |\n" +
+		"| draw | open |\n" +
+		"| settle | closed |"
+	if got := FromBlocks(blocks, children); got != want {
+		t.Errorf("FromBlocks() table = %q, want %q", got, want)
+	}
+}
+
+// TestFromBlocksTableEscaping verifies pipes and newlines inside cells stay on
+// one markdown row, and that ragged rows pad to the table width.
+func TestFromBlocksTableEscaping(t *testing.T) {
+	blocks := []notion.NormalizedBlock{
+		{ID: "tbl", Type: "table", TableWidth: 3, HasChildren: true},
+	}
+	children := map[string][]notion.NormalizedBlock{
+		"tbl": {
+			{Type: "table_row", Cells: []string{"a|b", "line1\nline2"}}, // short row pads to 3
+			{Type: "table_row", Cells: []string{"x", "y", "z"}},
+		},
+	}
+	want := "| a\\|b | line1<br>line2 |  |\n" +
+		"| --- | --- | --- |\n" +
+		"| x | y | z |"
+	if got := FromBlocks(blocks, children); got != want {
+		t.Errorf("FromBlocks() table escaping = %q, want %q", got, want)
+	}
+}
+
+// TestFromBlocksTableNoRows renders nothing for a table with no rows, and a
+// stray table_row (outside its table) still surfaces its cells.
+func TestFromBlocksTableNoRows(t *testing.T) {
+	empty := []notion.NormalizedBlock{{ID: "tbl", Type: "table", TableWidth: 2}}
+	if got := FromBlocks(empty, nil); got != "" {
+		t.Errorf("FromBlocks() empty table = %q, want %q", got, "")
+	}
+
+	stray := []notion.NormalizedBlock{{Type: "table_row", Cells: []string{"a", "b"}}}
+	if got := FromBlocks(stray, nil); got != "| a | b |" {
+		t.Errorf("FromBlocks() stray row = %q, want %q", got, "| a | b |")
+	}
+}
+
 func TestFlattenBlock(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -167,6 +223,16 @@ func TestFlattenBlock(t *testing.T) {
 			"empty content omits key",
 			notion.NormalizedBlock{ID: "b2", Type: "divider", RichText: "", HasChildren: false},
 			map[string]any{"id": "b2", "type": "divider", "has_children": false},
+		},
+		{
+			"table carries width and header flag",
+			notion.NormalizedBlock{ID: "b3", Type: "table", TableWidth: 2, HasColumnHeader: true, HasChildren: true},
+			map[string]any{"id": "b3", "type": "table", "has_children": true, "table_width": 2, "has_column_header": true},
+		},
+		{
+			"table_row carries cells",
+			notion.NormalizedBlock{ID: "b4", Type: "table_row", Cells: []string{"a", "b"}},
+			map[string]any{"id": "b4", "type": "table_row", "has_children": false, "cells": []string{"a", "b"}},
 		},
 	}
 

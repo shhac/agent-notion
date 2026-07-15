@@ -312,6 +312,8 @@ LIST (read content)
   block list <page-id> --raw --limit 10 --cursor <c> Paginate raw blocks (raw default limit 100)
   Markdown output: {page_id, content, block_count, has_more}
   Raw output: one record per block {id, type, content, has_children}, then {"@pagination": …}
+  Tables render as GitHub-flavored pipe tables (first row as header); raw table_row
+  records carry a "cells" array and the table record its table_width/has_column_header.
 
 APPEND (add content)
   block append <page-id> --content <markdown>        Append markdown (converted to blocks)

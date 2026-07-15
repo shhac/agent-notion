@@ -436,6 +436,41 @@ func TestNormalizeBlock(t *testing.T) {
 		eq(t, got.Caption, "Video")
 	})
 
+	t.Run("table reads column order and header flag", func(t *testing.T) {
+		b := newBlock("tbl")
+		b.Type = "table"
+		b.Format = map[string]any{
+			"table_block_column_order":  []any{"col_a", "col_b"},
+			"table_block_column_header": true,
+		}
+		got := NormalizeBlock(b, nil)
+		eq(t, got.Type, "table")
+		eq(t, got.TableWidth, 2)
+		eq(t, got.HasColumnHeader, true)
+	})
+
+	t.Run("table_row reads cells in parent column order", func(t *testing.T) {
+		rm := decodeRecordMap(t, `{
+			"block": {
+				"tbl": {"value": {"id": "tbl", "type": "table", "version": 1,
+					"parent_id": "p", "parent_table": "block", "alive": true,
+					"format": {"table_block_column_order": ["col_a", "col_b"]}}}
+			}
+		}`)
+		row := newBlock("row1")
+		row.Type = "table_row"
+		row.ParentID = "tbl"
+		row.Properties = map[string]RichText{
+			"col_a": NewRichText("draw"),
+			"col_b": NewRichText("open"),
+		}
+		got := NormalizeBlock(row, rm)
+		eq(t, got.Type, "table_row")
+		if len(got.Cells) != 2 || got.Cells[0] != "draw" || got.Cells[1] != "open" {
+			t.Errorf("cells = %#v, want [draw open]", got.Cells)
+		}
+	})
+
 	t.Run("unknown type passes through", func(t *testing.T) {
 		b := newBlock("b1")
 		b.Type = "fancy_new_block"

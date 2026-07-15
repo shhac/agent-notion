@@ -454,7 +454,8 @@ HISTORY (v3)
   Output: one record per snapshot {id, version, last_version, timestamp, authors}, then {"@total": n}.
 
 CONTENT FORMAT (--content): headings #/##/###, lists -/1., todos - [ ]/- [x],
-  code fences, quotes >, callouts > icon text, images ![caption](url), dividers ---.
+  code fences, quotes >, callouts > icon text, images ![caption](url), dividers ---,
+  tables as GitHub-flavored pipe tables (first row as header).
 
 LIMITS: max 1000 blocks per fetch (content_truncated=true if exceeded).
 FILE URLS: image/file URLs expire after ~1 hour — re-fetch for fresh URLs.

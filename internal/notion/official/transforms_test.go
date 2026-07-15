@@ -98,6 +98,18 @@ func TestNormalizeBlock(t *testing.T) {
 				"file": map[string]any{"file": map[string]any{"url": "https://example.test/f.pdf"}, "name": "report", "caption": richText("cap")}},
 			notion.NormalizedBlock{ID: "b12", Type: "file", URL: "https://example.test/f.pdf", Caption: "cap", Title: "report"},
 		},
+		{
+			"table",
+			map[string]any{"id": "b13", "type": "table", "has_children": true,
+				"table": map[string]any{"table_width": float64(2), "has_column_header": true, "has_row_header": false}},
+			notion.NormalizedBlock{ID: "b13", Type: "table", TableWidth: 2, HasColumnHeader: true, HasChildren: true},
+		},
+		{
+			"table_row cells",
+			map[string]any{"id": "b14", "type": "table_row", "has_children": false,
+				"table_row": map[string]any{"cells": []any{richText("Name"), richText("State")}}},
+			notion.NormalizedBlock{ID: "b14", Type: "table_row", Cells: []string{"Name", "State"}},
+		},
 	}
 
 	for _, tt := range tests {

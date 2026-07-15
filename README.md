@@ -6,7 +6,7 @@ Notion CLI for humans and LLMs.
 - **LLM-optimized** — `agent-notion usage` (and `<group> usage`) print concise docs for agent consumption
 - **Full CRUD** — search, read, create, update, trash/restore, and archive pages, databases, and blocks
 - **AI chat** — send messages to Notion AI, list models and threads, stream responses
-- **Markdown conversion** — page content rendered as markdown, append content from markdown
+- **Markdown conversion** — page content rendered as markdown (tables become GitHub-flavored pipe tables), append content from markdown
 - **Two backends** — official REST API (integration tokens, OAuth) and the v3 desktop-session API
 - **Zero runtime deps** — a single static Go binary
 
