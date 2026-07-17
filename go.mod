@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/shhac/lib-agent-browsercookies v0.2.0
-	github.com/shhac/lib-agent-cli v0.19.0
+	github.com/shhac/lib-agent-cli v0.21.0
 	github.com/shhac/lib-agent-mcp v0.23.1
 	github.com/shhac/lib-agent-output v0.10.0
 	github.com/spf13/cobra v1.10.2
@@ -31,5 +31,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
-
-replace github.com/shhac/lib-agent-cli => ../lib-agent-cli
