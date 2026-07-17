@@ -93,6 +93,61 @@ func TestAuthImportAgainstMockNotion(t *testing.T) {
 	}
 }
 
+// TestAuthImportReadsTokenFromStdin covers the non-interactive machine form:
+// the secret is piped on stdin (kept off argv) rather than passed via --token.
+func TestAuthImportReadsTokenFromStdin(t *testing.T) {
+	isolateState(t)
+	s, url := newMockServer(t)
+	s.HandleBody("GET /v1/users/me", map[string]any{
+		"object": "user", "id": "bot-1", "name": "Test Integration",
+		"type": "bot", "bot": map[string]any{"workspace_name": "Test Space"},
+	})
+
+	out, _, err := runCLI(t, "  ntn_piped_token_123\n", "--base-url", url, "auth", "import")
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := decodeLines(t, out)[0]
+	ws := item["workspace"].(map[string]any)
+	if ws["alias"] != "test-space" || ws["name"] != "Test Space" {
+		t.Errorf("workspace = %v", ws)
+	}
+
+	calls := s.CallsFor("GET /v1/users/me")
+	if len(calls) != 1 {
+		t.Fatalf("users/me calls = %d", len(calls))
+	}
+	if got := calls[0].Header.Get("Authorization"); got != "Bearer ntn_piped_token_123" {
+		t.Errorf("Authorization = %q (stdin token not trimmed/forwarded)", got)
+	}
+	if got := config.Read().Workspaces["test-space"].AccessToken; got != "ntn_piped_token_123" {
+		t.Errorf("stored token = %q", got)
+	}
+}
+
+// TestAuthImportFlagWinsOverStdin pins the precedence: an explicit --token
+// takes precedence over whatever is piped on stdin.
+func TestAuthImportFlagWinsOverStdin(t *testing.T) {
+	isolateState(t)
+	s, url := newMockServer(t)
+	s.HandleBody("GET /v1/users/me", map[string]any{
+		"object": "user", "id": "bot-1", "name": "Test Integration",
+		"type": "bot", "bot": map[string]any{"workspace_name": "Test Space"},
+	})
+
+	_, _, err := runCLI(t, "ntn_stdin_token", "--base-url", url, "auth", "import", "--token", "ntn_flag_token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := s.CallsFor("GET /v1/users/me")
+	if len(calls) != 1 {
+		t.Fatalf("users/me calls = %d", len(calls))
+	}
+	if got := calls[0].Header.Get("Authorization"); got != "Bearer ntn_flag_token" {
+		t.Errorf("Authorization = %q, want the --token value to win", got)
+	}
+}
+
 func TestImportDesktopViaSeamAndMockValidation(t *testing.T) {
 	isolateState(t)
 	s, url := newMockServer(t)

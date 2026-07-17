@@ -1,12 +1,12 @@
 package cli
 
 import (
-	"io"
 	"strings"
 
 	"github.com/shhac/agent-notion/internal/config"
 	"github.com/shhac/agent-notion/internal/credential"
 	"github.com/shhac/agent-notion/internal/notion/official"
+	"github.com/shhac/lib-agent-cli/creds"
 	output "github.com/shhac/lib-agent-output"
 	"github.com/spf13/cobra"
 )
@@ -33,24 +33,20 @@ func authImportCmd(g *GlobalFlags) *cobra.Command {
 }
 
 func runImportToken(cmd *cobra.Command, g *GlobalFlags, token, alias string) error {
-	trimmed := strings.TrimSpace(token)
-	if trimmed == "" {
-		raw, err := io.ReadAll(cmd.InOrStdin())
-		if err != nil {
-			return err
-		}
-		trimmed = strings.TrimSpace(string(raw))
+	token, err := creds.ReadSecret(cmd.InOrStdin(), token)
+	if err != nil {
+		return err
 	}
-	if trimmed == "" {
+	if token == "" {
 		return output.New("expected an integration token via --token or stdin", output.FixableByAgent).
 			WithHint("create one at https://www.notion.so/my-integrations and share pages with it")
 	}
 
-	if !strings.HasPrefix(trimmed, "ntn_") && !strings.HasPrefix(trimmed, "secret_") {
+	if !strings.HasPrefix(token, "ntn_") && !strings.HasPrefix(token, "secret_") {
 		warnf(g, "token does not start with 'ntn_' or 'secret_'; proceeding anyway")
 	}
 
-	client := official.Client{HTTP: g.httpClient(), BaseURL: g.officialBaseURL(), Token: trimmed}
+	client := official.Client{HTTP: g.httpClient(), BaseURL: g.officialBaseURL(), Token: token}
 	bot, err := client.Me(cmd.Context())
 	if err != nil {
 		return output.New("invalid token: the API rejected it", output.FixableByHuman).
@@ -75,7 +71,7 @@ func runImportToken(cmd *cobra.Command, g *GlobalFlags, token, alias string) err
 		WorkspaceName: name,
 		BotID:         bot.ID,
 		AuthType:      config.AuthInternalIntegration,
-		AccessToken:   trimmed,
+		AccessToken:   token,
 	}, g.keychain())
 	if err != nil {
 		return output.Wrap(err, output.FixableByHuman)
