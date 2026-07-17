@@ -40,7 +40,7 @@ agent-notion auth login
 **Internal integration token:**
 
 ```bash
-agent-notion auth import --token ntn_...        # or pipe the token via stdin
+printf '%s' "$NOTION_TOKEN" | agent-notion auth import   # token read from stdin
 ```
 
 **Desktop session (for v3 features):**
@@ -181,11 +181,13 @@ Client secrets are stored in the OS keychain when available, falling back to pla
 
 ### Internal integration token
 
-For simpler setups or CI environments, use an [internal integration token](https://www.notion.so/profile/integrations):
+For simpler setups or CI environments, use an [internal integration token](https://www.notion.so/profile/integrations). Pipe it on stdin so the secret stays off argv, shell history, and any transcript:
 
 ```bash
-agent-notion auth import --token ntn_...        # or pipe the token via stdin
+printf '%s' "$NOTION_TOKEN" | agent-notion auth import   # token read from stdin
 ```
+
+The token is validated against the API before storing, and the alias is derived from the workspace name (`--alias` overrides). A `--token` flag also works for typing directly in your own terminal, but avoid it in shared or automated contexts where argv is logged. If you are driving an agent, do not hand it a pasted token to place on `--token` — have the agent instruct you to run the import yourself so the secret never enters its context.
 
 ### Workspace management
 

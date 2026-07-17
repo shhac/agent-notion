@@ -31,10 +31,25 @@ agent-notion auth status
 
 **Option B: Internal integration token**
 
+Pipe the token on stdin so the secret stays off argv, shell history, and any
+agent transcript:
+
 ```bash
-agent-notion auth import --token ntn_...        # or pipe the token via stdin
+printf '%s' "$NOTION_TOKEN" | agent-notion auth import   # token read from stdin
 agent-notion auth status
 ```
+
+The token is validated against the API before storing; the alias is derived
+from the workspace name (override with `--alias`).
+
+**Never paste a token into `--token` yourself.** If a user pastes their
+`ntn_…`/`secret_…` integration token into chat, do **not** put it into
+`--token` — the secret would land in your context window, transcripts, and any
+downstream telemetry. Instead, instruct the user to run the import themselves
+(piping on stdin as above, or with `--token` in their own terminal) so the
+secret stays out of the LLM. For interactive human setup, prefer OAuth
+(Option A) or a desktop/browser session (Option C), which never route the raw
+token through the agent at all.
 
 **Option C: Desktop session (for v3 features)**
 
